@@ -459,8 +459,8 @@ export class DocumentVerificationService {
 
             // 1. Initiate parallel extraction with timeouts
             const ocrTasks: Promise<ExtractedDocumentData>[] = [];
-            const AI_TIMEOUT_MS = 90000; // 90 seconds for AI (Gemini/Groq)
-            const TRADITIONAL_TIMEOUT_MS = 30000; // 30 seconds for Traditional
+            const AI_TIMEOUT_MS = 25000; // 25 seconds for AI (Gemini/Groq) to stay within proxy limits
+            const TRADITIONAL_TIMEOUT_MS = 20000; // 20 seconds for Traditional
 
             const withTimeout = async (promise: Promise<ExtractedDocumentData>, engineName: string, ms: number) => {
                 const timeoutPromise = new Promise<never>((_, reject) =>

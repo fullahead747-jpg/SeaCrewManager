@@ -151,7 +151,8 @@ export class GroqOCRService {
           processedBase64 = await this.convertPDFToImage(base64Data);
         } catch (convError) {
           console.error('[OCR-GROQ] PDF conversion failed. Skipping Groq for this PDF.');
-          throw new Error('Groq Vision does not support PDFs and conversion failed. Falling back to other engines.');
+          // Don't throw, just return empty data or let it fail gracefully so others can continue
+          return { rawText: 'Groq skipped: PDF conversion failed' };
         }
       }
 

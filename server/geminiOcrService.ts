@@ -26,9 +26,9 @@ export class GeminiOCRService {
 
             const genAI = this.getClient();
 
-            // Use gemini-1.5-pro for critical documents (multi-page/complex), flash for others
-            const isCriticalDoc = expectedType && ['passport', 'cdc', 'medical', 'coc'].some(t => expectedType.toLowerCase().includes(t));
-            const modelName = isCriticalDoc ? "gemini-1.5-pro-latest" : "gemini-1.5-flash-latest";
+            // Use gemini-1.5-pro for PASSPORT/CDC/COC (high precision needed), flash for medical/others
+            const isHighPrecisionDoc = expectedType && ['passport', 'cdc', 'coc'].some(t => expectedType.toLowerCase().includes(t));
+            const modelName = isHighPrecisionDoc ? "gemini-1.5-pro-latest" : "gemini-1.5-flash-latest";
 
             console.log(`[OCR-GEMINI] Using model: ${modelName} for ${expectedType}`);
             const model = genAI.getGenerativeModel({ model: modelName });
