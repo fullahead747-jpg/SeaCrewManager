@@ -396,9 +396,10 @@ export class DocumentVerificationService {
                 isValid = false;
             }
 
-            // BYPASS FOR PHOTOS: Photos don't have document numbers or dates to match
-            if (existingData.type.toLowerCase().includes('photo')) {
-                console.log('[VERIFICATION-PHOTO] Bypassing strict OCR matching for photo type');
+            // BYPASS FOR PHOTOS & NON-CRITICAL DOCS: These don't have document numbers or dates to match predictably
+            const bypassTypes = ['photo', 'nok', 'next of kin', 'contract', 'agreement', 'letter', 'other'];
+            if (bypassTypes.some(t => existingData.type.toLowerCase().includes(t))) {
+                console.log(`[VERIFICATION-BYPASS] Bypassing strict OCR matching for document type: ${existingData.type}`);
                 isValid = true;
             }
 
@@ -1269,6 +1270,10 @@ export class DocumentVerificationService {
         let n1 = normalize(str1);
         let n2 = normalize(str2);
 
+        // Treat N/A, NONE, and empty values as equivalent
+        const isEmpty = (val: string) => !val || val === 'NONE' || val === 'NA' || val === 'NULL';
+        if (isEmpty(n1) && isEmpty(n2)) return true;
+
         if (n1 === n2) return true;
 
         const ocr1 = this.ocrNormalize(n1);
@@ -1292,11 +1297,18 @@ export class DocumentVerificationService {
         if (!str1 || !str2) return false;
 
         const normalize = (s: string) => s.replace(/[\s\-\/\.]/g, '').toUpperCase();
-        if (normalize(str1) === normalize(str2)) return true;
+        const n1 = normalize(str1);
+        const n2 = normalize(str2);
+
+        // Treat N/A, NONE, and empty values as equivalent even for critical fields
+        const isEmpty = (val: string) => !val || val === 'NONE' || val === 'NA' || val === 'NULL';
+        if (isEmpty(n1) && isEmpty(n2)) return true;
+
+        if (n1 === n2) return true;
 
         if (fieldType === 'critical') {
-            const ocr1 = this.ocrNormalize(normalize(str1));
-            const ocr2 = this.ocrNormalize(normalize(str2));
+            const ocr1 = this.ocrNormalize(n1);
+            const ocr2 = this.ocrNormalize(n2);
 
             if (ocr1 === ocr2) return true;
 
