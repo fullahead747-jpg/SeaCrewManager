@@ -2,40 +2,64 @@ import nodemailer from 'nodemailer';
 
 // Gmail SMTP Email Service using App Password
 export class SMTPEmailService {
-  private transporter: nodemailer.Transporter;
+  private transporter!: nodemailer.Transporter;
   private isConfigured: boolean = false;
 
   constructor() {
+    this.attemptConfiguration();
+  }
+
+  private attemptConfiguration(): boolean {
+    if (this.isConfigured) return true;
+
     const gmailUser = process.env.GMAIL_USER;
     const gmailAppPassword = process.env.GMAIL_APP_PASSWORD;
 
     if (gmailUser && gmailAppPassword) {
-      // Use Gmail SMTP with App Password
-      this.transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: gmailUser,
-          pass: gmailAppPassword,
-        },
-      });
-      this.isConfigured = true;
-      console.log('✅ Gmail SMTP configured successfully with:', gmailUser);
+      try {
+        // Use Gmail SMTP with App Password
+        this.transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: {
+            user: gmailUser,
+            pass: gmailAppPassword,
+          },
+        });
+        this.isConfigured = true;
+        console.log('✅ Gmail SMTP configured successfully with:', gmailUser);
+        return true;
+      } catch (error) {
+        console.error('❌ Failed to create Gmail transporter:', error);
+        return false;
+      }
     } else {
       // Fallback to ethereal for testing if Gmail not configured
-      console.log('⚠️ Gmail credentials not found, using test transport');
-      this.transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: 'ethereal.user@ethereal.email',
-          pass: 'ethereal.pass',
-        },
-      });
+      // Only log this once deeply, or if specifically asked
+      if (!this.transporter) {
+        console.log('⚠️ Gmail configuration incomplete:');
+        if (!gmailUser) console.log('   - GMAIL_USER is missing');
+        if (!gmailAppPassword) console.log('   - GMAIL_APP_PASSWORD is missing');
+        console.log('   Current working directory:', process.cwd());
+        console.log('   Using test transport (Ethereal) temporarily');
+
+        this.transporter = nodemailer.createTransport({
+          host: 'smtp.ethereal.email',
+          port: 587,
+          secure: false,
+          auth: {
+            user: 'ethereal.user@ethereal.email',
+            pass: 'ethereal.pass',
+          },
+        });
+      }
+      return false;
     }
   }
 
   isReady(): boolean {
+    if (!this.isConfigured) {
+      this.attemptConfiguration();
+    }
     return this.isConfigured;
   }
 
