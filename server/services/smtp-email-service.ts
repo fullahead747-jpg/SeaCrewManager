@@ -36,7 +36,7 @@ export class SMTPEmailService {
       // Fallback to ethereal for testing if Gmail not configured
       // Only log this once deeply, or if specifically asked
       if (!this.transporter) {
-        console.log('⚠️ Gmail configuration incomplete (v2.3-diagnostic):');
+        console.log('⚠️ Gmail configuration incomplete (v2.4-diagnostic):');
         if (!gmailUser) console.log('   - GMAIL_USER is missing');
         if (!gmailAppPassword) console.log('   - GMAIL_APP_PASSWORD is missing');
 
@@ -77,7 +77,7 @@ export class SMTPEmailService {
     try {
       console.log(`📧 Sending email to: ${emailData.to}`);
       console.log(`📧 Subject: ${emailData.subject}`);
-      console.log(`📧 Gmail configured: ${this.isConfigured} (v2.2-diagnostic)`);
+      console.log(`📧 Gmail configured: ${this.isConfigured} (v2.4-diagnostic)`);
       if (!this.isConfigured) {
         console.log('🔍 Diagnostic Info:');
         console.log('   GMAIL_USER present:', !!process.env.GMAIL_USER);
