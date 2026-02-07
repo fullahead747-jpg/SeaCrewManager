@@ -578,7 +578,7 @@ export function generateCDCExpiryEmail(data: CDCExpiryAlertData): { subject: str
         <div style="text-align: center; padding: 20px;">
           <p style="color: #9ca3af; font-size: 12px; margin: 0;">
             This is an automated notification from the Crew Management System<br>
-            Sent to: admin@offing.biz, management@fullahead.in | ${new Date().toLocaleDateString()}
+            Sent to: ${data.crewMemberName} | ${new Date().toLocaleDateString()}
           </p>
         </div>
       </div>
@@ -798,7 +798,7 @@ export function generatePassportExpiryEmail(data: PassportExpiryAlertData): { su
         <div style="text-align: center; padding: 20px;">
           <p style="color: #9ca3af; font-size: 12px; margin: 0;">
             This is an automated notification from the Crew Management System<br>
-            Sent to: admin@offing.biz, management@fullahead.in | ${new Date().toLocaleDateString()}
+            Sent to: ${data.crewMemberName} | ${new Date().toLocaleDateString()}
           </p>
         </div>
       </div>
@@ -950,7 +950,7 @@ export function generateCOCExpiryEmail(data: COCExpiryAlertData): { subject: str
           </div>
         </div>
         <div style="text-align: center; padding: 20px;">
-          <p style="color: #9ca3af; font-size: 12px; margin: 0;">This is an automated notification from the Crew Management System<br>Sent to: admin@offing.biz, management@fullahead.in | ${new Date().toLocaleDateString()}</p>
+          <p style="color: #9ca3af; font-size: 12px; margin: 0;">This is an automated notification from the Crew Management System<br>Sent to: ${data.crewMemberName} | ${new Date().toLocaleDateString()}</p>
         </div>
       </div>
     </body>
@@ -1075,7 +1075,7 @@ export function generateMedicalExpiryEmail(data: MedicalExpiryAlertData): { subj
           </div>
         </div>
         <div style="text-align: center; padding: 20px;">
-          <p style="color: #9ca3af; font-size: 12px; margin: 0;">This is an automated notification from the Crew Management System<br>Sent to: admin@offing.biz, management@fullahead.in | ${new Date().toLocaleDateString()}</p>
+          <p style="color: #9ca3af; font-size: 12px; margin: 0;">This is an automated notification from the Crew Management System<br>Sent to: ${data.crewMemberName} | ${new Date().toLocaleDateString()}</p>
         </div>
       </div>
     </body>
@@ -1197,7 +1197,7 @@ export function generateConsolidatedExpiryEmail(data: ConsolidatedDocumentData):
           </div>
         </div>
         <div style="text-align: center; padding: 20px;">
-          <p style="color: #9ca3af; font-size: 12px; margin: 0;">This is an automated notification from the Crew Management System<br>Sent to: admin@offing.biz, management@fullahead.in | ${new Date().toLocaleDateString()}</p>
+          <p style="color: #9ca3af; font-size: 12px; margin: 0;">This is an automated notification from the Crew Management System<br>Sent to: ${data.crewMemberName} | ${new Date().toLocaleDateString()}</p>
         </div>
       </div>
     </body>

@@ -20,7 +20,7 @@ services:
       - key: OCR_SPACE_API_KEY
         sync: false
       - key: DISABLE_EMAIL_NOTIFICATIONS
-        value: true
+        value: false
       - key: DISABLE_WHATSAPP_NOTIFICATIONS
         value: true
     healthCheckPath: /

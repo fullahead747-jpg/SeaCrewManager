@@ -295,6 +295,7 @@ export class NotificationService {
       });
 
       notificationId = notificationRecord.id;
+      let success = false;
 
       const recipientEmail = emailSettings.recipientEmail || 'admin@offing.biz, management@fullahead.in';
 
