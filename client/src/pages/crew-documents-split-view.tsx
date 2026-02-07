@@ -16,7 +16,7 @@ import DocumentUpload from '@/components/documents/document-upload';
 import type { CrewMemberWithDetails, Document } from '@shared/schema';
 
 export default function CrewDocumentsSplitView() {
-    const [location] = useLocation();
+    const [location, setLocation] = useLocation();
     const [selectedCrewId, setSelectedCrewId] = useState<string | null>(null);
     const [initialTypeHandled, setInitialTypeHandled] = useState(false);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -171,7 +171,7 @@ export default function CrewDocumentsSplitView() {
                     crewMembers={crewMembers || []}
                     documents={documents || []}
                     selectedCrewId={selectedCrewId}
-                    onSelectCrew={setSelectedCrewId}
+                    onSelectCrew={(id) => setLocation(`/documents?crew=${id}`)}
                 />
             </div>
 
