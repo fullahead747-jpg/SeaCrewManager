@@ -296,8 +296,7 @@ export class NotificationService {
 
       notificationId = notificationRecord.id;
 
-      let success = false;
-      const recipientEmail = emailSettings.recipientEmail || 'admin@offing.biz';
+      const recipientEmail = emailSettings.recipientEmail || 'admin@offing.biz, management@fullahead.in';
 
       // Generate secure document view link if documentId is available
       let documentViewUrl: string | undefined;
@@ -459,8 +458,7 @@ export class NotificationService {
         console.log('⚠️ Email notifications not enabled - skipping immediate document alert');
         return false;
       }
-
-      const recipientEmail = emailSettings.recipientEmail || 'admin@offing.biz';
+      const recipientEmail = emailSettings.recipientEmail || 'admin@offing.biz, management@fullahead.in';
       const docType = document.type.toLowerCase();
       let success = false;
 
@@ -608,8 +606,7 @@ export class NotificationService {
         console.log('⚠️ Email notifications not enabled - skipping immediate contract alert');
         return false;
       }
-
-      const recipientEmail = emailSettings.recipientEmail || 'admin@offing.biz';
+      const recipientEmail = emailSettings.recipientEmail || 'admin@offing.biz, management@fullahead.in';
 
       const emailContent = {
         subject: `🚨 URGENT: ${crewMember.name}'s Contract expires in ${daysUntilExpiry} days`,

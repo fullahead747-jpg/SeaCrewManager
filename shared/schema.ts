@@ -96,7 +96,7 @@ export const emailSettings = pgTable("email_settings", {
   reminderDays: jsonb("reminder_days").default([30, 15, 7]), // Days before expiry to send reminders
   enabled: boolean("enabled").default(true),
   recipients: jsonb("recipients").default(['office_staff', 'admin']), // Who receives notifications
-  recipientEmail: text("recipient_email").default('admin@offing.biz'), // Primary recipient email address
+  recipientEmail: text("recipient_email").default('admin@offing.biz, management@fullahead.in'), // Primary recipient email address
   emailTemplate: text("email_template"),
   // Monthly calendar email tracking (persistent across server restarts)
   lastMonthlyEmailMonth: text("last_monthly_email_month"), // YYYY-MM format of last month email was sent

@@ -26,9 +26,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const demoUser = {
         id: 'demo-admin-id',
         username: 'admin',
+        password: 'demo-password',
         role: 'admin',
         name: 'Demo Administrator',
-        email: 'admin@example.com'
+        email: 'admin@example.com',
+        createdAt: new Date()
       };
       const demoToken = 'mock-token-demo-admin-id';
 
