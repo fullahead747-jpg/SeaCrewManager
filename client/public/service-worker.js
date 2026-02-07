@@ -1,34 +1,40 @@
-const CACHE_NAME = 'captain-v1';
+const CACHE_NAME = 'captain-v2';
 const urlsToCache = [
     '/',
     '/captain',
-    '/static/css/main.css',
-    '/static/js/main.js',
 ];
 
 // Install service worker and cache resources
 self.addEventListener('install', (event) => {
+    self.skipWaiting(); // Force active immediately
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
-                console.log('Opened cache');
+                console.log('Opened v2 cache');
                 return cache.addAll(urlsToCache);
             })
     );
 });
 
-// Fetch from cache first, then network
+// Network First strategy
 self.addEventListener('fetch', (event) => {
     event.respondWith(
-        caches.match(event.request)
+        fetch(event.request)
             .then((response) => {
-                // Cache hit - return response
-                if (response) {
+                // If network works, update cache and return
+                if (response.ok) {
+                    const responseClone = response.clone();
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(event.request, responseClone);
+                    });
                     return response;
                 }
-                return fetch(event.request);
-            }
-            )
+                return response;
+            })
+            .catch(() => {
+                // If network fails, try cache
+                return caches.match(event.request);
+            })
     );
 });
 

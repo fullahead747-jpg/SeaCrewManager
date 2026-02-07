@@ -51,3 +51,21 @@ createRoot(document.getElementById("root")!).render(
     </QueryClientProvider>
   </ErrorBoundary>
 );
+// Register service worker and handle updates
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').then(registration => {
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New content found, reload the page
+              window.location.reload();
+            }
+          });
+        }
+      });
+    });
+  });
+}
