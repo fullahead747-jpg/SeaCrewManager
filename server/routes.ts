@@ -3650,11 +3650,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // CHECK ATTACHMENT SIZE
+      const totalSize = attachments.reduce((sum, att) => sum + att.content.length, 0);
+      const MAX_SIZE_BYTES = 20 * 1024 * 1024; // 20MB limit for Gmail (+ overhead safety)
+      let attachmentsSkipped = false;
+
+      if (totalSize > MAX_SIZE_BYTES) {
+        console.warn(`Total attachment size (${(totalSize / 1024 / 1024).toFixed(2)}MB) exceeds 20MB limit. Sending email without attachments.`);
+        attachments.length = 0; // Clear attachments
+        attachmentsSkipped = true;
+      }
+
       const emergencyContact = crewMember.emergencyContact as any;
 
       const html = `
     <div style="font-family: Arial, sans-serif; max-width: 700px; margin: 0 auto; background: #f8f9fa; padding: 20px;"><div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0066cc; padding-bottom: 20px;"><h1 style="color: #0066cc; margin: 0; font-size: 24px;">👤 Crew Member Details </h1><p style="color: #6c757d; margin: 10px 0 0 0;"> Crew Management System - ${new Date().toLocaleDateString()} </p>
               ${attachments.length > 0 ? `<p style="color: #28a745; margin: 5px 0 0 0; font-weight: bold;">📎 ${attachments.length} attachment(s) included</p>` : ''}
+              ${attachmentsSkipped ? '<div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 4px; margin-top: 10px; border: 1px solid #ffeeba;">⚠️ Attachments were too large (>20MB) to send via email. Please download them from the dashboard.</div>' : ''}
   </div><div style="background: #e3f2fd; padding: 20px; border-radius: 8px; margin-bottom: 20px;"><h2 style="color: #0d47a1; margin: 0 0 15px 0; font-size: 18px;">📋 Personal Information </h2><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #666;"> Name: </td><td style="padding: 8px 0; font-weight: bold;">${crewMember.firstName} ${crewMember.lastName}</td></tr><tr><td style="padding: 8px 0; color: #666;"> Rank: </td><td style="padding: 8px 0; font-weight: bold;">${crewMember.rank}</td></tr><tr><td style="padding: 8px 0; color: #666;"> Nationality: </td><td style="padding: 8px 0;">${crewMember.nationality}</td></tr><tr><td style="padding: 8px 0; color: #666;"> Date of Birth: </td><td style="padding: 8px 0;">${new Date(crewMember.dateOfBirth).toLocaleDateString()}</td></tr><tr><td style="padding: 8px 0; color: #666;"> Phone: </td><td style="padding: 8px 0;">${crewMember.phoneNumber || 'N/A'}</td></tr><tr><td style="padding: 8px 0; color: #666;"> Email: </td><td style="padding: 8px 0;">${crewMember.email || 'N/A'}</td></tr><tr><td style="padding: 8px 0; color: #666;"> Status: </td><td style="padding: 8px 0;"><span style="background: ${crewMember.status === 'onBoard' ? '#28a745' : '#ffc107'}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">${crewMember.status === 'onBoard' ? 'On Board' : 'On Shore'}</span></td></tr></table></div>
 
             ${vessel ? `
@@ -3714,7 +3726,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       console.error("❌ Failed to send crew details email:", error);
-      res.status(500).json({ message: "Failed to send crew details email" });
+      console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      res.status(500).json({
+        message: "Failed to send crew details email",
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 
