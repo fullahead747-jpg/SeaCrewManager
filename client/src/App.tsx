@@ -14,6 +14,8 @@ import Scheduling from "@/pages/scheduling";
 import StatusHistory from "@/pages/status-history";
 import CaptainLite from "@/pages/captain-lite";
 import CrewDocumentsSplitView from "@/pages/crew-documents-split-view";
+import Settings from "@/pages/settings";
+import Notifications from "@/pages/notifications";
 import AppLayout from "@/components/layout/app-layout";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -60,9 +62,14 @@ function Router() {
           {/* Captain Assistant */}
           <Route path="/captain" component={CaptainLite} />
 
-          {/* Status History */}
           <Route path="/status-history">
             <AppLayout><StatusHistory /></AppLayout>
+          </Route>
+          <Route path="/settings">
+            <AppLayout><Settings /></AppLayout>
+          </Route>
+          <Route path="/notifications">
+            <AppLayout><Notifications /></AppLayout>
           </Route>
 
           {/* Final Fallback - Dashboard */}
