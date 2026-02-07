@@ -24,6 +24,7 @@ import { db } from "./db";
 import { sql, eq, and, isNull, desc } from "drizzle-orm";
 import { localOcrService } from "./localOcrService";
 import { groqOcrService } from "./groqOcrService";
+import { geminiOcrService } from "./geminiOcrService";
 import { randomUUID } from "crypto";
 import { VesselDocumentStorageService } from "./objectStorage";
 import { notificationService } from "./services/notification-service";
@@ -3825,23 +3826,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Image data is required" });
       }
 
-      console.log('Processing OCR request for file:', filename);
-
       let extractedData;
+      const isPDF = filename?.toLowerCase().endsWith('.pdf') || (image && image.startsWith('JVBERi'));
 
-      // Use Groq Vision AI if available for better accuracy
-      if (groqOcrService.isAvailable()) {
-        console.log('Using Groq Vision AI for OCR extraction');
-        try {
-          extractedData = await groqOcrService.extractCrewDataWithRecord(image, filename);
-        } catch (groqError) {
-          console.error('Groq Vision failed, falling back to local OCR:', groqError);
-          extractedData = await localOcrService.extractCrewDataWithRecord(image, filename);
+      // Use a multi-engine pipeline with priority based on file type
+      try {
+        if (isPDF) {
+          console.log('PDF detected. Prioritizing Gemini for best results.');
+          if (geminiOcrService.isAvailable()) {
+            try {
+              extractedData = await geminiOcrService.extractCrewDataFromDocument(image, filename);
+            } catch (geminiError) {
+              console.error('Gemini PDF extraction failed, trying Groq:', geminiError);
+              extractedData = await groqOcrService.extractCrewDataFromDocument(image, filename);
+            }
+          } else {
+            extractedData = await groqOcrService.extractCrewDataFromDocument(image, filename);
+          }
+        } else {
+          // IMAGE PROCESSING: Prioritize Groq, fallback to Gemini
+          if (groqOcrService.isAvailable()) {
+            console.log('Using Groq Vision AI for image OCR');
+            try {
+              extractedData = await groqOcrService.extractCrewDataFromDocument(image, filename);
+            } catch (groqError) {
+              console.error('Groq image extraction failed, trying Gemini:', groqError);
+              if (geminiOcrService.isAvailable()) {
+                extractedData = await geminiOcrService.extractCrewDataFromDocument(image, filename);
+              } else {
+                throw groqError;
+              }
+            }
+          } else if (geminiOcrService.isAvailable()) {
+            console.log('Groq unavailable, using Gemini for image OCR');
+            extractedData = await geminiOcrService.extractCrewDataFromDocument(image, filename);
+          } else {
+            console.log('No AI services available, using local OCR');
+            extractedData = await localOcrService.extractCrewDataFromDocument(image, filename);
+          }
         }
-      } else {
-        console.log('Using local Tesseract OCR');
-        extractedData = await localOcrService.extractCrewDataWithRecord(image, filename);
+      } catch (pipelineError) {
+        console.error('AI pipeline failed, falling back to local OCR:', pipelineError);
+        extractedData = await localOcrService.extractCrewDataFromDocument(image, filename);
       }
+
+      // Ensure we return a record format
+      const recordId = `crew-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const displayName = extractedData.seafarerName || extractedData.name || 'Unknown Crew Member';
+      const result = {
+        ...extractedData,
+        recordId,
+        displayName
+      };
 
       // Log the OCR activity
       try {
@@ -3859,7 +3895,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Failed to log OCR activity:", logError);
       }
 
-      res.json(extractedData);
+      res.json(result);
     } catch (error) {
       console.error("OCR extraction error:", error);
       res.status(500).json({
