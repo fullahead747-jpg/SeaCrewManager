@@ -1,0 +1,706 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CrewTrack Pro - Maritime Crew Management System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'maritime-navy': '#1B4F72',
+                        'ocean-blue': '#5DADE2',
+                        'warning-amber': '#F39C12',
+                        'compliance-green': '#27AE60',
+                        'text-navy': '#2C3E50',
+                        'alert-red': '#E74C3C'
+                    },
+                    fontFamily: {
+                        'inter': ['Inter', 'system-ui', 'sans-serif']
+                    }
+                }
+            }
+        };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 font-inter text-text-navy">
+    
+    <!-- @COMPONENT: AppHeader [navigation, user role switching, notifications] -->
+    <header class="bg-white border-b border-gray-200 shadow-sm fixed w-full top-0 z-50">
+        <div class="flex items-center justify-between px-6 py-4">
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2">
+                    <i class="fas fa-anchor text-maritime-navy text-2xl"></i>
+                    <h1 class="text-xl font-semibold text-maritime-navy">CrewTrack Pro</h1>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <!-- Role Switcher for Demo -->
+                <select id="roleSelector" class="bg-gray-100 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-maritime-navy focus:border-transparent" data-implementation="Role-based authentication system">
+                    <option value="admin">Admin (Head Office)</option>
+                    <option value="captain">Vessel Master (Captain)</option>
+                    <option value="crew">Crew Member</option>
+                </select>
+                
+                <div class="relative">
+                    <button class="p-2 text-gray-600 hover:text-maritime-navy relative" data-event="click:toggleNotifications">
+                        <i class="fas fa-bell text-lg"></i>
+                        <span class="absolute -top-1 -right-1 bg-alert-red text-white text-xs rounded-full h-5 w-5 flex items-center justify-center" data-bind="notificationCount">3</span>
+                    </button>
+                </div>
+                
+                <div class="flex items-center space-x-2 bg-gray-100 rounded-lg px-3 py-2">
+                    <div class="w-8 h-8 bg-maritime-navy rounded-full flex items-center justify-center">
+                        <i class="fas fa-user text-white text-sm"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium" data-bind="currentUser.name">John Smith</p>
+                        <p class="text-xs text-gray-500" data-bind="currentUser.role">Fleet Administrator</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: AppHeader -->
+
+    <div class="flex pt-20">
+        <!-- @COMPONENT: Sidebar [role-based navigation] -->
+        <aside class="w-64 bg-white border-r border-gray-200 shadow-sm fixed left-0 top-20 bottom-0 overflow-y-auto">
+            <nav class="p-6">
+                <div class="space-y-2" id="sidebarNav">
+                    <!-- Admin Navigation -->
+                    <div class="admin-nav">
+                        <div class="mb-6">
+                            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Fleet Management</h3>
+                            <ul class="space-y-1">
+                                <li><a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg bg-maritime-navy text-white" data-nav="dashboard">
+                                    <i class="fas fa-tachometer-alt"></i>
+                                    <span>Dashboard</span>
+                                </a></li>
+                                <li><a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100" data-nav="crew">
+                                    <i class="fas fa-users"></i>
+                                    <span>Crew Management</span>
+                                </a></li>
+                                <li><a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100" data-nav="vessels">
+                                    <i class="fas fa-ship"></i>
+                                    <span>Fleet Overview</span>
+                                </a></li>
+                                <li><a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100" data-nav="schedules">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    <span>Scheduling</span>
+                                </a></li>
+                            </ul>
+                        </div>
+                        
+                        <div class="mb-6">
+                            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Compliance</h3>
+                            <ul class="space-y-1">
+                                <li><a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100" data-nav="documents">
+                                    <i class="fas fa-file-alt"></i>
+                                    <span>Document Center</span>
+                                </a></li>
+                                <li><a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100" data-nav="alerts">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <span>Expiry Alerts</span>
+                                </a></li>
+                                <li><a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100" data-nav="reports">
+                                    <i class="fas fa-chart-bar"></i>
+                                    <span>Reports</span>
+                                </a></li>
+                            </ul>
+                        </div>
+                        
+                        <div>
+                            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">System</h3>
+                            <ul class="space-y-1">
+                                <li><a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100" data-nav="settings">
+                                    <i class="fas fa-cog"></i>
+                                    <span>Settings</span>
+                                </a></li>
+                                <li><a href="#" class="flex items-center space-x-3 px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-100" data-nav="notifications">
+                                    <i class="fas fa-envelope"></i>
+                                    <span>Email Notifications</span>
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+        </aside>
+        <!-- @END_COMPONENT: Sidebar -->
+
+        <!-- @COMPONENT: MainContent [dashboard with role-based views] -->
+        <main class="flex-1 ml-64 p-8">
+            
+            <!-- Alert Banner for Expiring Documents -->
+            <div class="mb-6 bg-warning-amber bg-opacity-10 border-l-4 border-warning-amber p-4 rounded-r-lg">
+                <div class="flex items-center">
+                    <i class="fas fa-exclamation-triangle text-warning-amber mr-3"></i>
+                    <div>
+                        <h4 class="font-medium text-warning-amber">Document Expiry Alert</h4>
+                        <p class="text-sm text-gray-700 mt-1">5 crew members have documents expiring within 30 days. <a href="#" class="text-maritime-navy underline">View Details</a></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard Header -->
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-maritime-navy mb-2">Fleet Dashboard</h2>
+                <p class="text-gray-600">Overview of your maritime operations and crew status</p>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Active Crew</p>
+                            <p class="text-3xl font-bold text-maritime-navy mt-2" data-bind="stats.activeCrew">247</p>
+                        </div>
+                        <div class="w-12 h-12 bg-ocean-blue bg-opacity-10 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-users text-ocean-blue text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center text-sm">
+                        <i class="fas fa-arrow-up text-compliance-green mr-1"></i>
+                        <span class="text-compliance-green font-medium">+5.2%</span>
+                        <span class="text-gray-500 ml-2">from last month</span>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Active Vessels</p>
+                            <p class="text-3xl font-bold text-maritime-navy mt-2" data-bind="stats.activeVessels">12</p>
+                        </div>
+                        <div class="w-12 h-12 bg-maritime-navy bg-opacity-10 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-ship text-maritime-navy text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center text-sm">
+                        <span class="text-gray-500">All vessels operational</span>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Pending Actions</p>
+                            <p class="text-3xl font-bold text-warning-amber mt-2" data-bind="stats.pendingActions">23</p>
+                        </div>
+                        <div class="w-12 h-12 bg-warning-amber bg-opacity-10 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-clock text-warning-amber text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center text-sm">
+                        <span class="text-gray-500">Document renewals & approvals</span>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm font-medium text-gray-500">Compliance Rate</p>
+                            <p class="text-3xl font-bold text-compliance-green mt-2">94.8%</p>
+                        </div>
+                        <div class="w-12 h-12 bg-compliance-green bg-opacity-10 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-check-circle text-compliance-green text-xl"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex items-center text-sm">
+                        <i class="fas fa-arrow-up text-compliance-green mr-1"></i>
+                        <span class="text-compliance-green font-medium">+2.1%</span>
+                        <span class="text-gray-500 ml-2">from last month</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Main Content Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                <!-- Crew Status Overview -->
+                <div class="lg:col-span-2">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                        <div class="p-6 border-b border-gray-200">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-lg font-semibold text-maritime-navy">Crew Overview</h3>
+                                <div class="flex space-x-2">
+                                    <button class="px-4 py-2 text-sm bg-maritime-navy text-white rounded-lg hover:bg-blue-800 transition-colors" data-event="click:addCrewMember">
+                                        <i class="fas fa-plus mr-2"></i>Add Crew
+                                    </button>
+                                    <button class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors" data-event="click:exportCrew">
+                                        <i class="fas fa-download mr-2"></i>Export
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-6">
+                            <!-- Search and Filter -->
+                            <div class="flex items-center space-x-4 mb-6">
+                                <div class="flex-1 relative">
+                                    <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                                    <input type="text" placeholder="Search crew members..." class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maritime-navy focus:border-transparent" data-implementation="Search functionality">
+                                </div>
+                                <select class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maritime-navy focus:border-transparent" data-implementation="Filter by vessel">
+                                    <option>All Vessels</option>
+                                    <option>MV Ocean Pioneer</option>
+                                    <option>MV Maritime Explorer</option>
+                                    <option>MV Deep Blue</option>
+                                </select>
+                            </div>
+
+                            <!-- Crew Table -->
+                            <div class="overflow-x-auto">
+                                <table class="w-full">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Crew Member</th>
+                                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Vessel</th>
+                                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Contract Status</th>
+                                            <th class="px-4 py-3 text-left text-sm font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200" data-mock="true">
+                                        <!-- @MAP: crewMembers.map(member => ( -->
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-4">
+                                                <div class="flex items-center">
+                                                    <div class="w-10 h-10 bg-maritime-navy rounded-full flex items-center justify-center text-white font-medium">
+                                                        <span data-bind="member.initials">MS</span>
+                                                    </div>
+                                                    <div class="ml-3">
+                                                        <p class="font-medium text-gray-900" data-bind="member.name">Michael Santos</p>
+                                                        <p class="text-sm text-gray-500" data-bind="member.nationality">Philippines</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-4 text-sm text-gray-900" data-bind="member.rank">Chief Engineer</td>
+                                            <td class="px-4 py-4 text-sm text-gray-900" data-bind="member.vessel">MV Ocean Pioneer</td>
+                                            <td class="px-4 py-4">
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-compliance-green text-white" data-bind="member.contractStatus">
+                                                    Active
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-4">
+                                                <div class="flex space-x-2">
+                                                    <button class="text-maritime-navy hover:text-blue-800" data-event="click:viewProfile" title="View Profile">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button class="text-gray-600 hover:text-gray-800" data-event="click:editProfile" title="Edit">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-4">
+                                                <div class="flex items-center">
+                                                    <div class="w-10 h-10 bg-maritime-navy rounded-full flex items-center justify-center text-white font-medium">AK</div>
+                                                    <div class="ml-3">
+                                                        <p class="font-medium text-gray-900">Anna Kowalski</p>
+                                                        <p class="text-sm text-gray-500">Poland</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-4 text-sm text-gray-900">2nd Officer</td>
+                                            <td class="px-4 py-4 text-sm text-gray-900">MV Maritime Explorer</td>
+                                            <td class="px-4 py-4">
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-warning-amber text-white">
+                                                    Expiring Soon
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-4">
+                                                <div class="flex space-x-2">
+                                                    <button class="text-maritime-navy hover:text-blue-800" title="View Profile">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button class="text-gray-600 hover:text-gray-800" title="Edit">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        <tr class="hover:bg-gray-50">
+                                            <td class="px-4 py-4">
+                                                <div class="flex items-center">
+                                                    <div class="w-10 h-10 bg-maritime-navy rounded-full flex items-center justify-center text-white font-medium">RJ</div>
+                                                    <div class="ml-3">
+                                                        <p class="font-medium text-gray-900">Robert Johnson</p>
+                                                        <p class="text-sm text-gray-500">United Kingdom</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td class="px-4 py-4 text-sm text-gray-900">Captain</td>
+                                            <td class="px-4 py-4 text-sm text-gray-900">MV Deep Blue</td>
+                                            <td class="px-4 py-4">
+                                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-compliance-green text-white">
+                                                    Active
+                                                </span>
+                                            </td>
+                                            <td class="px-4 py-4">
+                                                <div class="flex space-x-2">
+                                                    <button class="text-maritime-navy hover:text-blue-800" title="View Profile">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
+                                                    <button class="text-gray-600 hover:text-gray-800" title="Edit">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        <!-- @END_MAP )) -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar - Quick Info -->
+                <div class="space-y-6">
+                    
+                    <!-- Upcoming Events -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                        <div class="p-6 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-maritime-navy">Upcoming Events</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="space-y-4">
+                                <div class="flex items-start space-x-3">
+                                    <div class="w-2 h-2 bg-warning-amber rounded-full mt-2"></div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">Contract Renewal</p>
+                                        <p class="text-xs text-gray-500">Michael Santos - 15 days</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start space-x-3">
+                                    <div class="w-2 h-2 bg-ocean-blue rounded-full mt-2"></div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">Crew Change</p>
+                                        <p class="text-xs text-gray-500">MV Ocean Pioneer - 3 days</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start space-x-3">
+                                    <div class="w-2 h-2 bg-compliance-green rounded-full mt-2"></div>
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">Training Completed</p>
+                                        <p class="text-xs text-gray-500">Anna Kowalski - STCW</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Document Expiry Alerts -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                        <div class="p-6 border-b border-gray-200">
+                            <div class="flex items-center justify-between">
+                                <h3 class="text-lg font-semibold text-maritime-navy">Expiry Alerts</h3>
+                                <span class="bg-alert-red text-white text-xs px-2 py-1 rounded-full">5</span>
+                            </div>
+                        </div>
+                        <div class="p-6">
+                            <div class="space-y-4">
+                                <div class="flex items-center justify-between p-3 bg-red-50 border-l-4 border-alert-red rounded-r">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">STCW Certificate</p>
+                                        <p class="text-xs text-gray-500">Anna Kowalski - 7 days</p>
+                                    </div>
+                                    <i class="fas fa-exclamation-triangle text-alert-red"></i>
+                                </div>
+                                <div class="flex items-center justify-between p-3 bg-yellow-50 border-l-4 border-warning-amber rounded-r">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">Medical Certificate</p>
+                                        <p class="text-xs text-gray-500">James Wilson - 15 days</p>
+                                    </div>
+                                    <i class="fas fa-clock text-warning-amber"></i>
+                                </div>
+                                <div class="flex items-center justify-between p-3 bg-yellow-50 border-l-4 border-warning-amber rounded-r">
+                                    <div>
+                                        <p class="text-sm font-medium text-gray-900">Passport</p>
+                                        <p class="text-xs text-gray-500">Carlos Rodriguez - 28 days</p>
+                                    </div>
+                                    <i class="fas fa-clock text-warning-amber"></i>
+                                </div>
+                            </div>
+                            <button class="w-full mt-4 px-4 py-2 bg-maritime-navy text-white rounded-lg hover:bg-blue-800 transition-colors text-sm" data-event="click:viewAllAlerts">
+                                View All Alerts
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                        <div class="p-6 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-maritime-navy">Quick Actions</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="space-y-3">
+                                <button class="w-full flex items-center space-x-3 px-4 py-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" data-event="click:scheduleCrewChange">
+                                    <i class="fas fa-calendar-plus text-ocean-blue"></i>
+                                    <span class="text-sm font-medium">Schedule Crew Change</span>
+                                </button>
+                                <button class="w-full flex items-center space-x-3 px-4 py-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" data-event="click:uploadDocuments">
+                                    <i class="fas fa-upload text-compliance-green"></i>
+                                    <span class="text-sm font-medium">Upload Documents</span>
+                                </button>
+                                <button class="w-full flex items-center space-x-3 px-4 py-3 text-left border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors" data-event="click:generateReports">
+                                    <i class="fas fa-file-export text-warning-amber"></i>
+                                    <span class="text-sm font-medium">Generate Reports</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Email Notification Settings Panel (Modal-like component) -->
+            <div id="emailSettings" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4" data-implementation="Modal component for email settings">
+                <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-96 overflow-y-auto">
+                    <div class="p-6 border-b border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-maritime-navy">Email Notification Settings</h3>
+                            <button class="text-gray-500 hover:text-gray-700" data-event="click:closeEmailSettings">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <div class="space-y-6">
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-4">Contract Expiry Reminders</h4>
+                                <div class="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">30 Days</label>
+                                        <div class="flex items-center">
+                                            <input type="checkbox" checked class="h-4 w-4 text-maritime-navy focus:ring-maritime-navy border-gray-300 rounded">
+                                            <span class="ml-2 text-sm text-gray-600">Enabled</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">15 Days</label>
+                                        <div class="flex items-center">
+                                            <input type="checkbox" checked class="h-4 w-4 text-maritime-navy focus:ring-maritime-navy border-gray-300 rounded">
+                                            <span class="ml-2 text-sm text-gray-600">Enabled</span>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">7 Days</label>
+                                        <div class="flex items-center">
+                                            <input type="checkbox" checked class="h-4 w-4 text-maritime-navy focus:ring-maritime-navy border-gray-300 rounded">
+                                            <span class="ml-2 text-sm text-gray-600">Enabled</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-4">Notification Recipients</h4>
+                                <div class="space-y-3">
+                                    <div class="flex items-center">
+                                        <input type="checkbox" checked class="h-4 w-4 text-maritime-navy focus:ring-maritime-navy border-gray-300 rounded">
+                                        <span class="ml-2 text-sm text-gray-700">Crew Member</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" checked class="h-4 w-4 text-maritime-navy focus:ring-maritime-navy border-gray-300 rounded">
+                                        <span class="ml-2 text-sm text-gray-700">Vessel Master</span>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <input type="checkbox" checked class="h-4 w-4 text-maritime-navy focus:ring-maritime-navy border-gray-300 rounded">
+                                        <span class="ml-2 text-sm text-gray-700">Fleet Administrator</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 class="font-medium text-gray-900 mb-4">Email Template Preview</h4>
+                                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm">
+                                    <p class="font-medium text-gray-900 mb-2">Subject: Contract Expiry Notice - Action Required</p>
+                                    <p class="text-gray-700 mb-2">Dear [Crew Member],</p>
+                                    <p class="text-gray-700">Your contract with [Vessel Name] is scheduled to expire on [Expiry Date]. Please contact your Fleet Administrator to discuss renewal or transition arrangements.</p>
+                                </div>
+                            </div>
+
+                            <div class="flex space-x-4 pt-4">
+                                <button class="px-6 py-2 bg-maritime-navy text-white rounded-lg hover:bg-blue-800 transition-colors" data-event="click:saveEmailSettings" data-implementation="Save email notification preferences">
+                                    Save Settings
+                                </button>
+                                <button class="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors" data-event="click:testEmail" data-implementation="Send test email">
+                                    Send Test Email
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calendar View (Hidden by default, shown when scheduling is clicked) -->
+            <div id="calendarView" class="hidden mt-8">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                    <div class="p-6 border-b border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-maritime-navy">Crew Rotation Calendar</h3>
+                            <div class="flex space-x-2">
+                                <button class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-event="click:prevMonth">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <span class="px-4 py-2 text-sm font-medium">January 2024</span>
+                                <button class="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50" data-event="click:nextMonth">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <!-- Calendar Grid - Simplified for demo -->
+                        <div class="grid grid-cols-7 gap-1 text-center text-sm">
+                            <div class="font-medium text-gray-500 p-3">Sun</div>
+                            <div class="font-medium text-gray-500 p-3">Mon</div>
+                            <div class="font-medium text-gray-500 p-3">Tue</div>
+                            <div class="font-medium text-gray-500 p-3">Wed</div>
+                            <div class="font-medium text-gray-500 p-3">Thu</div>
+                            <div class="font-medium text-gray-500 p-3">Fri</div>
+                            <div class="font-medium text-gray-500 p-3">Sat</div>
+                            
+                            <!-- Calendar days with crew events -->
+                            <div class="p-3 text-gray-400">31</div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer">1</div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer">2</div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer relative">
+                                3
+                                <div class="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-ocean-blue rounded-full"></div>
+                            </div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer">4</div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer relative">
+                                5
+                                <div class="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-warning-amber rounded-full"></div>
+                            </div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer">6</div>
+                            
+                            <!-- More calendar days... -->
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer">7</div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer">8</div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer">9</div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer">10</div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer">11</div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer relative">
+                                12
+                                <div class="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-compliance-green rounded-full"></div>
+                            </div>
+                            <div class="p-3 hover:bg-gray-50 cursor-pointer">13</div>
+                        </div>
+                        
+                        <div class="mt-6 flex items-center space-x-6">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-3 h-3 bg-ocean-blue rounded-full"></div>
+                                <span class="text-sm text-gray-600">Crew Join</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-3 h-3 bg-warning-amber rounded-full"></div>
+                                <span class="text-sm text-gray-600">Crew Leave</span>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-3 h-3 bg-compliance-green rounded-full"></div>
+                                <span class="text-sm text-gray-600">Training</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+        <!-- @END_COMPONENT: MainContent -->
+    </div>
+
+    <script>
+        // TODO: Implement business logic, API calls, or state management
+        
+        (function() {
+            // Demo functionality for role switching and UI interactions
+            const roleSelector = document.getElementById('roleSelector');
+            const sidebarNav = document.getElementById('sidebarNav');
+            
+            // Simple role-based navigation demo
+            function updateNavForRole(role) {
+                // This would be replaced with proper role-based authentication
+                console.log('Role changed to:', role);
+                // TODO: Implement proper role-based view switching
+            }
+            
+            roleSelector?.addEventListener('change', function() {
+                updateNavForRole(this.value);
+            });
+
+            // Simple modal functionality for email settings
+            function showEmailSettings() {
+                document.getElementById('emailSettings')?.classList.remove('hidden');
+            }
+            
+            function hideEmailSettings() {
+                document.getElementById('emailSettings')?.classList.add('hidden');
+            }
+            
+            // Simple calendar toggle
+            function toggleCalendar() {
+                const calendarView = document.getElementById('calendarView');
+                calendarView?.classList.toggle('hidden');
+            }
+            
+            // Event delegation for dynamic buttons
+            document.addEventListener('click', function(e) {
+                const target = e.target.closest('[data-event]');
+                if (!target) return;
+                
+                const eventAction = target.dataset.event;
+                
+                switch(eventAction) {
+                    case 'click:toggleNotifications':
+                        console.log('Toggle notifications');
+                        break;
+                    case 'click:addCrewMember':
+                        console.log('Add crew member modal');
+                        break;
+                    case 'click:scheduleCrewChange':
+                        toggleCalendar();
+                        break;
+                    case 'click:uploadDocuments':
+                        console.log('Document upload modal');
+                        break;
+                    case 'click:viewAllAlerts':
+                        console.log('Navigate to alerts page');
+                        break;
+                    case 'click:closeEmailSettings':
+                        hideEmailSettings();
+                        break;
+                    case 'click:saveEmailSettings':
+                        console.log('Save email settings');
+                        hideEmailSettings();
+                        break;
+                    default:
+                        console.log('Event:', eventAction);
+                }
+            });
+            
+            // Navigation handling
+            document.addEventListener('click', function(e) {
+                if (e.target.matches('[data-nav="notifications"]') || e.target.closest('[data-nav="notifications"]')) {
+                    showEmailSettings();
+                }
+            });
+        })();
+    </script>
+
+</body>
+</html>

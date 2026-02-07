@@ -1,0 +1,2 @@
+// Add FileText import to edit-crew-form.tsx
+// Line 28 should be: import { FileText } from 'lucide-react';

@@ -1,0 +1,28 @@
+{
+    "version": 2,
+    "buildCommand": "npm run build",
+    "devCommand": "npm run dev",
+    "installCommand": "npm install",
+    "framework": null,
+    "outputDirectory": "dist/public",
+    "rewrites": [
+        {
+            "source": "/api/(.*)",
+            "destination": "/api"
+        },
+        {
+            "source": "/(.*)",
+            "destination": "/index.html"
+        }
+    ],
+    "functions": {
+        "api/index.js": {
+            "memory": 1024,
+            "maxDuration": 10
+        }
+    },
+    "env": {
+        "NODE_ENV": "production",
+        "VERCEL": "1"
+    }
+}

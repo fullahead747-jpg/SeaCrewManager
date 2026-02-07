@@ -1,0 +1,5 @@
+=== CREW MANAGEMENT SYSTEM - DOWNLOAD READY ===
+
+FILES READY:
+1. crew-system-code-only.tar.gz (300 KB)
+2. crew-management-system.tar.gz (415 MB)

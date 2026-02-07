@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crew Management Chatbot</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2em;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .input-section {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            transition: border-color 0.3s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            width: 100%;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .response-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .response-section.show {
+            display: block;
+        }
+
+        .response-text {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #667eea;
+            white-space: pre-wrap;
+            font-family: 'Courier New', monospace;
+            margin-bottom: 15px;
+        }
+
+        .copy-btn {
+            background: #28a745;
+            padding: 10px 20px;
+            font-size: 14px;
+            width: auto;
+        }
+
+        .copy-btn:hover {
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.4);
+        }
+
+        .examples {
+            margin-top: 30px;
+            padding: 20px;
+            background: #fff3cd;
+            border-radius: 10px;
+            border-left: 4px solid #ffc107;
+        }
+
+        .examples h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+
+        .examples ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .examples li {
+            padding: 5px 0;
+            color: #856404;
+        }
+
+        .examples code {
+            background: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🤖 Crew Management Chatbot</h1>
+        <p class="subtitle">Paste WhatsApp messages here to get instant responses</p>
+
+        <div class="input-section">
+            <label for="message">Message from WhatsApp:</label>
+            <textarea id="message" rows="4"
+                placeholder="Type or paste message here... (e.g., help, crew list, contracts expiring)"></textarea>
+        </div>
+
+        <button onclick="processMessage()">Get Response</button>
+
+        <div id="response" class="response-section">
+            <label>Bot Response:</label>
+            <div id="responseText" class="response-text"></div>
+            <button class="copy-btn" onclick="copyResponse()">📋 Copy Response</button>
+        </div>
+
+        <div class="examples">
+            <h3>💡 Example Commands:</h3>
+            <ul>
+                <li><code>help</code> - Show all commands</li>
+                <li><code>crew list</code> - List all crew members</li>
+                <li><code>contracts expiring</code> - Show expiring contracts</li>
+                <li><code>documents expiring</code> - Show expiring documents</li>
+                <li><code>passport [name]</code> - Check passport status</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        async function processMessage() {
+            const message = document.getElementById('message').value.trim();
+
+            if (!message) {
+                alert('Please enter a message');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/webhooks/whatsapp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        event: 'message',
+                        payload: {
+                            from: '120363420779184169@g.us',
+                            fromMe: false,
+                            body: message,
+                            participant: 'manual-user@s.whatsapp.net'
+                        }
+                    })
+                });
+
+                if (response.ok) {
+                    // Show success message
+                    const responseSection = document.getElementById('response');
+                    const responseText = document.getElementById('responseText');
+
+                    responseText.textContent = '✅ Message processed! Check the server logs for the bot response.\n\nNote: The response was sent to the webhook handler. In a real setup, this would be sent to WhatsApp.';
+                    responseSection.classList.add('show');
+                } else {
+                    alert('Error processing message');
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function copyResponse() {
+            const responseText = document.getElementById('responseText').textContent;
+            navigator.clipboard.writeText(responseText).then(() => {
+                alert('✅ Response copied to clipboard!');
+            });
+        }
+
+        // Allow Enter key to submit
+        document.getElementById('message').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                processMessage();
+            }
+        });
+    </script>
+</body>
+
+</html>

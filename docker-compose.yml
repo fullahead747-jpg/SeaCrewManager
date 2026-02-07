@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: waha
+    restart: unless-stopped
+    ports:
+      - "3500:3000"
+    environment:
+      - WAHA_PORT=3000
+      # Enable API key authentication
+      - WHATSAPP_API_KEY=636b19b0e4ef48fca4392d2a88e9c475
+      # Disable web dashboard authentication for easier access
+      - WAHA_DASHBOARD_ENABLED=false
+      # Webhook will be configured via API after startup
+    volumes:
+      # Persist WhatsApp session data so you don't need to re-scan QR code
+      - waha-data:/app/.waha
+    healthcheck:
+      test: [ "CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/api/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  waha-data:
+    driver: local

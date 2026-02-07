@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: sea-crew-manager
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: OCR_SPACE_API_KEY
+        sync: false
+      - key: DISABLE_EMAIL_NOTIFICATIONS
+        value: true
+      - key: DISABLE_WHATSAPP_NOTIFICATIONS
+        value: true
+    healthCheckPath: /
