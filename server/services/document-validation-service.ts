@@ -103,13 +103,21 @@ export class DocumentValidationService {
                     expiryDate: expiry
                 });
             }
-            // 3. BLOCK if expires during contract
+            // 3. BLOCK if expires during contract (Warning for Medical)
             else if (expiry < endDate) {
-                blockers.push({
-                    type,
-                    message: `${type.toUpperCase()} expires on ${expiry.toLocaleDateString()} which is during the contract period`,
-                    expiryDate: expiry
-                });
+                if (type === 'medical') {
+                    warnings.push({
+                        type,
+                        message: `${type.toUpperCase()} expires on ${expiry.toLocaleDateString()} which is during the contract period`,
+                        expiryDate: expiry
+                    });
+                } else {
+                    blockers.push({
+                        type,
+                        message: `${type.toUpperCase()} expires on ${expiry.toLocaleDateString()} which is during the contract period`,
+                        expiryDate: expiry
+                    });
+                }
             }
             // 4. WARN if expires within buffer period after contract
             else if (expiry < requiredUntilDate) {
