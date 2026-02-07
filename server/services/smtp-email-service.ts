@@ -36,10 +36,14 @@ export class SMTPEmailService {
       // Fallback to ethereal for testing if Gmail not configured
       // Only log this once deeply, or if specifically asked
       if (!this.transporter) {
-        console.log('⚠️ Gmail configuration incomplete:');
+        console.log('⚠️ Gmail configuration incomplete (v2.3-diagnostic):');
         if (!gmailUser) console.log('   - GMAIL_USER is missing');
         if (!gmailAppPassword) console.log('   - GMAIL_APP_PASSWORD is missing');
-        console.log('   Available environment variables:', Object.keys(process.env).join(', '));
+
+        const allKeys = Object.keys(process.env);
+        const gmailRelated = allKeys.filter(k => k.toLowerCase().includes('gmail') || k.toLowerCase().includes('mail'));
+        console.log('   Gmail-related keys found:', gmailRelated.length > 0 ? gmailRelated.join(', ') : 'NONE');
+        console.log('   All available keys (first 20):', allKeys.slice(0, 20).join(', '));
         console.log('   Current working directory:', process.cwd());
         console.log('   Using test transport (Ethereal) temporarily');
 
