@@ -23,4 +23,8 @@ services:
         value: false
       - key: DISABLE_WHATSAPP_NOTIFICATIONS
         value: true
+      - key: GMAIL_USER
+        sync: false
+      - key: GMAIL_APP_PASSWORD
+        sync: false
     healthCheckPath: /

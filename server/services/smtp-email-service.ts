@@ -39,6 +39,7 @@ export class SMTPEmailService {
         console.log('⚠️ Gmail configuration incomplete:');
         if (!gmailUser) console.log('   - GMAIL_USER is missing');
         if (!gmailAppPassword) console.log('   - GMAIL_APP_PASSWORD is missing');
+        console.log('   Available environment variables:', Object.keys(process.env).join(', '));
         console.log('   Current working directory:', process.cwd());
         console.log('   Using test transport (Ethereal) temporarily');
 
