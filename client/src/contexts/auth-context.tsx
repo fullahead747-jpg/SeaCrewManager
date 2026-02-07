@@ -20,9 +20,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let token = localStorage.getItem('auth_token');
     let userData = localStorage.getItem('user_data');
 
-    // Auto-login for demo purposes if no user found (especially on first Vercel load)
+    // Auto-login for demo purposes if no user found or if data is incomplete
+    const isValidUser = (data: any) => {
+      return data && typeof data === 'object' && data.id && data.username && data.role;
+    };
+
     if (!token || !userData) {
       console.log('No auth found, setting up demo user for first load');
+      setupDemoUser();
+    } else {
+      try {
+        const parsedUser = JSON.parse(userData);
+        if (isValidUser(parsedUser)) {
+          setUser(parsedUser);
+          setIsAuthenticated(true);
+        } else {
+          console.log('Incomplete user data found, resetting to demo user');
+          setupDemoUser();
+        }
+      } catch (error) {
+        setupDemoUser();
+      }
+    }
+
+    function setupDemoUser() {
       const demoUser = {
         id: 'demo-admin-id',
         username: 'admin',
@@ -39,15 +60,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(demoUser);
       setIsAuthenticated(true);
-    } else {
-      try {
-        const parsedUser = JSON.parse(userData);
-        setUser(parsedUser);
-        setIsAuthenticated(true);
-      } catch (error) {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user_data');
-      }
     }
   }, []);
 
