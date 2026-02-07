@@ -171,7 +171,10 @@ export default function CrewDocumentsSplitView() {
                     crewMembers={crewMembers || []}
                     documents={documents || []}
                     selectedCrewId={selectedCrewId}
-                    onSelectCrew={(id) => setLocation(`/documents?crew=${id}`)}
+                    onSelectCrew={(id) => {
+                        setSelectedCrewId(id);
+                        setLocation(`/documents?crew=${id}`);
+                    }}
                 />
             </div>
 
