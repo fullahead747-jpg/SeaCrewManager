@@ -73,7 +73,13 @@ export class SMTPEmailService {
     try {
       console.log(`📧 Sending email to: ${emailData.to}`);
       console.log(`📧 Subject: ${emailData.subject}`);
-      console.log(`📧 Gmail configured: ${this.isConfigured}`);
+      console.log(`📧 Gmail configured: ${this.isConfigured} (v2.2-diagnostic)`);
+      if (!this.isConfigured) {
+        console.log('🔍 Diagnostic Info:');
+        console.log('   GMAIL_USER present:', !!process.env.GMAIL_USER);
+        console.log('   GMAIL_APP_PASSWORD present:', !!process.env.GMAIL_APP_PASSWORD);
+        console.log('   Available Keys:', Object.keys(process.env).filter(k => k.includes('GMAIL') || k.includes('API')).join(', '));
+      }
 
       const fromEmail = process.env.GMAIL_USER || 'admin@offing.biz, management@fullahead.in';
       const info = await this.transporter.sendMail({
@@ -117,7 +123,13 @@ export class SMTPEmailService {
       console.log(`📧 Sending email with attachment to: ${emailData.to}`);
       console.log(`📧 Subject: ${emailData.subject}`);
       console.log(`📧 Attachments: ${emailData.attachments?.length || 0}`);
-      console.log(`📧 Gmail configured: ${this.isConfigured}`);
+      console.log(`📧 Gmail configured: ${this.isConfigured} (v2.2-diagnostic)`);
+      if (!this.isConfigured) {
+        console.log('🔍 Diagnostic Info:');
+        console.log('   GMAIL_USER present:', !!process.env.GMAIL_USER);
+        console.log('   GMAIL_APP_PASSWORD present:', !!process.env.GMAIL_APP_PASSWORD);
+        console.log('   Available Keys:', Object.keys(process.env).filter(k => k.includes('GMAIL') || k.includes('API')).join(', '));
+      }
 
       const fromEmail = process.env.GMAIL_USER || 'admin@offing.biz, management@fullahead.in';
       const info = await this.transporter.sendMail({
