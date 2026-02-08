@@ -116,18 +116,13 @@ export class DocumentStorageService {
         "Cache-Control": `private, max-age=${cacheTtlSec}`,
       });
 
-      // Stream the file to the response
-      const stream = objectFile.createReadStream();
+      // Download the file content into memory (more robust for small/medium files on Replit)
+      console.log(`[STORAGE-DOWNLOAD] Fetching buffer from storage...`);
+      const [buffer] = await objectFile.download();
 
-      stream.on("error", (err) => {
-        console.error("[STORAGE-DOWNLOAD] Stream error:", err);
-        if (!res.headersSent) {
-          res.status(500).json({ error: "Error streaming file" });
-        }
-      });
-
-      stream.pipe(res);
-      console.log(`[STORAGE-DOWNLOAD] Successfully piped stream for: ${filePath}`);
+      console.log(`[STORAGE-DOWNLOAD] Successfully fetched buffer (${buffer.length} bytes). Sending to response...`);
+      res.send(buffer);
+      console.log(`[STORAGE-DOWNLOAD] Successfully sent file: ${filePath}`);
     } catch (error: any) {
       console.error("[STORAGE-DOWNLOAD] Error downloading file:", error.message);
       if (error.stack) console.error(error.stack);

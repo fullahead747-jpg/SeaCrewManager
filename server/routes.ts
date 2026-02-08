@@ -1984,8 +1984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`✅ Valid token - Serving document: ${document.type} - ${document.documentNumber}`);
 
       const documentStorageService = new DocumentStorageService();
-      const downloadUrl = await documentStorageService.getDocumentDownloadURL(document.filePath!);
-      res.redirect(downloadUrl);
+      await documentStorageService.downloadDocument(document.filePath!, res);
     } catch (error) {
       console.error("❌ Error in secure document viewer:", error);
       if (!res.headersSent) {
@@ -2022,8 +2021,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const documentStorageService = new DocumentStorageService();
-      const downloadUrl = await documentStorageService.getDocumentDownloadURL(document.filePath);
-      res.redirect(downloadUrl);
+      await documentStorageService.downloadDocument(document.filePath, res);
     } catch (error) {
       console.error("Error viewing crew document:", error);
       if (!res.headersSent) {
@@ -2043,8 +2041,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const documentStorageService = new DocumentStorageService();
-      const downloadUrl = await documentStorageService.getDocumentDownloadURL(document.filePath);
-      res.redirect(downloadUrl);
+      await documentStorageService.downloadDocument(document.filePath, res);
     } catch (error) {
       console.error("Error downloading crew document:", error);
       if (!res.headersSent) {
@@ -2391,8 +2388,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const documentStorageService = new DocumentStorageService();
-      const downloadUrl = await documentStorageService.getDocumentDownloadURL(contract.filePath);
-      res.redirect(downloadUrl);
+      await documentStorageService.downloadDocument(contract.filePath, res);
     } catch (error) {
       console.error("Error viewing contract:", error);
       if (!res.headersSent) {
@@ -2412,8 +2408,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const documentStorageService = new DocumentStorageService();
-      const downloadUrl = await documentStorageService.getDocumentDownloadURL(contract.filePath);
-      res.redirect(downloadUrl);
+      await documentStorageService.downloadDocument(contract.filePath, res);
     } catch (error) {
       console.error("Error downloading contract:", error);
       if (!res.headersSent) {
