@@ -109,10 +109,24 @@ export default function CrewDocumentsSplitView() {
         ? documents?.filter(d => d.crewMemberId === selectedCrewId) || []
         : [];
 
-    const handleViewDocument = (doc: Document) => {
-        // Open document in new tab
-        if (doc.filePath) {
-            window.open(doc.filePath, '_blank');
+    const handleViewDocument = async (doc: Document) => {
+        if (!doc.id) return;
+        try {
+            const response = await fetch(`/api/documents/${doc.id}/view`, {
+                headers: getAuthHeaders(),
+            });
+            if (!response.ok) throw new Error('Failed to load document');
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            window.open(url, '_blank');
+            // Clean up the URL after a delay
+            setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+        } catch (error) {
+            toast({
+                title: 'Error',
+                description: 'Failed to open document.',
+                variant: 'destructive',
+            });
         }
     };
 
@@ -143,24 +157,42 @@ export default function CrewDocumentsSplitView() {
         }
     };
 
-    const handleDownloadAll = () => {
+    const handleDownloadAll = async () => {
         if (!selectedCrewDocuments || selectedCrewDocuments.length === 0) {
             return;
         }
 
-        // Download each document
-        selectedCrewDocuments.forEach((doc) => {
-            if (doc.filePath) {
-                // Create a temporary link and trigger download
-                const link = document.createElement('a');
-                link.href = doc.filePath;
-                link.download = `${doc.type}_${doc.documentNumber}.pdf`;
-                link.target = '_blank';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            }
+        toast({
+            title: 'Processing',
+            description: `Starting download of ${selectedCrewDocuments.length} documents...`,
         });
+
+        // Download each document
+        for (const doc of selectedCrewDocuments) {
+            if (doc.filePath && doc.id) {
+                try {
+                    const response = await fetch(`/api/documents/${doc.id}/download`, {
+                        headers: getAuthHeaders(),
+                    });
+                    if (!response.ok) throw new Error(`Failed to download ${doc.type}`);
+
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `${doc.type}_${doc.documentNumber || 'doc'}.pdf`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+
+                    // Clean up
+                    setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+                } catch (error) {
+                    console.error(`Failed to download document ${doc.id}:`, error);
+                }
+            }
+        }
     };
 
     return (
