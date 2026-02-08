@@ -2,7 +2,7 @@ run = "npm run dev"
 entrypoint = "server/index.ts"
 
 [nix]
-channel = "stable-22_11"
+channel = "stable-24_05"
 
 [deployment]
 run = ["sh", "-c", "npm run build && npm start"]
