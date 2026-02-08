@@ -3,21 +3,24 @@
  * Allows viewing documents via time-limited secure tokens
  * Used in email notifications for document viewing
  */
-import { documentAccessService } from './services/document-access-service';
+import { documentAccessService } from '../services/document-access-service';
+import { DocumentStorageService } from '../objectStorage';
+import path from 'path';
+import fs from 'fs';
 
 export function setupDocumentViewerRoute(app: any) {
-    app.get('/api/documents/view/:token', async (req: any, res: any) => {
-        const { token } = req.params;
+  app.get('/api/documents/view/:token', async (req: any, res: any) => {
+    const { token } = req.params;
 
-        console.log(`📥 Document view request: ${token.substring(0, 20)}...`);
+    console.log(`📥 Document view request: ${token.substring(0, 20)}...`);
 
-        try {
-            // Validate token and get document
-            const document = await documentAccessService.getDocumentByToken(token);
+    try {
+      // Validate token and get document
+      const document = await documentAccessService.getDocumentByToken(token);
 
-            if (!document) {
-                console.log('❌ Invalid or expired token');
-                return res.status(404).send(`
+      if (!document || !document.filePath) {
+        console.log('❌ Invalid or expired token, or document has no file');
+        return res.status(404).send(`
           <!DOCTYPE html>
           <html>
           <head>
@@ -79,57 +82,18 @@ export function setupDocumentViewerRoute(app: any) {
           </body>
           </html>
         `);
-            }
+      }
 
-            console.log(`✅ Serving document: ${document.type} - ${document.documentNumber}`);
+      console.log(`✅ Serving document: ${document.type} - ${document.documentNumber}`);
 
-            const filePath = path.join(process.cwd(), document.filePath);
+      const documentStorageService = new DocumentStorageService();
+      await documentStorageService.downloadDocument(document.filePath, res);
 
-            // Check if file exists
-            if (!fs.existsSync(filePath)) {
-                console.log(`❌ File not found: ${filePath}`);
-                return res.status(404).send(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8">
-            <style>
-              body {
-                font-family: Arial, sans-serif;
-                text-align: center;
-                padding: 50px;
-                background: #f8f9fa;
-              }
-              .error {
-                background: white;
-                padding: 40px;
-                border-radius: 12px;
-                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-                max-width: 500px;
-                margin: 0 auto;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="error">
-              <h1>📄 Document File Not Found</h1>
-              <p>The document file is not available on the server.</p>
-              <p>Please contact support.</p>
-            </div>
-          </body>
-          </html>
-        `);
-            }
-
-            // Log access for audit trail
-            console.log(`📤 Serving file: ${document.filePath}`);
-
-            // Serve the document file
-            res.sendFile(filePath);
-
-        } catch (error) {
-            console.error('❌ Error serving document:', error);
-            res.status(500).send('Internal server error');
-        }
-    });
+    } catch (error) {
+      console.error('❌ Error serving document:', error);
+      if (!res.headersSent) {
+        res.status(500).send('Internal server error');
+      }
+    }
+  });
 }

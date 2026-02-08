@@ -26,7 +26,7 @@ import { localOcrService } from "./localOcrService";
 import { groqOcrService } from "./groqOcrService";
 import { geminiOcrService } from "./geminiOcrService";
 import { randomUUID } from "crypto";
-import { VesselDocumentStorageService } from "./objectStorage";
+import { DocumentStorageService } from "./objectStorage";
 import { notificationService } from "./services/notification-service";
 import { documentVerificationService } from "./services/document-verification-service";
 import { documentEditValidator } from "./services/document-edit-validator";
@@ -1041,6 +1041,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
 
           console.log(`[STRICT-VALIDATION] Validation passed (Score: ${verification.matchScore})`);
+
+          // Move to Object Storage for persistence
+          const documentStorageService = new DocumentStorageService();
+          try {
+            const fileName = path.basename(fullPath);
+            const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', crewMember.id, fileName);
+
+            // Upload local file to signed URL
+            const fileBuffer = fs.readFileSync(fullPath);
+            const response = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: fileBuffer,
+              headers: {
+                'Content-Type': getMimeType(fullPath)
+              }
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
+            }
+
+            // Update path to the cloud path
+            const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
+            console.log(`[CLOUD-STORAGE] Successfully uploaded to ${cloudPath}`);
+            documentData.filePath = cloudPath;
+
+            // Cleanup local file
+            fs.unlink(fullPath, (err) => {
+              if (err) console.error(`[CLOUD-STORAGE] Failed to delete local file ${fullPath}:`, err);
+            });
+          } catch (storageError) {
+            console.error("[CLOUD-STORAGE] Error uploading to Object Storage:", storageError);
+            // We can choose to keep it local if cloud fails, but Replit is non-persistent
+            // so maybe we should fail the whole request?
+            return res.status(500).json({ message: "Failed to save document to persistent storage" });
+          }
         } catch (validationError) {
           console.error("Validation service error:", validationError);
           return res.status(500).json({
@@ -1073,15 +1109,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // SILENT BACKEND EXTRACTION: Run in the background hidden from user
-      if (document.filePath) {
+      if (req.file?.path || (document.filePath && !document.filePath.startsWith('/'))) {
         (async () => {
           try {
+            const localPath = req.file?.path || path.join(process.cwd(), document.filePath!);
             const crewMember = await storage.getCrewMember(document.crewMemberId);
             const nationalityHint = crewMember?.nationality;
 
-            const fullPath = path.join(process.cwd(), document.filePath!);
-            console.log(`[SILENT-SCAN] Starting background extraction for ${document.type}: ${document.filePath} (Nationality Hint: ${nationalityHint})`);
-            const extractedData = await documentVerificationService.extractDocumentData(fullPath, document.type, nationalityHint);
+            console.log(`[SILENT-SCAN] Starting background extraction for ${document.type}: ${localPath} (Nationality Hint: ${nationalityHint})`);
+            const extractedData = await documentVerificationService.extractDocumentData(localPath, document.type, nationalityHint);
 
             // FAIL-SAFE: Re-apply correction here in routes.ts where we have 100% access to crew profile
             console.log(`[SILENT-SCAN-DEBUG] Fail-safe check:`);
@@ -1439,6 +1475,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           console.log(`[STRICT-VALIDATION-PUT] Validation passed (Score: ${verification.matchScore})`);
 
+          // Move to Object Storage for persistence if this is a new file upload
+          if (updates.filePath && !updates.filePath.startsWith('/')) {
+            const documentStorageService = new DocumentStorageService();
+            try {
+              const localPath = path.join(process.cwd(), updates.filePath);
+              const fileName = path.basename(localPath);
+              const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', crewMember.id, fileName);
+
+              const fileBuffer = fs.readFileSync(localPath);
+              const response = await fetch(uploadUrl, {
+                method: 'PUT',
+                body: fileBuffer,
+                headers: {
+                  'Content-Type': getMimeType(localPath)
+                }
+              });
+
+              if (!response.ok) {
+                throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
+              }
+
+              const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
+              console.log(`[CLOUD-STORAGE-PUT] Successfully uploaded to ${cloudPath}`);
+              updates.filePath = cloudPath;
+
+              // Cleanup local file
+              fs.unlink(localPath, (err) => {
+                if (err) console.error(`[CLOUD-STORAGE-PUT] Failed to delete local file ${localPath}:`, err);
+              });
+            } catch (storageError) {
+              console.error("[CLOUD-STORAGE-PUT] Error uploading to Object Storage:", storageError);
+              return res.status(500).json({ message: "Failed to save updated document to persistent storage" });
+            }
+          }
         } catch (validationError) {
           console.error("Validation service error (PUT):", validationError);
           return res.status(500).json({
@@ -1935,45 +2005,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`✅ Valid token - Serving document: ${document.type} - ${document.documentNumber}`);
 
-      // Resolve file path
-      if (!document.filePath) {
-        return res.status(404).send('Document file not found');
-      }
-
-      const fullPath = path.isAbsolute(document.filePath)
-        ? document.filePath
-        : path.resolve(process.cwd(), document.filePath);
-
-      // Check if file exists
-      if (!fs.existsSync(fullPath)) {
-        console.log(`❌ File not found on disk: ${fullPath}`);
-        return res.status(404).send('Document file not found on server');
-      }
-
-      // Determine MIME type
-      const mimeType = getMimeType(fullPath);
-      const extension = path.extname(fullPath) || '.pdf';
-      const fileName = `${document.documentNumber || 'document'}${extension}`;
-
-      // Set headers for inline viewing
-      res.set({
-        "Content-Type": mimeType,
-        "Cache-Control": "private, no-cache, no-store, must-revalidate",
-        "Pragma": "no-cache",
-        "Expires": "0",
-        "Content-Disposition": `inline; filename="${fileName}"`
-      });
-
-      // Stream the file
-      const fileStream = fs.createReadStream(fullPath);
-      fileStream.pipe(res);
-
-      fileStream.on('error', (error) => {
-        console.error("❌ Error streaming document:", error);
-        if (!res.headersSent) {
-          res.status(500).send('Failed to stream document');
-        }
-      });
+      const documentStorageService = new DocumentStorageService();
+      await documentStorageService.downloadDocument(document.filePath!, res);
+    } catch (error) {
 
     } catch (error) {
       console.error("❌ Error in secure document viewer:", error);
@@ -2006,41 +2040,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const document = await storage.getDocument(id);
 
-      if (!document) {
+      if (!document || !document.filePath) {
         return res.status(404).json({ message: "Document not found" });
       }
 
-      if (!document.filePath) {
-        return res.status(404).json({ message: "Document file not found" });
-      }
-
-      const fullPath = path.isAbsolute(document.filePath)
-        ? document.filePath
-        : path.resolve(process.cwd(), document.filePath);
-
-      if (!fs.existsSync(fullPath)) {
-        return res.status(404).json({ message: "Document file not found on disk" });
-      }
-
-      const mimeType = getMimeType(fullPath);
-      const extension = path.extname(fullPath) || '.pdf';
-      const fileName = `${document.documentNumber || 'document'}${extension}`;
-
-      res.set({
-        "Content-Type": mimeType,
-        "Cache-Control": "private, max-age=3600",
-        "Content-Disposition": `inline; filename="${fileName}"`
-      });
-
-      const fileStream = fs.createReadStream(fullPath);
-      fileStream.pipe(res);
-
-      fileStream.on('error', (error) => {
-        console.error("Error streaming document:", error);
-        if (!res.headersSent) {
-          res.status(500).json({ message: "Failed to stream document" });
-        }
-      });
+      const documentStorageService = new DocumentStorageService();
+      await documentStorageService.downloadDocument(document.filePath, res);
     } catch (error) {
       console.error("Error viewing crew document:", error);
       if (!res.headersSent) {
@@ -2055,49 +2060,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const document = await storage.getDocument(id);
 
-      if (!document) {
+      if (!document || !document.filePath) {
         return res.status(404).json({ message: "Document not found" });
       }
 
-      if (!document.filePath) {
-        return res.status(404).json({ message: "Document file not found" });
-      }
-
-      // Resolve full path clearly
-      const fullPath = path.isAbsolute(document.filePath)
-        ? document.filePath
-        : path.resolve(process.cwd(), document.filePath);
-
-      // Check if file exists
-      if (!fs.existsSync(fullPath)) {
-        console.warn(`File not found at ${fullPath}`);
-        return res.status(404).json({ message: "Document file not found on disk" });
-      }
-
-      const mimeType = getMimeType(fullPath);
-      const extension = path.extname(fullPath) || '.pdf';
-      const fileName = `${document.documentNumber || 'document'}${extension}`;
-
-      console.log(`Serving document: ${fullPath} (Mime: ${mimeType}, Name: ${fileName})`);
-
-      // Set appropriate headers
-      res.set({
-        "Content-Type": mimeType,
-        "Cache-Control": "private, max-age=3600",
-        "Content-Disposition": `attachment; filename="${fileName}"`
-      });
-
-      // Stream the file
-      const fileStream = fs.createReadStream(fullPath);
-      fileStream.pipe(res);
-
-      fileStream.on('error', (error) => {
-        console.error("Error streaming document:", error);
-        if (!res.headersSent) {
-          res.status(500).json({ message: "Failed to stream document" });
-        }
-      });
-
+      const documentStorageService = new DocumentStorageService();
+      await documentStorageService.downloadDocument(document.filePath, res);
     } catch (error) {
       console.error("Error downloading crew document:", error);
       if (!res.headersSent) {
@@ -2144,35 +2112,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       archive.pipe(res);
 
       // Add each document to the archive
+      const documentStorageService = new DocumentStorageService();
       let addedCount = 0;
       for (const document of documentsWithFiles) {
         try {
-          // Handle paths that start with /uploads/ - remove leading slash
-          let filePath = document.filePath!;
-          if (filePath.startsWith('/uploads/')) {
-            filePath = filePath.substring(1); // Remove leading slash
-          }
+          const filePath = document.filePath!;
+          const extension = path.extname(filePath) || '.pdf';
+          const crewMember = await storage.getCrewMember(document.crewMemberId);
+          const crewName = crewMember
+            ? `${crewMember.firstName}_${crewMember.lastName}`.replace(/\s+/g, '_')
+            : 'Unknown';
 
-          const fullPath = path.isAbsolute(filePath)
-            ? filePath
-            : path.resolve(process.cwd(), filePath);
+          const fileName = `${crewName}_${document.type.toUpperCase()}_${document.documentNumber || 'doc'}${extension}`;
 
-          if (fs.existsSync(fullPath)) {
-            const extension = path.extname(fullPath) || '.pdf';
-            const crewMember = await storage.getCrewMember(document.crewMemberId);
-            const crewName = crewMember
-              ? `${crewMember.firstName}_${crewMember.lastName}`.replace(/\s+/g, '_')
-              : 'Unknown';
-
-            // Create a descriptive filename: CrewName_DocumentType_DocumentNumber.ext
-            const fileName = `${crewName}_${document.type.toUpperCase()}_${document.documentNumber || 'doc'}${extension}`;
-
-            archive.file(fullPath, { name: fileName });
+          if (filePath.startsWith('/')) {
+            // Object Storage path
+            const file = await documentStorageService.getDocumentFile(filePath);
+            archive.append(file.createReadStream(), { name: fileName });
             addedCount++;
+          } else {
+            // Local path
+            const fullPath = path.resolve(process.cwd(), filePath);
+            if (fs.existsSync(fullPath)) {
+              archive.file(fullPath, { name: fileName });
+              addedCount++;
+            }
           }
         } catch (fileError) {
           console.error(`Error adding document ${document.id} to archive:`, fileError);
-          // Continue with other files
         }
       }
 
@@ -2235,30 +2202,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hasAoaDoc = crewDocuments.some(d => d.type.toLowerCase() === 'aoa');
 
       // Add each document to the archive
+      const documentStorageService = new DocumentStorageService();
       let addedCount = 0;
       for (const document of crewDocuments) {
         try {
-          // Handle paths that start with /uploads/ - remove leading slash
-          let filePath = document.filePath!;
-          if (filePath.startsWith('/uploads/')) {
-            filePath = filePath.substring(1); // Remove leading slash
-          }
+          const filePath = document.filePath!;
+          const extension = path.extname(filePath) || '.pdf';
+          const fileName = `${document.type.toUpperCase()}_${document.documentNumber || 'doc'}${extension}`;
 
-          const fullPath = path.isAbsolute(filePath)
-            ? filePath
-            : path.resolve(process.cwd(), filePath);
-
-          if (fs.existsSync(fullPath)) {
-            const extension = path.extname(fullPath) || '.pdf';
-            // Create a descriptive filename: DocumentType_DocumentNumber.ext
-            const fileName = `${document.type.toUpperCase()}_${document.documentNumber || 'doc'}${extension}`;
-
-            archive.file(fullPath, { name: fileName });
+          if (filePath.startsWith('/')) {
+            // Object Storage path
+            const file = await documentStorageService.getDocumentFile(filePath);
+            archive.append(file.createReadStream(), { name: fileName });
             addedCount++;
+          } else {
+            // Local path
+            const fullPath = path.resolve(process.cwd(), filePath);
+            if (fs.existsSync(fullPath)) {
+              archive.file(fullPath, { name: fileName });
+              addedCount++;
+            }
           }
         } catch (fileError) {
           console.error(`Error adding document ${document.id} to archive:`, fileError);
-          // Continue with other files
         }
       }
 
@@ -2272,27 +2238,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
 
         if (activeContract && activeContract.filePath) {
-          let contractFilePath = activeContract.filePath;
-          // Handle both /uploads/ and uploads/ paths by removing optional leading slash
+          const contractFilePath = activeContract.filePath;
+          const extension = path.extname(contractFilePath) || '.pdf';
+          const contractFileName = hasAoaDoc
+            ? `CONTRACT_${activeContract.contractNumber || 'Agreement'}${extension}`
+            : `AOA_CONTRACT_${activeContract.contractNumber || 'Agreement'}${extension}`;
+
           if (contractFilePath.startsWith('/')) {
-            contractFilePath = contractFilePath.substring(1);
-          }
-
-          const fullContractPath = path.isAbsolute(contractFilePath)
-            ? contractFilePath
-            : path.resolve(process.cwd(), contractFilePath);
-
-          if (fs.existsSync(fullContractPath)) {
-            const extension = path.extname(fullContractPath) || '.pdf';
-            // If explicit AOA document is missing, name it AOA_CONTRACT
-            const contractFileName = hasAoaDoc
-              ? `CONTRACT_${activeContract.contractNumber || 'Agreement'}${extension}`
-              : `AOA_CONTRACT_${activeContract.contractNumber || 'Agreement'}${extension}`;
-
-            archive.file(fullContractPath, { name: contractFileName });
+            // Object Storage path
+            const file = await documentStorageService.getDocumentFile(contractFilePath);
+            archive.append(file.createReadStream(), { name: contractFileName });
             addedCount++;
-            console.log(`Added contract document: ${contractFileName}`);
+          } else {
+            // Local path
+            const fullContractPath = path.resolve(process.cwd(), contractFilePath);
+            if (fs.existsSync(fullContractPath)) {
+              archive.file(fullContractPath, { name: contractFileName });
+              addedCount++;
+            }
           }
+          console.log(`Added contract document: ${contractFileName}`);
         }
       } catch (contractError) {
         console.error('Error adding contract document to archive:', contractError);
@@ -2499,41 +2464,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const contract = await storage.getContract(id);
 
-      if (!contract) {
-        return res.status(404).json({ message: "Contract not found" });
+      if (!contract || !contract.filePath) {
+        return res.status(404).json({ message: "Contract document not found" });
       }
 
-      if (!contract.filePath) {
-        return res.status(404).json({ message: "Contract document file not found" });
-      }
-
-      const fullPath = path.isAbsolute(contract.filePath)
-        ? contract.filePath
-        : path.resolve(process.cwd(), contract.filePath);
-
-      if (!fs.existsSync(fullPath)) {
-        return res.status(404).json({ message: "Contract document file not found on disk" });
-      }
-
-      const mimeType = getMimeType(fullPath);
-      const extension = path.extname(fullPath) || '.pdf';
-      const fileName = `${contract.contractNumber || 'contract'}${extension} `;
-
-      res.set({
-        "Content-Type": mimeType,
-        "Cache-Control": "private, max-age=3600",
-        "Content-Disposition": `inline; filename = "${fileName}"`
-      });
-
-      const fileStream = fs.createReadStream(fullPath);
-      fileStream.pipe(res);
-
-      fileStream.on('error', (error) => {
-        console.error("Error streaming contract document:", error);
-        if (!res.headersSent) {
-          res.status(500).json({ message: "Failed to stream contract document" });
-        }
-      });
+      const documentStorageService = new DocumentStorageService();
+      await documentStorageService.downloadDocument(contract.filePath, res);
     } catch (error) {
       console.error("Error viewing contract document:", error);
       if (!res.headersSent) {
@@ -2548,41 +2484,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const contract = await storage.getContract(id);
 
-      if (!contract) {
-        return res.status(404).json({ message: "Contract not found" });
+      if (!contract || !contract.filePath) {
+        return res.status(404).json({ message: "Contract document not found" });
       }
 
-      if (!contract.filePath) {
-        return res.status(404).json({ message: "Contract document file not found" });
-      }
-
-      const fullPath = path.isAbsolute(contract.filePath)
-        ? contract.filePath
-        : path.resolve(process.cwd(), contract.filePath);
-
-      if (!fs.existsSync(fullPath)) {
-        return res.status(404).json({ message: "Contract document file not found on disk" });
-      }
-
-      const mimeType = getMimeType(fullPath);
-      const extension = path.extname(fullPath) || '.pdf';
-      const fileName = `${contract.contractNumber || 'contract'}${extension} `;
-
-      res.set({
-        "Content-Type": mimeType,
-        "Cache-Control": "private, max-age=3600",
-        "Content-Disposition": `attachment; filename = "${fileName}"`
-      });
-
-      const fileStream = fs.createReadStream(fullPath);
-      fileStream.pipe(res);
-
-      fileStream.on('error', (error) => {
-        console.error("Error streaming contract document:", error);
-        if (!res.headersSent) {
-          res.status(500).json({ message: "Failed to stream contract document" });
-        }
-      });
+      const documentStorageService = new DocumentStorageService();
+      await documentStorageService.downloadDocument(contract.filePath, res);
     } catch (error) {
       console.error("Error downloading contract document:", error);
       if (!res.headersSent) {
@@ -4002,7 +3909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       if (req.file) {
         // Real file uploaded via multipart
-        const filePath = `/ uploads / ${req.file.filename} `;
+        const filePath = `/uploads/${req.file.filename}`;
         res.json({
           message: "File uploaded successfully",
           filePath: filePath
@@ -4012,7 +3919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create a mock file path for now - this maintains compatibility
         const timestamp = Date.now();
         const sanitizedFilename = req.body.filename.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const mockFilePath = `/ uploads / ${timestamp} -${sanitizedFilename} `;
+        const mockFilePath = `/uploads/${timestamp}-${sanitizedFilename}`;
 
         res.json({
           message: "File uploaded successfully",
@@ -4049,8 +3956,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "fileName is required" });
       }
 
-      const documentStorageService = new VesselDocumentStorageService();
-      const uploadURL = await documentStorageService.getVesselDocumentUploadURL(vesselId, fileName);
+      const documentStorageService = new DocumentStorageService();
+      const uploadURL = await documentStorageService.getDocumentUploadURL('vessels', vesselId, fileName);
 
       res.json({ uploadURL });
     } catch (error) {
@@ -4062,12 +3969,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/vessels/:vesselId/documents", authenticate, async (req, res) => {
     try {
       const { vesselId } = req.params;
-      const documentStorageService = new VesselDocumentStorageService();
+      const documentStorageService = new DocumentStorageService();
 
       // Normalize the file path from upload URL
       const normalizedFilePath = req.body.filePath ?
-        documentStorageService.normalizeVesselDocumentPath(req.body.filePath) :
-        req.body.filePath;
+        documentStorageService.normalizeDocumentPath(req.body.filePath) : null;
 
       const documentData = insertVesselDocumentSchema.parse({
         ...req.body,
@@ -4133,8 +4039,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Document not found" });
       }
 
-      const documentStorageService = new VesselDocumentStorageService();
-      await documentStorageService.downloadVesselDocument(document.filePath, res);
+      const documentStorageService = new DocumentStorageService();
+      await documentStorageService.downloadDocument(document.filePath, res);
     } catch (error) {
       console.error("Error downloading vessel document:", error);
       if (!res.headersSent) {

@@ -31,34 +31,28 @@ export class ObjectNotFoundError extends Error {
   }
 }
 
-// The object storage service for vessel documents
-export class VesselDocumentStorageService {
-  constructor() {}
+// The object storage service for all documents (Vessel and Crew)
+export class DocumentStorageService {
+  constructor() { }
 
-  // Gets the private object directory for vessel documents
+  // Gets the private object directory for documents
   getPrivateObjectDir(): string {
     const dir = process.env.PRIVATE_OBJECT_DIR || "";
     if (!dir) {
       throw new Error(
         "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
+        "tool and set PRIVATE_OBJECT_DIR env var."
       );
     }
     return dir;
   }
 
-  // Gets the upload URL for a vessel document
-  async getVesselDocumentUploadURL(vesselId: string, fileName: string): Promise<string> {
+  // Gets the upload URL for a document
+  async getDocumentUploadURL(entityType: 'vessels' | 'crew', entityId: string, fileName: string): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
-    if (!privateObjectDir) {
-      throw new Error(
-        "PRIVATE_OBJECT_DIR not set. Create a bucket in 'Object Storage' " +
-          "tool and set PRIVATE_OBJECT_DIR env var."
-      );
-    }
 
     const objectId = randomUUID();
-    const fullPath = `${privateObjectDir}/vessels/${vesselId}/documents/${objectId}-${fileName}`;
+    const fullPath = `${privateObjectDir}/${entityType}/${entityId}/documents/${objectId}-${fileName}`;
 
     const { bucketName, objectName } = parseObjectPath(fullPath);
 
@@ -71,8 +65,8 @@ export class VesselDocumentStorageService {
     });
   }
 
-  // Gets the download URL for a vessel document
-  async getVesselDocumentDownloadURL(filePath: string): Promise<string> {
+  // Gets the download URL for a document
+  async getDocumentDownloadURL(filePath: string): Promise<string> {
     const { bucketName, objectName } = parseObjectPath(filePath);
 
     return signObjectURL({
@@ -83,8 +77,8 @@ export class VesselDocumentStorageService {
     });
   }
 
-  // Gets the vessel document file from the file path
-  async getVesselDocumentFile(filePath: string): Promise<File> {
+  // Gets the document file from the file path
+  async getDocumentFile(filePath: string): Promise<File> {
     const { bucketName, objectName } = parseObjectPath(filePath);
     const bucket = objectStorageClient.bucket(bucketName);
     const objectFile = bucket.file(objectName);
@@ -95,14 +89,14 @@ export class VesselDocumentStorageService {
     return objectFile;
   }
 
-  // Downloads a vessel document to the response
-  async downloadVesselDocument(filePath: string, res: Response, cacheTtlSec: number = 3600) {
+  // Downloads a document to the response
+  async downloadDocument(filePath: string, res: Response, cacheTtlSec: number = 3600) {
     try {
-      const file = await this.getVesselDocumentFile(filePath);
-      
+      const file = await this.getDocumentFile(filePath);
+
       // Get file metadata
       const [metadata] = await file.getMetadata();
-      
+
       // Set appropriate headers
       res.set({
         "Content-Type": metadata.contentType || "application/octet-stream",
@@ -135,23 +129,23 @@ export class VesselDocumentStorageService {
     }
   }
 
-  // Deletes a vessel document from object storage
-  async deleteVesselDocument(filePath: string): Promise<boolean> {
+  // Deletes a document from object storage
+  async deleteDocument(filePath: string): Promise<boolean> {
     try {
-      const file = await this.getVesselDocumentFile(filePath);
+      const file = await this.getDocumentFile(filePath);
       await file.delete();
       return true;
     } catch (error) {
       if (error instanceof ObjectNotFoundError) {
         return false;
       }
-      console.error("Error deleting vessel document:", error);
+      console.error("Error deleting document:", error);
       throw error;
     }
   }
 
   // Normalize the file path from upload URL to storage path
-  normalizeVesselDocumentPath(uploadUrl: string): string {
+  normalizeDocumentPath(uploadUrl: string): string {
     if (!uploadUrl.startsWith("https://storage.googleapis.com/")) {
       return uploadUrl;
     }
@@ -213,7 +207,7 @@ async function signObjectURL({
   if (!response.ok) {
     throw new Error(
       `Failed to sign object URL, errorcode: ${response.status}, ` +
-        `make sure you're running on Replit`
+      `make sure you're running on Replit`
     );
   }
 

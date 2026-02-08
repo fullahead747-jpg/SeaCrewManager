@@ -16,8 +16,7 @@ if (-not $status) {
 }
 
 # 3. Commit with timestamp
-$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-$message = "Sync from Local: $timestamp (OCR Bypass, AOA Locking, UI Improvements)"
+$message = "Sync from Local: $timestamp (Persistent Object Storage Implementation)"
 git commit -m $message
 
 # 4. Push to GitHub
