@@ -2276,7 +2276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/contracts", authenticate, async (req, res) => {
     try {
-      const contractData = insertContractSchema.parse(req.body);
+      let contractData = insertContractSchema.parse(req.body);
 
       // Validate documents for the contract period
       const validation = await documentValidationService.validateForSignOn(
@@ -2292,6 +2292,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
           blockers: validation.blockers,
           warnings: validation.warnings
         });
+      }
+
+      // Move to Object Storage for persistence if a file path is provided
+      if (contractData.filePath && !contractData.filePath.startsWith('/')) {
+        const documentStorageService = new DocumentStorageService();
+        try {
+          const fullPath = path.join(process.cwd(), contractData.filePath);
+          if (fs.existsSync(fullPath)) {
+            const fileName = path.basename(fullPath);
+            const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', contractData.crewMemberId, fileName);
+
+            // Upload local file to signed URL
+            const fileBuffer = fs.readFileSync(fullPath);
+            const response = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: new Uint8Array(fileBuffer),
+              headers: {
+                'Content-Type': getMimeType(fullPath)
+              }
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
+            }
+
+            // Update path to the cloud path
+            const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
+            console.log(`[CLOUD-STORAGE-CONTRACT] Successfully uploaded to ${cloudPath}`);
+            contractData.filePath = cloudPath;
+
+            // Cleanup local file
+            fs.unlink(fullPath, (err) => {
+              if (err) console.error(`[CLOUD-STORAGE-CONTRACT] Failed to delete local file ${fullPath}:`, err);
+            });
+          }
+        } catch (storageError) {
+          console.error("[CLOUD-STORAGE-CONTRACT] Error uploading to Object Storage:", storageError);
+          return res.status(500).json({ message: "Failed to save contract document to persistent storage" });
+        }
       }
 
       const contract = await storage.createContract(contractData);
@@ -2344,6 +2383,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const updates = insertContractSchema.partial().parse(req.body);
       console.log('Parsed contract updates:', updates);
+
+      // Move to Object Storage for persistence if a new file path is provided
+      if (updates.filePath && !updates.filePath.startsWith('/')) {
+        const documentStorageService = new DocumentStorageService();
+        try {
+          const existingContract = await storage.getContract(req.params.id);
+          const crewMemberId = updates.crewMemberId || existingContract?.crewMemberId;
+
+          if (!crewMemberId) {
+            throw new Error("Crew member ID not found for contract storage");
+          }
+
+          const fullPath = path.join(process.cwd(), updates.filePath);
+          if (fs.existsSync(fullPath)) {
+            const fileName = path.basename(fullPath);
+            const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', crewMemberId, fileName);
+
+            const fileBuffer = fs.readFileSync(fullPath);
+            const response = await fetch(uploadUrl, {
+              method: 'PUT',
+              body: new Uint8Array(fileBuffer),
+              headers: {
+                'Content-Type': getMimeType(fullPath)
+              }
+            });
+
+            if (!response.ok) {
+              throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
+            }
+
+            const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
+            console.log(`[CLOUD-STORAGE-CONTRACT-PUT] Successfully uploaded to ${cloudPath}`);
+            updates.filePath = cloudPath;
+
+            // Cleanup local file
+            fs.unlink(fullPath, (err) => {
+              if (err) console.error(`[CLOUD-STORAGE-CONTRACT-PUT] Failed to delete local file ${fullPath}:`, err);
+            });
+          }
+        } catch (storageError) {
+          console.error("[CLOUD-STORAGE-CONTRACT-PUT] Error uploading to Object Storage:", storageError);
+          return res.status(500).json({ message: "Failed to save updated contract document to persistent storage" });
+        }
+      }
 
       // POLICY ENFORCEMENT: Check policy if end date is being extended
       if (updates.endDate) {
