@@ -1,6 +1,8 @@
 import { Storage, File } from "@google-cloud/storage";
 import { Response } from "express";
 import { randomUUID } from "crypto";
+import * as fs from 'fs';
+import * as path from 'path';
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
@@ -35,6 +37,11 @@ export class ObjectNotFoundError extends Error {
 // The object storage service for all documents (Vessel and Crew)
 export class DocumentStorageService {
   constructor() { }
+
+  // Check if Replit Cloud Storage is available
+  isCloudStorageAvailable(): boolean {
+    return !!process.env.PRIVATE_OBJECT_DIR;
+  }
 
   // Gets the private object directory for documents
   getPrivateObjectDir(): string {
@@ -90,9 +97,31 @@ export class DocumentStorageService {
     return objectFile;
   }
 
+
   // Downloads a document to the response
   async downloadDocument(filePath: string, res: Response, cacheTtlSec: number = 3600) {
     console.log(`[STORAGE-DOWNLOAD] Starting download for: ${filePath}`);
+
+    // LOCAL FALLBACK: If path starts with 'uploads/' or cloud storage is unavailable
+    if (filePath.startsWith('uploads/') || !this.isCloudStorageAvailable()) {
+      try {
+        const fullPath = path.join(process.cwd(), filePath);
+        console.log(`[STORAGE-DOWNLOAD-LOCAL] Checking local file: ${fullPath}`);
+
+        if (fs.existsSync(fullPath)) {
+          console.log(`[STORAGE-DOWNLOAD-LOCAL] Serving local file: ${fullPath}`);
+          return res.sendFile(fullPath);
+        } else if (!this.isCloudStorageAvailable()) {
+          console.error(`[STORAGE-DOWNLOAD-LOCAL] Local file not found and cloud unavailable: ${filePath}`);
+          return res.status(404).json({ error: "File not found locally and cloud storage is unavailable" });
+        }
+        // If it doesn't exist locally but cloud IS available, continue to cloud download
+        console.log(`[STORAGE-DOWNLOAD-LOCAL] Local file not found, but cloud is available. Continuing to cloud...`);
+      } catch (localError: any) {
+        console.error(`[STORAGE-DOWNLOAD-LOCAL] Error checking local file:`, localError);
+      }
+    }
+
     try {
       const { bucketName, objectName } = parseObjectPath(filePath);
       console.log(`[STORAGE-DOWNLOAD] Parsed: Bucket=${bucketName}, Object=${objectName}`);
@@ -100,13 +129,15 @@ export class DocumentStorageService {
       const bucket = objectStorageClient.bucket(bucketName);
       const objectFile = bucket.file(objectName);
 
+      console.log(`[STORAGE-DOWNLOAD] Checking if object exists: ${objectName} in bucket: ${bucketName}`);
       const [exists] = await objectFile.exists();
       if (!exists) {
-        console.error(`[STORAGE-DOWNLOAD] Object does not exist: ${filePath}`);
+        console.error(`[STORAGE-DOWNLOAD] Object does not exist: ${filePath} (Bucket: ${bucketName}, Object: ${objectName})`);
         throw new ObjectNotFoundError();
       }
 
       // Get file metadata
+      console.log(`[STORAGE-DOWNLOAD] Fetching metadata for ${objectName}...`);
       const [metadata] = await objectFile.getMetadata();
       console.log(`[STORAGE-DOWNLOAD] Metadata: ContentType=${metadata.contentType}, Size=${metadata.size}`);
 
@@ -118,7 +149,7 @@ export class DocumentStorageService {
       });
 
       // Download the file content into memory (more robust for small/medium files on Replit)
-      console.log(`[STORAGE-DOWNLOAD] Fetching buffer from storage...`);
+      console.log(`[STORAGE-DOWNLOAD] Fetching buffer from storage for ${objectName}...`);
       const [buffer] = await objectFile.download();
 
       console.log(`[STORAGE-DOWNLOAD] Successfully fetched buffer (${buffer.length} bytes). Sending to response...`);
@@ -132,7 +163,13 @@ export class DocumentStorageService {
         if (error instanceof ObjectNotFoundError) {
           res.status(404).json({ error: "File not found in Object Storage" });
         } else {
-          res.status(500).json({ error: `Storage error: ${error.message}` });
+          // Check if it's a connection error
+          const isConnectionError = error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND');
+          const errorMessage = isConnectionError
+            ? `Storage connection error: ${error.message}. If running locally, Replit Object Storage is not available.`
+            : `Storage error: ${error.message}`;
+
+          res.status(500).json({ error: errorMessage });
         }
       }
     }

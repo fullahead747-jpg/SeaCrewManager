@@ -1067,38 +1067,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Move to Object Storage for persistence
           const documentStorageService = new DocumentStorageService();
-          try {
-            const fileName = path.basename(fullPath);
-            const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', crewMember.id, fileName);
 
-            // Upload local file to signed URL
-            const fileBuffer = fs.readFileSync(fullPath);
-            const response = await fetch(uploadUrl, {
-              method: 'PUT',
-              body: new Uint8Array(fileBuffer),
-              headers: {
-                'Content-Type': getMimeType(fullPath)
+          // Only attempt cloud move if objectively storage is available (Replit sidecar)
+          if (documentStorageService.isCloudStorageAvailable()) {
+            try {
+              const fileName = path.basename(fullPath);
+              const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', crewMember.id, fileName);
+
+              // Upload local file to signed URL
+              const fileBuffer = fs.readFileSync(fullPath);
+              const response = await fetch(uploadUrl, {
+                method: 'PUT',
+                body: new Uint8Array(fileBuffer),
+                headers: {
+                  'Content-Type': getMimeType(fullPath)
+                }
+              });
+
+              if (!response.ok) {
+                throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
               }
-            });
 
-            if (!response.ok) {
-              throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
+              // Update path to the cloud path
+              const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
+              console.log(`[CLOUD-STORAGE] Successfully uploaded to ${cloudPath}`);
+              documentData.filePath = cloudPath;
+
+              // Cleanup local file
+              fs.unlink(fullPath, (err) => {
+                if (err) console.error(`[CLOUD-STORAGE] Failed to delete local file ${fullPath}:`, err);
+              });
+            } catch (storageError) {
+              console.error("[CLOUD-STORAGE] Error uploading to Object Storage:", storageError);
+              // We can choose to keep it local if cloud fails, but Replit is non-persistent
+              // so maybe we should fail the whole request?
+              return res.status(500).json({ message: "Failed to save document to persistent storage" });
             }
-
-            // Update path to the cloud path
-            const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
-            console.log(`[CLOUD-STORAGE] Successfully uploaded to ${cloudPath}`);
-            documentData.filePath = cloudPath;
-
-            // Cleanup local file
-            fs.unlink(fullPath, (err) => {
-              if (err) console.error(`[CLOUD-STORAGE] Failed to delete local file ${fullPath}:`, err);
-            });
-          } catch (storageError) {
-            console.error("[CLOUD-STORAGE] Error uploading to Object Storage:", storageError);
-            // We can choose to keep it local if cloud fails, but Replit is non-persistent
-            // so maybe we should fail the whole request?
-            return res.status(500).json({ message: "Failed to save document to persistent storage" });
+          } else {
+            console.log(`[STORAGE-LOCAL] Cloud storage not available, keeping local file path: ${documentData.filePath}`);
           }
         } catch (validationError) {
           console.error("Validation service error:", validationError);
@@ -2298,39 +2304,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Move to Object Storage for persistence if a file path is provided
       if (contractData.filePath && !contractData.filePath.startsWith('/')) {
         const documentStorageService = new DocumentStorageService();
-        try {
-          const fullPath = path.join(process.cwd(), contractData.filePath);
-          if (fs.existsSync(fullPath)) {
-            const fileName = path.basename(fullPath);
-            const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', contractData.crewMemberId, fileName);
 
-            // Upload local file to signed URL
-            const fileBuffer = fs.readFileSync(fullPath);
-            const response = await fetch(uploadUrl, {
-              method: 'PUT',
-              body: new Uint8Array(fileBuffer),
-              headers: {
-                'Content-Type': getMimeType(fullPath)
+        // Only attempt cloud move if objectively storage is available (Replit sidecar)
+        if (documentStorageService.isCloudStorageAvailable()) {
+          try {
+            const fullPath = path.join(process.cwd(), contractData.filePath);
+            if (fs.existsSync(fullPath)) {
+              const fileName = path.basename(fullPath);
+              const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', contractData.crewMemberId, fileName);
+
+              // Upload local file to signed URL
+              const fileBuffer = fs.readFileSync(fullPath);
+              const response = await fetch(uploadUrl, {
+                method: 'PUT',
+                body: new Uint8Array(fileBuffer),
+                headers: {
+                  'Content-Type': getMimeType(fullPath)
+                }
+              });
+
+              if (!response.ok) {
+                throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
               }
-            });
 
-            if (!response.ok) {
-              throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
+              // Update path to the cloud path
+              const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
+              console.log(`[CLOUD-STORAGE-CONTRACT] Successfully uploaded to ${cloudPath}`);
+              contractData.filePath = cloudPath;
+
+              // Cleanup local file
+              fs.unlink(fullPath, (err) => {
+                if (err) console.error(`[CLOUD-STORAGE-CONTRACT] Failed to delete local file ${fullPath}:`, err);
+              });
             }
-
-            // Update path to the cloud path
-            const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
-            console.log(`[CLOUD-STORAGE-CONTRACT] Successfully uploaded to ${cloudPath}`);
-            contractData.filePath = cloudPath;
-
-            // Cleanup local file
-            fs.unlink(fullPath, (err) => {
-              if (err) console.error(`[CLOUD-STORAGE-CONTRACT] Failed to delete local file ${fullPath}:`, err);
-            });
+          } catch (storageError) {
+            console.error("[CLOUD-STORAGE-CONTRACT] Error uploading to Object Storage:", storageError);
+            return res.status(500).json({ message: "Failed to save contract document to persistent storage" });
           }
-        } catch (storageError) {
-          console.error("[CLOUD-STORAGE-CONTRACT] Error uploading to Object Storage:", storageError);
-          return res.status(500).json({ message: "Failed to save contract document to persistent storage" });
+        } else {
+          console.log(`[STORAGE-LOCAL] Cloud storage not available, keeping local file path: ${contractData.filePath}`);
         }
       }
 
@@ -2428,44 +2440,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Move to Object Storage for persistence if a new file path is provided
       if (updates.filePath && !updates.filePath.startsWith('/')) {
         const documentStorageService = new DocumentStorageService();
-        try {
-          const existingContract = await storage.getContract(req.params.id);
-          const crewMemberId = updates.crewMemberId || existingContract?.crewMemberId;
 
-          if (!crewMemberId) {
-            throw new Error("Crew member ID not found for contract storage");
-          }
+        // Only attempt cloud move if objectively storage is available (Replit sidecar)
+        if (documentStorageService.isCloudStorageAvailable()) {
+          try {
+            const existingContract = await storage.getContract(req.params.id);
+            const crewMemberId = updates.crewMemberId || existingContract?.crewMemberId;
 
-          const fullPath = path.join(process.cwd(), updates.filePath);
-          if (fs.existsSync(fullPath)) {
-            const fileName = path.basename(fullPath);
-            const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', crewMemberId, fileName);
-
-            const fileBuffer = fs.readFileSync(fullPath);
-            const response = await fetch(uploadUrl, {
-              method: 'PUT',
-              body: new Uint8Array(fileBuffer),
-              headers: {
-                'Content-Type': getMimeType(fullPath)
-              }
-            });
-
-            if (!response.ok) {
-              throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
+            if (!crewMemberId) {
+              throw new Error("Crew member ID not found for contract storage");
             }
 
-            const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
-            console.log(`[CLOUD-STORAGE-CONTRACT-PUT] Successfully uploaded to ${cloudPath}`);
-            updates.filePath = cloudPath;
+            const fullPath = path.join(process.cwd(), updates.filePath);
+            if (fs.existsSync(fullPath)) {
+              const fileName = path.basename(fullPath);
+              const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', crewMemberId, fileName);
 
-            // Cleanup local file
-            fs.unlink(fullPath, (err) => {
-              if (err) console.error(`[CLOUD-STORAGE-CONTRACT-PUT] Failed to delete local file ${fullPath}:`, err);
-            });
+              const fileBuffer = fs.readFileSync(fullPath);
+              const response = await fetch(uploadUrl, {
+                method: 'PUT',
+                body: new Uint8Array(fileBuffer),
+                headers: {
+                  'Content-Type': getMimeType(fullPath)
+                }
+              });
+
+              if (!response.ok) {
+                throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
+              }
+
+              const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
+              console.log(`[CLOUD-STORAGE-CONTRACT-PUT] Successfully uploaded to ${cloudPath}`);
+              updates.filePath = cloudPath;
+
+              // Cleanup local file
+              fs.unlink(fullPath, (err) => {
+                if (err) console.error(`[CLOUD-STORAGE-CONTRACT-PUT] Failed to delete local file ${fullPath}:`, err);
+              });
+            }
+          } catch (storageError) {
+            console.error("[CLOUD-STORAGE-CONTRACT-PUT] Error uploading to Object Storage:", storageError);
+            return res.status(500).json({ message: "Failed to save updated contract document to persistent storage" });
           }
-        } catch (storageError) {
-          console.error("[CLOUD-STORAGE-CONTRACT-PUT] Error uploading to Object Storage:", storageError);
-          return res.status(500).json({ message: "Failed to save updated contract document to persistent storage" });
+        } else {
+          console.log(`[STORAGE-LOCAL] Cloud storage not available, keeping local file path for contract update: ${updates.filePath}`);
         }
       }
 
@@ -2558,45 +2576,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // View contract document (inline)
-  app.get("/api/contracts/:id/view", authenticate, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const contract = await storage.getContract(id);
 
-      if (!contract || !contract.filePath) {
-        return res.status(404).json({ message: "Contract document not found" });
-      }
-
-      const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(contract.filePath, res);
-    } catch (error) {
-      console.error("Error viewing contract document:", error);
-      if (!res.headersSent) {
-        res.status(500).json({ message: "Failed to view contract document" });
-      }
-    }
-  });
-
-  // Download contract document
-  app.get("/api/contracts/:id/download", authenticate, async (req, res) => {
-    try {
-      const { id } = req.params;
-      const contract = await storage.getContract(id);
-
-      if (!contract || !contract.filePath) {
-        return res.status(404).json({ message: "Contract document not found" });
-      }
-
-      const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(contract.filePath, res);
-    } catch (error) {
-      console.error("Error downloading contract document:", error);
-      if (!res.headersSent) {
-        res.status(500).json({ message: "Failed to download contract document" });
-      }
-    }
-  });
+  // Existing route handlers continue...
 
   // Crew rotation routes
   app.get("/api/rotations", authenticate, async (req, res) => {
