@@ -217,7 +217,20 @@ export function ContractStatusBadges({ vesselId, vesselName }: ContractStatusBad
                             variant="outline"
                             size="sm"
                             className="h-8 text-xs flex items-center gap-1.5"
-                            onClick={() => window.open(`/api/contracts/${contract.id}/view`, '_blank')}
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(`/api/contracts/${contract.id}/view`, {
+                                  headers: getAuthHeaders(),
+                                });
+                                if (!response.ok) throw new Error('Failed to view contract');
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                window.open(url, '_blank');
+                                setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                              } catch (error) {
+                                toast({ title: 'Error', description: 'Failed to open contract', variant: 'destructive' });
+                              }
+                            }}
                           >
                             <Eye className="h-3.5 w-3.5" />
                             View
@@ -226,7 +239,25 @@ export function ContractStatusBadges({ vesselId, vesselName }: ContractStatusBad
                             variant="outline"
                             size="sm"
                             className="h-8 text-xs flex items-center gap-1.5"
-                            onClick={() => window.location.href = `/api/contracts/${contract.id}/download`}
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(`/api/contracts/${contract.id}/download`, {
+                                  headers: getAuthHeaders(),
+                                });
+                                if (!response.ok) throw new Error('Failed to download contract');
+                                const blob = await response.blob();
+                                const url = window.URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `Contract_${contract.crewMember.lastName}.pdf`;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                                window.URL.revokeObjectURL(url);
+                              } catch (error) {
+                                toast({ title: 'Error', description: 'Failed to download contract', variant: 'destructive' });
+                              }
+                            }}
                           >
                             <Download className="h-3.5 w-3.5" />
                             Download

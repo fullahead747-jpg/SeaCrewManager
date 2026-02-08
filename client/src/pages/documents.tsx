@@ -376,8 +376,24 @@ export default function Documents() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-green-600 hover:bg-green-50"
-                                onClick={() => {
-                                  window.open(`/api/documents/${document.id}/download`, '_blank');
+                                onClick={async () => {
+                                  try {
+                                    const response = await fetch(`/api/documents/${document.id}/download`, {
+                                      headers: getAuthHeaders(),
+                                    });
+                                    if (!response.ok) throw new Error('Failed to download document');
+                                    const blob = await response.blob();
+                                    const url = window.URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `${document.type}_${document.documentNumber}.pdf`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    window.URL.revokeObjectURL(url);
+                                  } catch (error) {
+                                    toast({ title: 'Error', description: 'Failed to download document', variant: 'destructive' });
+                                  }
                                 }}
                                 data-testid={`download-document-${document.id}`}
                               >
@@ -487,8 +503,24 @@ export default function Documents() {
                         variant="outline"
                         size="sm"
                         className="bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-                        onClick={() => {
-                          window.open(`/api/documents/${selectedDocument.id}/download`, '_blank');
+                        onClick={async () => {
+                          try {
+                            const response = await fetch(`/api/documents/${selectedDocument.id}/download`, {
+                              headers: getAuthHeaders(),
+                            });
+                            if (!response.ok) throw new Error('Failed to download document');
+                            const blob = await response.blob();
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = `${selectedDocument.type}_${selectedDocument.documentNumber}.pdf`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            window.URL.revokeObjectURL(url);
+                          } catch (error) {
+                            toast({ title: 'Error', description: 'Failed to download document', variant: 'destructive' });
+                          }
                         }}
                         data-testid="download-document-modal"
                       >

@@ -193,9 +193,27 @@ export function DocumentCardDetailed({ document, documentType, allDocuments, onV
                                 variant="ghost"
                                 size="sm"
                                 className="h-8 w-8 p-0 text-purple-600 hover:bg-purple-50 transition-colors"
-                                onClick={() => {
-                                    if (document?.filePath) {
-                                        window.open(`/api/documents/${document.id}/download`, '_blank');
+                                onClick={async () => {
+                                    if (document?.id) {
+                                        try {
+                                            const response = await fetch(`/api/documents/${document.id}/download`, {
+                                                headers: {
+                                                    ...getAuthHeaders(),
+                                                }
+                                            });
+                                            if (!response.ok) throw new Error('Failed to download');
+                                            const blob = await response.blob();
+                                            const url = window.URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = `${document.type}_${document.documentNumber || document.id}.pdf`;
+                                            document.body.appendChild(a);
+                                            a.click();
+                                            document.body.removeChild(a);
+                                            window.URL.revokeObjectURL(url);
+                                        } catch (error) {
+                                            console.error('Download error:', error);
+                                        }
                                     }
                                 }}
                                 title="Download"
