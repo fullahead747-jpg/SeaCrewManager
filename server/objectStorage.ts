@@ -99,21 +99,32 @@ export class DocumentStorageService {
 
 
   // Downloads a document to the response
-  async downloadDocument(filePath: string, res: Response, cacheTtlSec: number = 3600) {
-    console.log(`[STORAGE-DOWNLOAD] Starting download for: ${filePath}`);
+  async downloadDocument(encodedFilePath: string, res: Response, cacheTtlSec: number = 3600) {
+    // Decode the path since it might come from a URL (e.g., with %20 for spaces)
+    const filePath = decodeURIComponent(encodedFilePath);
+    const isCloudAvailable = this.isCloudStorageAvailable();
+
+    console.log(`[STORAGE-DOWNLOAD] Starting download for: ${filePath} (Cloud Available: ${isCloudAvailable})`);
 
     // LOCAL FALLBACK: If path starts with 'uploads/' or cloud storage is unavailable
-    if (filePath.startsWith('uploads/') || !this.isCloudStorageAvailable()) {
+    // Note: On Replit, Object Storage paths start with /replit-objstore... 
+    // If the Secret is missing, we try to see if we can find it as a local absolute path.
+    if (filePath.startsWith('uploads/') || !isCloudAvailable) {
       try {
-        const fullPath = path.join(process.cwd(), filePath);
+        // If it's an absolute path (like /replit-objstore-...), use it as is.
+        // Otherwise, join with process.cwd()
+        const fullPath = filePath.startsWith('/') ? filePath : path.join(process.cwd(), filePath);
         console.log(`[STORAGE-DOWNLOAD-LOCAL] Checking local file: ${fullPath}`);
 
         if (fs.existsSync(fullPath)) {
           console.log(`[STORAGE-DOWNLOAD-LOCAL] Serving local file: ${fullPath}`);
           return res.sendFile(fullPath);
-        } else if (!this.isCloudStorageAvailable()) {
-          console.error(`[STORAGE-DOWNLOAD-LOCAL] Local file not found and cloud unavailable: ${filePath}`);
-          return res.status(404).json({ error: "File not found locally and cloud storage is unavailable" });
+        } else if (!isCloudAvailable) {
+          console.error(`[STORAGE-DOWNLOAD-LOCAL] Local file not found and cloud unavailable: ${fullPath}`);
+          return res.status(404).json({
+            error: "File not found locally",
+            details: `Looked at: ${fullPath}. Cloud storage is also not configured (PRIVATE_OBJECT_DIR missing).`
+          });
         }
         // If it doesn't exist locally but cloud IS available, continue to cloud download
         console.log(`[STORAGE-DOWNLOAD-LOCAL] Local file not found, but cloud is available. Continuing to cloud...`);
