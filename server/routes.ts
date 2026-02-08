@@ -2020,6 +2020,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Document not found" });
       }
 
+      console.log(`[VIEW-DOC] Attempting to view doc: ${id}, Path: ${document.filePath}`);
       const documentStorageService = new DocumentStorageService();
       await documentStorageService.downloadDocument(document.filePath, res);
     } catch (error) {
@@ -3412,7 +3413,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         storage.getVessels(),
         storage.getCrewMembers()
       ]);
-
       type UpcomingEvent = {
         type: string;
         crewMemberName: string;

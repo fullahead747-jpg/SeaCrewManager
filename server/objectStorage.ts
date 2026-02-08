@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
-// The object storage client is used to interact with the object storage service.
+console.log(`[STORAGE-INIT] Initializing Object Storage Client...`);
 export const objectStorageClient = new Storage({
   credentials: {
     audience: "replit",
@@ -20,8 +20,9 @@ export const objectStorageClient = new Storage({
     },
     universe_domain: "googleapis.com",
   },
-  projectId: "replit-production", // Placeholder often needed by the library
+  projectId: "replit-production",
 });
+console.log(`[STORAGE-INIT] Client initialized. PRIVATE_OBJECT_DIR: ${process.env.PRIVATE_OBJECT_DIR || 'NOT SET'}`);
 
 export class ObjectNotFoundError extends Error {
   constructor() {
