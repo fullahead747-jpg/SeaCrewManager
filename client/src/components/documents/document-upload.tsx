@@ -59,6 +59,7 @@ const documentTypes = [
   { value: 'medical', label: 'Medical Certificate' },
   { value: 'yellow_fever', label: 'Yellow Fever Vaccination' },
   { value: 'visa', label: 'Visa' },
+  { value: 'aoa', label: 'AOA (Articles of Agreement)' },
   { value: 'photo', label: 'Photo' },
   { value: 'nok', label: 'NOK' },
 ];
@@ -133,6 +134,8 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
   });
 
   const watchedType = form.watch('type');
+  const isAoaDocument = watchedType === 'aoa';
+  const isDateLocked = isAoaDocument && !!document && !selectedFile;
 
   useEffect(() => {
     if (watchedType && existingDocuments && !document) {
@@ -460,21 +463,28 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                               </Button>
                             </FormControl>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value ? new Date(field.value) : undefined}
-                              onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
-                              disabled={(date) =>
-                                date > new Date() || date < new Date("1900-01-01")
-                              }
-                              captionLayout="dropdown-buttons"
-                              fromYear={1900}
-                              toYear={new Date().getFullYear()}
-                              initialFocus
-                            />
-                          </PopoverContent>
+                          {!isDateLocked && (
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value ? new Date(field.value) : undefined}
+                                onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
+                                disabled={(date) =>
+                                  date > new Date() || date < new Date("1900-01-01")
+                                }
+                                captionLayout="dropdown-buttons"
+                                fromYear={1900}
+                                toYear={new Date().getFullYear()}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          )}
                         </Popover>
+                        {isDateLocked && (
+                          <p className="text-[10px] text-pink-400 mt-1 font-bold animate-pulse">
+                            Replace AOA document to change date
+                          </p>
+                        )}
                       </FormItem>
                     )}
                   />
@@ -505,18 +515,25 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                               </Button>
                             </FormControl>
                           </PopoverTrigger>
-                          <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                              mode="single"
-                              selected={field.value ? new Date(field.value) : undefined}
-                              onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
-                              captionLayout="dropdown-buttons"
-                              fromYear={new Date().getFullYear()}
-                              toYear={new Date().getFullYear() + 20}
-                              initialFocus
-                            />
-                          </PopoverContent>
+                          {!isDateLocked && (
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value ? new Date(field.value) : undefined}
+                                onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
+                                captionLayout="dropdown-buttons"
+                                fromYear={new Date().getFullYear()}
+                                toYear={new Date().getFullYear() + 20}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          )}
                         </Popover>
+                        {isDateLocked && (
+                          <p className="text-[10px] text-pink-400 mt-1 font-bold animate-pulse">
+                            Replace AOA document to change date
+                          </p>
+                        )}
                       </FormItem>
                     )}
                   />

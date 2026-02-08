@@ -62,7 +62,8 @@ export function CrewListPanel({ crewMembers, documents, selectedCrewId, onSelect
 
     const getDocumentCount = (crew: CrewMember) => {
         const crewDocs = documents.filter(d => d.crewMemberId === crew.id && d.filePath);
-        return `${crewDocs.length}/4`;
+        const count = crewDocs.length;
+        return count === 1 ? '1 Document' : `${count} Documents`;
     };
 
     const getInitials = (crew: CrewMember) => {

@@ -243,6 +243,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Diagnostic endpoint to check uploads directory
+  app.get("/api/debug/uploads", (req, res) => {
+    try {
+      const uploadsDir = path.join(process.cwd(), 'uploads');
+      const exists = fs.existsSync(uploadsDir);
+      let files: string[] = [];
+      if (exists) {
+        files = fs.readdirSync(uploadsDir);
+      }
+      res.json({
+        cwd: process.cwd(),
+        uploadsDir,
+        exists,
+        fileCount: files.length,
+        files: files.slice(0, 50) // limit to first 50
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Auth routes
   app.post("/api/auth/login", async (req, res) => {
     try {
@@ -1277,6 +1298,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Crew member not found" });
       }
 
+      // AOA DATE LOCK: Prevent manual date changes for AOA documents without a new file upload
+      if (existingDocument.type.toLowerCase() === 'aoa') {
+        const issueDateChanged = updates.issueDate &&
+          new Date(updates.issueDate).toISOString().split('T')[0] !== existingDocument.issueDate.toISOString().split('T')[0];
+        const expiryDateChanged = updates.expiryDate &&
+          new Date(updates.expiryDate).toISOString().split('T')[0] !== existingDocument.expiryDate.toISOString().split('T')[0];
+
+        if ((issueDateChanged || expiryDateChanged) && !updates.filePath) {
+          console.warn(`[AOA-LOCK] Blocked manual date change for AOA document: ${existingDocument.id}`);
+          return res.status(400).json({
+            message: "AOA date change rejected. You must first replace the AOA form with the updated document to change the date."
+          });
+        }
+      }
+
       // STRICT VALIDATION FOR EDITS
       // Run validation if ANY critical field is changed OR if a new file is uploaded
       const isCriticalUpdate = updates.filePath || updates.documentNumber || updates.expiryDate || updates.issueDate;
@@ -1697,6 +1733,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       try {
         const fullPath = path.join(process.cwd(), filePath);
 
+        // Fetch latest non-superseded scan cache if it exists (Ground Truth)
+        const [cachedScan] = await db.select().from(scannedDocuments)
+          .where(
+            and(
+              eq(scannedDocuments.documentId, existingDocument.id),
+              isNull(scannedDocuments.supersededAt)
+            )
+          )
+          .orderBy(desc(scannedDocuments.createdAt))
+          .limit(1);
+
+        const cachedData = cachedScan ? {
+          documentNumber: cachedScan.extractedNumber || undefined,
+          expiryDate: cachedScan.extractedExpiry ? cachedScan.extractedExpiry.toISOString() : undefined,
+          issueDate: cachedScan.extractedIssueDate ? cachedScan.extractedIssueDate.toISOString() : undefined,
+          holderName: cachedScan.extractedHolderName || undefined,
+          mrzValidation: cachedScan.mrzValidation || undefined,
+        } : undefined;
+
+        if (cachedData) {
+          console.log(`[VERIFICATION-API] Found cached scan data for ${existingDocument.type} (ID: ${existingDocument.id})`);
+        }
+
         // Verify the document
         const verificationResult = await documentVerificationService.verifyDocument(
           fullPath,
@@ -1707,7 +1766,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             expiryDate: existingDocument.expiryDate ? existingDocument.expiryDate.toISOString() : null,
             type: existingDocument.type,
             holderName: `${existingDocument.crewMemberId}` // Pass ID if needed or handled in service
-          }
+          },
+          cachedData
         );
 
         // EXTRA: Proactive Profile Comparison
