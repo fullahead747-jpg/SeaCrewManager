@@ -20,7 +20,7 @@ export const objectStorageClient = new Storage({
     },
     universe_domain: "googleapis.com",
   },
-  projectId: "",
+  projectId: "replit-production", // Placeholder often needed by the library
 });
 
 export class ObjectNotFoundError extends Error {
@@ -91,11 +91,23 @@ export class DocumentStorageService {
 
   // Downloads a document to the response
   async downloadDocument(filePath: string, res: Response, cacheTtlSec: number = 3600) {
+    console.log(`[STORAGE-DOWNLOAD] Starting download for: ${filePath}`);
     try {
-      const file = await this.getDocumentFile(filePath);
+      const { bucketName, objectName } = parseObjectPath(filePath);
+      console.log(`[STORAGE-DOWNLOAD] Parsed: Bucket=${bucketName}, Object=${objectName}`);
+
+      const bucket = objectStorageClient.bucket(bucketName);
+      const objectFile = bucket.file(objectName);
+
+      const [exists] = await objectFile.exists();
+      if (!exists) {
+        console.error(`[STORAGE-DOWNLOAD] Object does not exist: ${filePath}`);
+        throw new ObjectNotFoundError();
+      }
 
       // Get file metadata
-      const [metadata] = await file.getMetadata();
+      const [metadata] = await objectFile.getMetadata();
+      console.log(`[STORAGE-DOWNLOAD] Metadata: ContentType=${metadata.contentType}, Size=${metadata.size}`);
 
       // Set appropriate headers
       res.set({
@@ -105,25 +117,26 @@ export class DocumentStorageService {
       });
 
       // Stream the file to the response
-      const stream = file.createReadStream();
+      const stream = objectFile.createReadStream();
 
       stream.on("error", (err) => {
-        console.error("Stream error:", err);
+        console.error("[STORAGE-DOWNLOAD] Stream error:", err);
         if (!res.headersSent) {
           res.status(500).json({ error: "Error streaming file" });
         }
       });
 
       stream.pipe(res);
-    } catch (error) {
-      console.error("Error downloading file:", error);
-      if (error instanceof ObjectNotFoundError) {
-        if (!res.headersSent) {
-          res.status(404).json({ error: "File not found" });
-        }
-      } else {
-        if (!res.headersSent) {
-          res.status(500).json({ error: "Error downloading file" });
+      console.log(`[STORAGE-DOWNLOAD] Successfully piped stream for: ${filePath}`);
+    } catch (error: any) {
+      console.error("[STORAGE-DOWNLOAD] Error downloading file:", error.message);
+      if (error.stack) console.error(error.stack);
+
+      if (!res.headersSent) {
+        if (error instanceof ObjectNotFoundError) {
+          res.status(404).json({ error: "File not found in Object Storage" });
+        } else {
+          res.status(500).json({ error: `Storage error: ${error.message}` });
         }
       }
     }
