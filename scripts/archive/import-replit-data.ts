@@ -4,7 +4,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import fs from 'fs';
-import * as schema from './shared/schema.ts';
+import * as schema from '../../shared/schema.ts';
 
 // Helper function to convert date strings back to Date objects
 function convertDates(obj: any): any {
@@ -36,8 +36,8 @@ async function importData() {
     try {
         console.log('🚀 Starting data import to Replit database...\n');
 
-        // Check if export file exists
-        const exportFile = 'replit-data-export.json';
+        // Check if export file exists (it's in the same archive folder)
+        const exportFile = 'scripts/archive/replit-data-export.json';
         if (!fs.existsSync(exportFile)) {
             console.error(`❌ Export file not found: ${exportFile}`);
             console.log('\nPlease upload the export file to Replit first:');
