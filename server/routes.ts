@@ -2377,6 +2377,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // View contract (inline)
+  app.get("/api/contracts/:id/view", authenticate, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const contract = await storage.getContract(id);
+
+      if (!contract || !contract.filePath) {
+        return res.status(404).json({ message: "Contract document not found" });
+      }
+
+      const documentStorageService = new DocumentStorageService();
+      await documentStorageService.downloadDocument(contract.filePath, res);
+    } catch (error) {
+      console.error("Error viewing contract:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Failed to view contract" });
+      }
+    }
+  });
+
+  // Download contract
+  app.get("/api/contracts/:id/download", authenticate, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const contract = await storage.getContract(id);
+
+      if (!contract || !contract.filePath) {
+        return res.status(404).json({ message: "Contract document not found" });
+      }
+
+      const documentStorageService = new DocumentStorageService();
+      await documentStorageService.downloadDocument(contract.filePath, res);
+    } catch (error) {
+      console.error("Error downloading contract:", error);
+      if (!res.headersSent) {
+        res.status(500).json({ message: "Failed to download contract" });
+      }
+    }
+  });
+
   app.put("/api/contracts/:id", authenticate, async (req, res) => {
     try {
       console.log('Updating contract:', req.params.id, 'with data:', req.body);
