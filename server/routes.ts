@@ -110,6 +110,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Helper functions moved to registerRoutes scope for deduplication
+  const parseDDMMYYYY = (dateStr: string | undefined | null): Date | null => {
+    if (!dateStr) return null;
+    const ddmmyyyyMatch = dateStr.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+    if (ddmmyyyyMatch) {
+      const [, day, month, year] = ddmmyyyyMatch;
+      return new Date(`${year}-${month}-${day}T00:00:00.000Z`);
+    }
+    const parsed = new Date(dateStr);
+    return isNaN(parsed.getTime()) ? null : parsed;
+  };
+
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr || dateStr === 'NONE' || dateStr === 'NOT FOUND') return dateStr;
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return dateStr;
+      return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
   // API route for file upload
   app.post('/api/upload', (req, res, next) => {
     // Manually handle authentication checking since multer middleware runs before body parsing
@@ -1052,7 +1075,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const fileBuffer = fs.readFileSync(fullPath);
             const response = await fetch(uploadUrl, {
               method: 'PUT',
-              body: fileBuffer,
+              body: new Uint8Array(fileBuffer),
               headers: {
                 'Content-Type': getMimeType(fullPath)
               }
@@ -1093,14 +1116,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // This provides a "Ground Truth" for future cached validations.
       if (document && document.documentNumber && ['passport', 'cdc', 'medical', 'coc'].includes(document.type.toLowerCase())) {
         try {
-          await db.insert(scannedDocuments).values({
+          await storage.createScannedDocument({
             documentId: document.id,
             extractedNumber: document.documentNumber,
             extractedExpiry: document.expiryDate,
             extractedIssueDate: document.issueDate,
             extractedHolderName: `${crewMember.firstName} ${crewMember.lastName}`,
             extractedIssuingAuthority: document.issuingAuthority,
-            createdAt: new Date(),
           });
           console.log(`[AUTO-SCAN] Successfully auto-populated scanned_documents for ${document.type}`);
         } catch (scanError) {
@@ -1151,23 +1173,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } else {
               console.log(`[SILENT-SCAN-DEBUG] Skipping J->U correction: isPassport=${isPassport}, hasNumber=${hasNumber}, isIndian=${isIndian}`);
             }
-
-            // Helper function to parse DD/MM/YYYY format
-            const parseDDMMYYYY = (dateStr: string | undefined | null): Date | null => {
-              if (!dateStr) return null;
-
-              // Check if it's DD/MM/YYYY format
-              const ddmmyyyyMatch = dateStr.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
-              if (ddmmyyyyMatch) {
-                const [, day, month, year] = ddmmyyyyMatch;
-                // Create date as YYYY-MM-DD to avoid timezone issues
-                return new Date(`${year}-${month}-${day}T00:00:00.000Z`);
-              }
-
-              // Try standard Date parsing as fallback
-              const parsed = new Date(dateStr);
-              return isNaN(parsed.getTime()) ? null : parsed;
-            };
 
             console.log(`[SILENT-SCAN] Saving to database - Document Number BEFORE final check: "${extractedData.documentNumber}"`);
 
@@ -1385,7 +1390,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
               documentNumber: scan.extractedNumber,
               expiryDate: scan.extractedExpiry ? scan.extractedExpiry.toISOString() : null,
               issueDate: scan.extractedIssueDate ? scan.extractedIssueDate.toISOString() : null,
-              holderName: scan.extractedHolderName
+              holderName: scan.extractedHolderName,
+              mrzValidation: scan.mrzValidation as { isValid: boolean; errors: string[] } | undefined
             };
 
             // CRITICAL: Disable cache fallback ONLY for fields the user is manually editing.
@@ -1413,17 +1419,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           if (!verification.isValid) {
             console.warn(`[STRICT-VALIDATION-PUT] Blocked update due to validation failure`);
-
-            const formatDate = (dateStr: string | null) => {
-              if (!dateStr || dateStr === 'NONE' || dateStr === 'NOT FOUND') return dateStr;
-              try {
-                const date = new Date(dateStr);
-                if (isNaN(date.getTime())) return dateStr;
-                return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-              } catch (e) {
-                return dateStr;
-              }
-            };
 
             const changedFields = Object.keys(updates).filter(key => {
               const newVal = (updates as any)[key];
@@ -1486,7 +1481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               const fileBuffer = fs.readFileSync(localPath);
               const response = await fetch(uploadUrl, {
                 method: 'PUT',
-                body: fileBuffer,
+                body: new Uint8Array(fileBuffer),
                 headers: {
                   'Content-Type': getMimeType(localPath)
                 }
@@ -1607,23 +1602,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } else {
               console.log(`[SILENT-SCAN-PUT-DEBUG] Skipping J->U correction: isPassport=${isPassport}, hasNumber=${hasNumber}, isIndian=${isIndian}`);
             }
-
-            // Helper function to parse DD/MM/YYYY format
-            const parseDDMMYYYY = (dateStr: string | undefined | null): Date | null => {
-              if (!dateStr) return null;
-
-              // Check if it's DD/MM/YYYY format
-              const ddmmyyyyMatch = dateStr.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
-              if (ddmmyyyyMatch) {
-                const [, day, month, year] = ddmmyyyyMatch;
-                // Create date as YYYY-MM-DD to avoid timezone issues
-                return new Date(`${year}-${month}-${day}T00:00:00.000Z`);
-              }
-
-              // Try standard Date parsing as fallback
-              const parsed = new Date(dateStr);
-              return isNaN(parsed.getTime()) ? null : parsed;
-            };
 
             // DOCUMENT RENEWAL: Mark old scans as superseded before creating new one
             // This ensures validation only checks against the latest scan
@@ -1819,7 +1797,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expiryDate: cachedScan.extractedExpiry ? cachedScan.extractedExpiry.toISOString() : undefined,
           issueDate: cachedScan.extractedIssueDate ? cachedScan.extractedIssueDate.toISOString() : undefined,
           holderName: cachedScan.extractedHolderName || undefined,
-          mrzValidation: cachedScan.mrzValidation || undefined,
+          mrzValidation: cachedScan.mrzValidation as { isValid: boolean; errors: string[] } | undefined,
         } : undefined;
 
         if (cachedData) {
@@ -2007,8 +1985,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const documentStorageService = new DocumentStorageService();
       await documentStorageService.downloadDocument(document.filePath!, res);
-    } catch (error) {
-
     } catch (error) {
       console.error("❌ Error in secure document viewer:", error);
       if (!res.headersSent) {

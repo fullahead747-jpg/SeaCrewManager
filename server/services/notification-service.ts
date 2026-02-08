@@ -37,6 +37,10 @@ export class NotificationService {
   private readonly retryDelayMs = 5000; // 5 seconds
   private defaultFromEmail = 'noreply@crewtrack.com'; // You can customize this
 
+  async sendEmail(options: { to: string; subject: string; html: string }): Promise<{ success: boolean }> {
+    return smtpEmailService.sendEmail(options);
+  }
+
   async initialize() {
     try {
       console.log('🔄 Initializing notification service...');

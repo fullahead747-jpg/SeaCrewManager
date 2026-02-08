@@ -189,7 +189,8 @@ export class LocalOCRService {
 
           const renderContext = {
             canvasContext: context as any,
-            viewport: viewport
+            viewport: viewport,
+            canvas: canvas as any
           };
 
           await page.render(renderContext).promise;

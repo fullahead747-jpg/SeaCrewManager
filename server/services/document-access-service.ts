@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { documentAccessTokens, documents } from '@shared/schema';
-import { eq, and, gt } from 'drizzle-orm';
+import { eq, and, lt } from 'drizzle-orm';
 import crypto from 'crypto';
 
 /**
@@ -110,7 +110,7 @@ export class DocumentAccessService {
             // Delete all expired tokens
             const result = await db
                 .delete(documentAccessTokens)
-                .where(gt(now, documentAccessTokens.expiresAt));
+                .where(lt(documentAccessTokens.expiresAt, now));
 
             console.log(`🧹 Cleaned up expired tokens`);
 

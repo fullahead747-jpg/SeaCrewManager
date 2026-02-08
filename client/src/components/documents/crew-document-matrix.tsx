@@ -28,7 +28,6 @@ const DOCUMENT_TYPES: { type: DocumentType; label: string; shortLabel: string }[
   { type: 'passport', label: 'Passport', shortLabel: 'Pass' },
   { type: 'cdc', label: 'CDC', shortLabel: 'CDC' },
   { type: 'coc', label: 'COC', shortLabel: 'COC' },
-  { type: 'coc', label: 'COC', shortlabel: 'COC' },
   { type: 'medical', label: 'Medical Certificate', shortLabel: 'Med' },
   { type: 'visa', label: 'Visa', shortLabel: 'Visa' },
 ];
@@ -77,20 +76,20 @@ export default function CrewDocumentMatrix() {
     });
 
     const matrix: DocumentCell[][] = [];
-    
+
     filteredCrewMembers.forEach((crewMember) => {
       const row: DocumentCell[] = [];
-      
+
       DOCUMENT_TYPES.forEach(({ type }) => {
         const key = `${crewMember.id}-${type}`;
         const document = documentIndex.get(key);
-        
+
         let status: DocumentCell['status'] = 'missing';
         if (document) {
           const now = new Date();
           const expiryDate = new Date(document.expiryDate);
           const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          
+
           if (daysUntilExpiry < 0) {
             status = 'expired';
           } else if (daysUntilExpiry <= 30) {
@@ -99,7 +98,7 @@ export default function CrewDocumentMatrix() {
             status = 'valid';
           }
         }
-        
+
         row.push({
           crewMemberId: crewMember.id,
           documentType: type,
@@ -107,10 +106,10 @@ export default function CrewDocumentMatrix() {
           status,
         });
       });
-      
+
       matrix.push(row);
     });
-    
+
     return matrix;
   }, [filteredCrewMembers, documents]);
 
@@ -120,12 +119,12 @@ export default function CrewDocumentMatrix() {
   const getCrewProgress = (crewMemberId: string) => {
     const crewDocuments = documents.filter(doc => doc.crewMemberId === crewMemberId);
     const totalDocumentTypes = DOCUMENT_TYPES.length;
-    
+
     // Count unique document types (not total documents) for accurate progress
     const uploadedDocumentTypes = new Set(crewDocuments.map(doc => doc.type)).size;
     const pendingDocumentTypes = totalDocumentTypes - uploadedDocumentTypes;
     const percentage = totalDocumentTypes > 0 ? (uploadedDocumentTypes / totalDocumentTypes) * 100 : 0;
-    
+
     return {
       uploaded: uploadedDocumentTypes,
       pending: pendingDocumentTypes,
@@ -182,18 +181,18 @@ export default function CrewDocumentMatrix() {
         const response = await fetch(`/api/documents/${document.id}/download`, {
           headers: getAuthHeaders(),
         });
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch document');
         }
-        
+
         // Create a blob from the response
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
-        
+
         // Open the blob URL in a new tab
         window.open(blobUrl, '_blank');
-        
+
         // Clean up the blob URL after a short delay
         setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
       } catch (error) {
@@ -214,15 +213,15 @@ export default function CrewDocumentMatrix() {
         const response = await fetch(`/api/documents/${doc.id}/download`, {
           headers: getAuthHeaders(),
         });
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch document');
         }
-        
+
         // Create a blob from the response
         const blob = await response.blob();
         const blobUrl = URL.createObjectURL(blob);
-        
+
         // Create download link
         const link = document.createElement('a');
         link.href = blobUrl;
@@ -231,7 +230,7 @@ export default function CrewDocumentMatrix() {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         // Clean up the blob URL
         URL.revokeObjectURL(blobUrl);
       } catch (error) {
@@ -326,7 +325,7 @@ export default function CrewDocumentMatrix() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-500">Document Types</CardTitle>
@@ -340,7 +339,7 @@ export default function CrewDocumentMatrix() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-500">Total Documents</CardTitle>
@@ -402,7 +401,7 @@ export default function CrewDocumentMatrix() {
                   documentMatrix.map((row, rowIndex) => {
                     const crewMemberId = row[0]?.crewMemberId;
                     const progress = getCrewProgress(crewMemberId);
-                    
+
                     return (
                       <TableRow key={crewMemberId} className="hover:bg-gray-50">
                         {/* Crew Member Column */}
@@ -448,8 +447,8 @@ export default function CrewDocumentMatrix() {
                                     {getStatusIcon(cell.status)}
                                     <span className="text-xs font-medium">
                                       {cell.status === 'valid' ? 'Valid' :
-                                       cell.status === 'expiring' ? 'Expiring' : 
-                                       cell.status === 'expired' ? 'Expired' : ''}
+                                        cell.status === 'expiring' ? 'Expiring' :
+                                          cell.status === 'expired' ? 'Expired' : ''}
                                     </span>
                                   </div>
                                 </div>
@@ -525,15 +524,15 @@ export default function CrewDocumentMatrix() {
               </span>
             </DialogTitle>
           </DialogHeader>
-          
+
           {selectedCell && (
             <div className="space-y-4">
               <div className="bg-gray-50 p-3 rounded-lg">
                 <div className="text-sm text-gray-600">Crew Member</div>
                 <div className="font-medium">{getCrewMemberName(selectedCell.crewMemberId)}</div>
               </div>
-              
-              <DocumentUpload 
+
+              <DocumentUpload
                 crewMemberId={selectedCell.crewMemberId}
                 document={selectedCell.document}
                 preselectedType={selectedCell.documentType}

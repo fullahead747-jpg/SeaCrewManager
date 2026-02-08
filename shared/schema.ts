@@ -149,6 +149,7 @@ export const scannedDocuments = pgTable("scanned_documents", {
   extractedExpiry: timestamp("extracted_expiry"),
   extractedIssueDate: timestamp("extracted_issue_date"),
   extractedHolderName: text("extracted_holder_name"),
+  extractedIssuingAuthority: text("extracted_issuing_authority"),
   mrzValidation: jsonb("mrz_validation"), // Full mrzResult object
   ocrConfidence: integer("ocr_confidence"),
   rawText: text("raw_text"),

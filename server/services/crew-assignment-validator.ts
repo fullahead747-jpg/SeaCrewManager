@@ -29,8 +29,7 @@ export class CrewAssignmentValidator {
             .from(documents)
             .where(
                 and(
-                    eq(documents.crewMemberId, crewMemberId),
-                    isNull(documents.deletedAt)
+                    eq(documents.crewMemberId, crewMemberId)
                 )
             );
 
@@ -65,7 +64,7 @@ export class CrewAssignmentValidator {
             // Calculate status
             const statusResult = documentStatusService.calculateDocumentStatus(
                 doc.expiryDate,
-                doc.gracePeriodDays || 7
+                7
             );
 
             // Check if blocked

@@ -4,6 +4,7 @@ import { documents, crewMembers, notificationLog } from '@shared/schema';
 import { eq, isNull, and } from 'drizzle-orm';
 import { documentStatusService, DocumentStatus } from '../services/document-status-service';
 import { notificationService } from '../services/notification-service';
+import { sendDocumentExpiryNotification } from '../services/document-notification-service';
 
 /**
  * Daily job to update document statuses and trigger notifications
@@ -16,8 +17,7 @@ export async function updateDocumentStatuses() {
         // Fetch all non-deleted documents
         const allDocuments = await db
             .select()
-            .from(documents)
-            .where(isNull(documents.deletedAt));
+            .from(documents);
 
         console.log(`[CRON] Processing ${allDocuments.length} documents...`);
 
@@ -28,20 +28,18 @@ export async function updateDocumentStatuses() {
             // Calculate current status
             const statusResult = documentStatusService.calculateDocumentStatus(
                 doc.expiryDate,
-                doc.gracePeriodDays || 7
+                7
             );
 
             // Check if status has changed
             const statusChanged = doc.status !== statusResult.status;
-            const blockingChanged = doc.blockedFromAssignments !== statusResult.blockedFromAssignments;
 
-            if (statusChanged || blockingChanged) {
+            if (statusChanged) {
                 // Update document status
                 await db
                     .update(documents)
                     .set({
-                        status: statusResult.status,
-                        blockedFromAssignments: statusResult.blockedFromAssignments
+                        status: statusResult.status
                     })
                     .where(eq(documents.id, doc.id));
 
@@ -156,7 +154,7 @@ async function sendDocumentNotification(
     const recipientEmail = crewMember.email || 'admin@offing.biz';
 
     // Send email notification
-    await notificationService.sendDocumentExpiryNotification(
+    await sendDocumentExpiryNotification(
         document,
         crewMember,
         statusResult.daysUntilExpiry,

@@ -1,5 +1,5 @@
 import { FileText, Heart, Ship, Award } from 'lucide-react';
-import type { Document } from '@db/schema';
+import type { Document } from '@shared/schema';
 import { getDocumentStatus, getDocumentStatusColor } from '@/lib/crew-status-calculator';
 
 interface DocumentStatusGridProps {

@@ -601,7 +601,7 @@ export default function Reports() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={risk.status === 'high' ? 'destructive' : risk.status === 'medium' ? 'warning' : 'outline'}>
+                          <Badge variant={risk.status === 'high' ? 'destructive' : risk.status === 'medium' ? 'secondary' : 'outline'}>
                             {risk.status.toUpperCase()}
                           </Badge>
                         </TableCell>

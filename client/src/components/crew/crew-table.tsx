@@ -1803,7 +1803,7 @@ export default function CrewTable() {
                             <button
                               onClick={async () => {
                                 try {
-                                  const endpoint = displayAoa.isContract ? `/api/contracts/${displayAoa.id}/view` : `/api/documents/${displayAoa.id}/view`;
+                                  const endpoint = (displayAoa as any).isContract ? `/api/contracts/${displayAoa.id}/view` : `/api/documents/${displayAoa.id}/view`;
                                   const response = await fetch(endpoint, {
                                     headers: getAuthHeaders(),
                                   });
@@ -1850,7 +1850,7 @@ export default function CrewTable() {
                           <button
                             onClick={async () => {
                               try {
-                                const response = await fetch(`/api/contracts/${selectedCrewMember.activeContract.id}/view`, {
+                                const response = await fetch(`/api/contracts/${selectedCrewMember.activeContract?.id}/view`, {
                                   headers: getAuthHeaders(),
                                 });
                                 if (!response.ok) {

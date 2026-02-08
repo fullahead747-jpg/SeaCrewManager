@@ -68,6 +68,8 @@ export interface ExtractedDocumentData {
     nokPhone?: string;
     nokEmail?: string;
     nokAddress?: string;
+    ocrConfidence?: number;
+    errors?: string[];
 }
 
 export interface ExpiryValidationResult {

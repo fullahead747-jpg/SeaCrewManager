@@ -57,7 +57,7 @@ export default function ChatWidget() {
             </CardHeader>
 
             <CardContent className="flex-1 p-3 z-10 flex flex-col justify-end">
-                <ScrollArea className="flex-1 h-[300px]" viewportRef={scrollRef}>
+                <ScrollArea className="flex-1 h-[300px]" ref={scrollRef}>
                     <div className="flex flex-col gap-2">
                         {messages?.slice(-20).map((msg) => {
                             const isBot = msg.senderName === 'Bot';

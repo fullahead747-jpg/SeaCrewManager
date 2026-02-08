@@ -39,13 +39,11 @@ async function checkScannedData() {
                 console.log(`\n  Scanned Data:`);
                 console.log(`  - Scan ID: ${scan.id}`);
                 console.log(`  - Created At: ${scan.createdAt}`);
-                console.log(`  - Verification Score: ${scan.verificationScore}`);
-                console.log(`  - Is Valid: ${scan.isValid}`);
+                console.log(`  - OCR Confidence: ${scan.ocrConfidence}`);
+                console.log(`  - Status: ${scan.ownerValidationStatus}`);
 
-                if (scan.rawOcrData) {
-                    const ocrData = typeof scan.rawOcrData === 'string'
-                        ? JSON.parse(scan.rawOcrData)
-                        : scan.rawOcrData;
+                if (scan.rawText) {
+                    const ocrData = JSON.parse(scan.rawText);
 
                     console.log(`\n  Raw OCR Data:`);
                     console.log(`  - Passport Number: ${ocrData.passportNumber || 'N/A'}`);

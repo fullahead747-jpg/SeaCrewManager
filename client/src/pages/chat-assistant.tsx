@@ -131,7 +131,7 @@ export default function ChatAssistant() {
                         </div>
 
                         {/* Messages Area */}
-                        <ScrollArea className="flex-1 p-6 z-10 h-full" viewportRef={scrollRef}>
+                        <ScrollArea className="flex-1 p-6 z-10 h-full" ref={scrollRef}>
                             <div className="flex flex-col gap-2 max-w-4xl mx-auto">
                                 <div className="self-center bg-white/80 px-3 py-1 text-[11px] rounded-lg shadow-sm text-gray-500 font-medium uppercase mb-4">
                                     Today

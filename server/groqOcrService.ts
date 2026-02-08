@@ -120,8 +120,11 @@ export class GroqOCRService {
 
       // Clean up temp files
       try { unlinkSync(pdfPath); } catch (e) { }
-      if (result.path && existsSync(result.path)) {
-        try { unlinkSync(result.path); } catch (e) { }
+      // ToBase64Response usually contains 'path' if responseType wasn't explicitly 'base64'
+      // but the type definition might be incomplete or different. Using any as escape hatch or checking existance.
+      const resultPath = (result as any).path;
+      if (resultPath && existsSync(resultPath)) {
+        try { unlinkSync(resultPath); } catch (e) { }
       }
 
       console.log('[OCR-GROQ] PDF converted to image successfully');

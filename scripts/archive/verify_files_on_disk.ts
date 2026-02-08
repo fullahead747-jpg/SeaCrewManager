@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { db } from './server/db';
+import { db } from '../../server/db';
 import { documents } from '@shared/schema';
 
 async function verifyFiles() {

@@ -880,6 +880,7 @@ export class MemStorage implements IStorage {
   private whatsappSettings: WhatsappSettings | undefined;
   private notificationHistory: Map<string, NotificationHistory>;
   private scannedDocuments: Map<string, ScannedDocument>;
+  private whatsappMessages: Map<string, WhatsappMessage>;
 
   constructor() {
     this.users = new Map();
@@ -891,6 +892,7 @@ export class MemStorage implements IStorage {
     this.crewRotations = new Map();
     this.notificationHistory = new Map();
     this.scannedDocuments = new Map();
+    this.whatsappMessages = new Map();
     this.initializeData();
   }
 
@@ -1296,6 +1298,9 @@ export class MemStorage implements IStorage {
       salary: 8000,
       currency: "USD",
       status: "active",
+      contractType: "SEA",
+      contractNumber: "C12345",
+      filePath: null,
       createdAt: new Date(),
     };
 
@@ -1309,6 +1314,9 @@ export class MemStorage implements IStorage {
       salary: 6500,
       currency: "USD",
       status: "active",
+      contractType: "SEA",
+      contractNumber: "C12346",
+      filePath: null,
       createdAt: new Date(),
     };
 
@@ -1322,6 +1330,9 @@ export class MemStorage implements IStorage {
       salary: 5500,
       currency: "USD",
       status: "active",
+      contractType: "SEA",
+      contractNumber: "C12347",
+      filePath: null,
       createdAt: new Date(),
     };
 
@@ -1336,6 +1347,9 @@ export class MemStorage implements IStorage {
       salary: 4500,
       currency: "USD",
       status: "active",
+      contractType: "SEA",
+      contractNumber: "C12348",
+      filePath: null,
       createdAt: new Date(),
     };
 
@@ -1349,6 +1363,9 @@ export class MemStorage implements IStorage {
       salary: 5000,
       currency: "USD",
       status: "active",
+      contractType: "SEA",
+      contractNumber: "C12349",
+      filePath: null,
       createdAt: new Date(),
     };
 
@@ -1363,6 +1380,9 @@ export class MemStorage implements IStorage {
       salary: 6500,
       currency: "USD",
       status: "active",
+      contractType: "SEA",
+      contractNumber: "C12350",
+      filePath: null,
       createdAt: new Date(),
     };
 
@@ -1376,6 +1396,9 @@ export class MemStorage implements IStorage {
       salary: 5800,
       currency: "USD",
       status: "active",
+      contractType: "SEA",
+      contractNumber: "C12351",
+      filePath: null,
       createdAt: new Date(),
     };
 
@@ -1389,6 +1412,9 @@ export class MemStorage implements IStorage {
       salary: 5200,
       currency: "USD",
       status: "active",
+      contractType: "SEA",
+      contractNumber: "C12352",
+      filePath: null,
       createdAt: new Date(),
     };
 
@@ -1414,6 +1440,7 @@ export class MemStorage implements IStorage {
         status: "expiring",
         filePath: null,
         createdAt: new Date(),
+        updatedAt: new Date(),
       },
       {
         id: randomUUID(),
@@ -1426,6 +1453,7 @@ export class MemStorage implements IStorage {
         status: "expiring",
         filePath: null,
         createdAt: new Date(),
+        updatedAt: new Date(),
       },
       {
         id: randomUUID(),
@@ -1438,10 +1466,11 @@ export class MemStorage implements IStorage {
         status: "valid",
         filePath: null,
         createdAt: new Date(),
+        updatedAt: new Date(),
       }
     ];
 
-    documents.forEach(doc => this.documents.set(doc.id, doc));
+    documents.forEach(doc => this.documents.set(doc.id, doc as Document));
 
     // Create sample crew rotations with upcoming events
     const rotation1: CrewRotation = {
@@ -1820,7 +1849,7 @@ export class MemStorage implements IStorage {
     const document = this.documents.get(id);
     if (!document) return undefined;
 
-    const updated = { ...document, ...updates };
+    const updated = { ...document, ...updates, updatedAt: new Date() };
     this.documents.set(id, updated);
     return updated;
   }
@@ -2157,13 +2186,41 @@ export class MemStorage implements IStorage {
       extractedExpiry: scanned.extractedExpiry || null,
       extractedIssueDate: scanned.extractedIssueDate || null,
       extractedHolderName: scanned.extractedHolderName || null,
+      extractedIssuingAuthority: scanned.extractedIssuingAuthority || null,
       mrzValidation: scanned.mrzValidation || null,
       ocrConfidence: scanned.ocrConfidence || null,
       rawText: scanned.rawText || null,
       createdAt: new Date(),
+      supersededAt: null,
+      supersededBy: null,
+      ownerValidationStatus: scanned.ownerValidationStatus || null,
+      ownerValidationScore: scanned.ownerValidationScore || null,
+      ownerValidationMessage: scanned.ownerValidationMessage || null,
     };
     this.scannedDocuments.set(id, newScanned);
     return newScanned;
+  }
+
+  // WhatsApp message operations
+  async saveWhatsappMessage(message: InsertWhatsappMessage): Promise<WhatsappMessage> {
+    const id = randomUUID();
+    const newMessage: WhatsappMessage = {
+      ...message,
+      id,
+      fromMe: message.fromMe ?? false,
+      senderName: message.senderName || null,
+      status: message.status || 'sent',
+      timestamp: new Date(),
+      createdAt: new Date(),
+    };
+    this.whatsappMessages.set(id, newMessage);
+    return newMessage;
+  }
+
+  async getWhatsappMessages(remoteJid: string, _limit?: number): Promise<WhatsappMessage[]> {
+    return Array.from(this.whatsappMessages.values())
+      .filter(m => m.remoteJid === remoteJid)
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }
 }
 

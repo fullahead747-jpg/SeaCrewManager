@@ -1109,7 +1109,7 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
                 type="button"
                 onClick={async () => {
                   try {
-                    const response = await fetch(`/api/contracts/${crewMember.activeContract.id}/view`, {
+                    const response = await fetch(`/api/contracts/${crewMember.activeContract?.id}/view`, {
                       headers: getAuthHeaders(),
                     });
                     if (!response.ok) {

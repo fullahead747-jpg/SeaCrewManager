@@ -200,7 +200,7 @@ export class WhatsAppNotificationService {
       case 'whapi':
       case 'custom':
         if (settings.webhookUrl) {
-          this.provider = new WebhookWhatsAppProvider(settings.webhookUrl, settings.apiKey);
+          this.provider = new WebhookWhatsAppProvider(settings.webhookUrl, settings.apiKey || undefined);
         } else {
           console.error('Custom/WHAPI provider requires webhook URL');
         }
