@@ -67,38 +67,7 @@ const editCrewSchema = z.object({
 
 type EditCrewFormData = z.infer<typeof editCrewSchema>;
 
-// Helper function to format dates for input fields without timezone conversion
-const formatDateForInput = (date: string | Date | null | undefined): string => {
-  if (!date) return '';
-  try {
-    // If it's already a string in YYYY-MM-DD format, return it directly
-    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return date;
-    }
-
-    // Handle ISO timestamp strings (e.g., "2017-07-03T18:30:00.000Z")
-    if (typeof date === 'string' && date.includes('T')) {
-      // Extract just the date part before 'T'
-      const datePart = date.split('T')[0];
-      // Parse it to ensure it's valid, then reformat to avoid timezone issues
-      const d = new Date(date);
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    }
-
-    // If it's a Date object or other format, convert carefully
-    const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : date;
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  } catch (error) {
-    console.error('Error formatting date:', date, error);
-    return '';
-  }
-};
+import { formatDateForInput } from '@/lib/utils';
 
 interface EditCrewFormProps {
   crewMember: CrewMemberWithDetails;

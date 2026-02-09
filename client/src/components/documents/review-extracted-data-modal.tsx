@@ -52,11 +52,13 @@ export function ReviewExtractedDataModal({
             if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
                 return date;
             }
-            // If it's a Date object or other format, convert carefully
-            const d = typeof date === 'string' ? new Date(date + 'T00:00:00') : date;
-            const year = d.getFullYear();
-            const month = String(d.getMonth() + 1).padStart(2, '0');
-            const day = String(d.getDate()).padStart(2, '0');
+            // Use UTC methods to avoid timezone shifts
+            const d = typeof date === 'string' ? new Date(date) : date;
+            if (isNaN(d.getTime())) return '';
+
+            const year = d.getUTCFullYear();
+            const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(d.getUTCDate()).padStart(2, '0');
             return `${year}-${month}-${day}`;
         } catch {
             return '';

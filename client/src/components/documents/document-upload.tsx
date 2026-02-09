@@ -18,7 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Upload, FileText, AlertCircle, Eye, Calendar as CalendarIcon } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
+import { cn, formatDate, formatDateForInput } from '@/lib/utils';
 import { z } from 'zod';
 import { format } from 'date-fns';
 
@@ -26,13 +26,7 @@ import { format } from 'date-fns';
 // Helper to format dates for user-friendly display
 function formatDateForDisplay(date: string | Date | null | undefined): string {
   if (!date) return 'N/A';
-  try {
-    const d = typeof date === 'string' ? new Date(date) : date;
-    if (isNaN(d.getTime())) return 'N/A';
-    return format(d, 'dd-MM-yyyy');
-  } catch (e) {
-    return 'N/A';
-  }
+  return formatDate(date);
 }
 
 const documentFormSchema = insertDocumentSchema.extend({
@@ -82,8 +76,8 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
     defaultValues: {
       type: document?.type || preselectedType || '',
       documentNumber: document?.documentNumber || '',
-      issueDate: document?.issueDate ? format(new Date(document.issueDate), 'yyyy-MM-dd') : '',
-      expiryDate: document?.expiryDate ? format(new Date(document.expiryDate), 'yyyy-MM-dd') : '',
+      issueDate: document?.issueDate ? formatDateForInput(document.issueDate) : '',
+      expiryDate: document?.expiryDate ? formatDateForInput(document.expiryDate) : '',
       issuingAuthority: document?.issuingAuthority || '',
       status: document?.status || 'valid',
       crewMemberId: crewMemberId || '',
@@ -142,8 +136,8 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
       const existingDoc = existingDocuments.find((doc: any) => doc.type === watchedType);
       if (existingDoc) {
         form.setValue('documentNumber', existingDoc.documentNumber || '');
-        form.setValue('issueDate', existingDoc.issueDate ? format(new Date(existingDoc.issueDate), 'yyyy-MM-dd') : '');
-        form.setValue('expiryDate', existingDoc.expiryDate ? format(new Date(existingDoc.expiryDate), 'yyyy-MM-dd') : '');
+        form.setValue('issueDate', existingDoc.issueDate ? formatDateForInput(existingDoc.issueDate) : '');
+        form.setValue('expiryDate', existingDoc.expiryDate ? formatDateForInput(existingDoc.expiryDate) : '');
         form.setValue('issuingAuthority', existingDoc.issuingAuthority || '');
       }
     }
@@ -455,7 +449,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                                 )}
                               >
                                 {field.value ? (
-                                  format(new Date(field.value), "dd/MM/yyyy")
+                                  formatDate(field.value)
                                 ) : (
                                   <span>Pick a date</span>
                                 )}
@@ -468,7 +462,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                               <Calendar
                                 mode="single"
                                 selected={field.value ? new Date(field.value) : undefined}
-                                onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
+                                onSelect={(date) => field.onChange(date ? formatDateForInput(date) : "")}
                                 disabled={(date) =>
                                   date > new Date() || date < new Date("1900-01-01")
                                 }
@@ -507,7 +501,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                                 )}
                               >
                                 {field.value ? (
-                                  format(new Date(field.value), "dd/MM/yyyy")
+                                  formatDate(field.value)
                                 ) : (
                                   <span>Pick a date</span>
                                 )}
@@ -520,7 +514,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                               <Calendar
                                 mode="single"
                                 selected={field.value ? new Date(field.value) : undefined}
-                                onSelect={(date) => field.onChange(date ? format(date, "yyyy-MM-dd") : "")}
+                                onSelect={(date) => field.onChange(date ? formatDateForInput(date) : "")}
                                 captionLayout="dropdown-buttons"
                                 fromYear={new Date().getFullYear()}
                                 toYear={new Date().getFullYear() + 20}
