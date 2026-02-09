@@ -87,7 +87,8 @@ export class DocumentStorageService {
 
   // Gets the document file from the file path
   async getDocumentFile(filePath: string): Promise<File> {
-    const { bucketName, objectName } = parseObjectPath(filePath);
+    const decodedPath = decodeURIComponent(filePath);
+    const { bucketName, objectName } = parseObjectPath(decodedPath);
     const bucket = objectStorageClient.bucket(bucketName);
     const objectFile = bucket.file(objectName);
     const [exists] = await objectFile.exists();
