@@ -32,7 +32,13 @@ export function calculateCrewStatus(
 
     // Check each required document type
     for (const docType of requiredDocTypes) {
-        const doc = documents.find(d => d.type === docType);
+        // Find the best document for this type:
+        // 1. Must match type
+        // 2. Prioritize ones with filePath (uploaded)
+        // 3. If multiple uploaded, we could sort by expiry, but for now just picking one with file is enough to fix the "red dot" bug.
+        const docsOfType = documents.filter(d => d.type === docType);
+        const docWithFile = docsOfType.find(d => d.filePath);
+        const doc = docWithFile || docsOfType[0];
 
         if (!doc || !doc.filePath) {
             missingCount++;
