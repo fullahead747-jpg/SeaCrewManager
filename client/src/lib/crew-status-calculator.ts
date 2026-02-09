@@ -87,8 +87,6 @@ export function calculateCrewStatus(
         status = 'action-required';
     } else if (expiringCount > 0) {
         status = 'expiring-soon';
-    } else if (isNewCrew) {
-        status = 'new-crew';
     } else {
         status = 'all-valid';
     }

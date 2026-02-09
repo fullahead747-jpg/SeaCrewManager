@@ -50,6 +50,7 @@ export function CrewListPanel({ crewMembers, documents, selectedCrewId, onSelect
 
         switch (statusInfo.status) {
             case 'all-valid':
+            case 'new-crew':
                 return 'bg-green-500';
             case 'expiring-soon':
                 return 'bg-orange-500';
@@ -176,15 +177,20 @@ export function CrewListPanel({ crewMembers, documents, selectedCrewId, onSelect
 
                         {/* Status & Count */}
                         <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                            {((new Date().getTime() - new Date(crew.createdAt || new Date()).getTime()) / (1000 * 60 * 60 * 24)) <= 7 && (
+                                <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 mb-1">
+                                    🆕 New
+                                </Badge>
+                            )}
                             <Badge
                                 className={`${getCrewStatusDot(crew)} text-white hover:opacity-90 whitespace-nowrap`}
                             >
                                 {calculateCrewStatus(documents.filter(d => d.crewMemberId === crew.id), crew.createdAt || new Date()).status === 'action-required' ? '⚠️ Action Required' :
                                     calculateCrewStatus(documents.filter(d => d.crewMemberId === crew.id), crew.createdAt || new Date()).status === 'expiring-soon' ? '⏳ Expiring' :
-                                        calculateCrewStatus(documents.filter(d => d.crewMemberId === crew.id), crew.createdAt || new Date()).status === 'all-valid' ? '✓ All Valid' : 'New'}
+                                        '✓ All Valid'}
                             </Badge>
                             <span className={`text-[10px] font-medium ${calculateCrewStatus(documents.filter(d => d.crewMemberId === crew.id), crew.createdAt || new Date()).status === 'action-required' ? 'text-red-600' :
-                                    calculateCrewStatus(documents.filter(d => d.crewMemberId === crew.id), crew.createdAt || new Date()).status === 'expiring-soon' ? 'text-orange-600' : 'text-gray-500'
+                                calculateCrewStatus(documents.filter(d => d.crewMemberId === crew.id), crew.createdAt || new Date()).status === 'expiring-soon' ? 'text-orange-600' : 'text-gray-500'
                                 }`}>
                                 {getStatusText(crew)}
                             </span>
