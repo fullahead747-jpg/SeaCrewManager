@@ -3226,7 +3226,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('📎 Document has filePath:', document.filePath);
         const fs = await import('fs');
         const path = await import('path');
-        const filePath = path.default.join(process.cwd(), document.filePath);
+
+        // Remove leading slash if present to ensure correct path joining
+        let relativePath = document.filePath;
+        if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+          relativePath = relativePath.substring(1);
+        }
+
+        const filePath = path.default.join(process.cwd(), relativePath);
         console.log('📎 Full file path:', filePath);
         if (fs.default.existsSync(filePath)) {
           console.log('✅ File exists, reading content...');
@@ -3330,7 +3337,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log('📎 Contract has filePath:', contract.filePath);
         const fs = await import('fs');
         const path = await import('path');
-        const filePath = path.default.join(process.cwd(), contract.filePath);
+
+        // Remove leading slash if present to ensure correct path joining
+        let relativePath = contract.filePath;
+        if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+          relativePath = relativePath.substring(1);
+        }
+
+        const filePath = path.default.join(process.cwd(), relativePath);
         console.log('📎 Full file path:', filePath);
         if (fs.default.existsSync(filePath)) {
           console.log('✅ File exists, reading content...');
@@ -3642,7 +3656,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const doc of crewDocuments) {
         if (doc.filePath) {
           try {
-            const absolutePath = path.join(process.cwd(), doc.filePath);
+            // Remove leading slash if present to ensure correct path joining
+            let relativePath = doc.filePath;
+            if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+              relativePath = relativePath.substring(1);
+            }
+
+            const absolutePath = path.join(process.cwd(), relativePath);
             if (fs.existsSync(absolutePath)) {
               const fileContent = await fs.promises.readFile(absolutePath);
               const extension = path.extname(doc.filePath).toLowerCase();
