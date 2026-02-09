@@ -60,10 +60,32 @@ export function CrewListPanel({ crewMembers, documents, selectedCrewId, onSelect
         }
     };
 
-    const getDocumentCount = (crew: CrewMember) => {
-        const crewDocs = documents.filter(d => d.crewMemberId === crew.id && d.filePath);
-        const count = crewDocs.length;
-        return count === 1 ? '1 Document' : `${count} Documents`;
+    const getStatusText = (crew: CrewMember) => {
+        const crewDocs = documents.filter(d => d.crewMemberId === crew.id);
+        const statusInfo = calculateCrewStatus(crewDocs, crew.createdAt || new Date());
+
+        switch (statusInfo.status) {
+            case 'action-required':
+                if (statusInfo.missingDocuments.length > 0) {
+                    const missing = statusInfo.missingDocuments
+                        .map(d => d.toUpperCase())
+                        .join(', ');
+                    return `Missing: ${missing}`;
+                }
+                return 'Action Required';
+            case 'expiring-soon':
+                if (statusInfo.daysUntilNextExpiry !== null) {
+                    return `Expiring in ${statusInfo.daysUntilNextExpiry} days`;
+                }
+                return 'Expiring Soon';
+            case 'all-valid':
+                const count = crewDocs.filter(d => d.filePath).length;
+                return `${count} Documents OK`;
+            case 'new-crew':
+                return 'New Crew Member';
+            default:
+                return 'Unknown Status';
+        }
     };
 
     const getInitials = (crew: CrewMember) => {
@@ -153,11 +175,19 @@ export function CrewListPanel({ crewMembers, documents, selectedCrewId, onSelect
                         </div>
 
                         {/* Status & Count */}
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                            <div className={`w-2 h-2 rounded-full ${getCrewStatusDot(crew)}`} />
-                            <Badge variant="secondary" className="text-xs font-semibold">
-                                {getDocumentCount(crew)}
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                            <Badge
+                                className={`${getCrewStatusDot(crew)} text-white hover:opacity-90 whitespace-nowrap`}
+                            >
+                                {calculateCrewStatus(documents.filter(d => d.crewMemberId === crew.id), crew.createdAt || new Date()).status === 'action-required' ? '⚠️ Action Required' :
+                                    calculateCrewStatus(documents.filter(d => d.crewMemberId === crew.id), crew.createdAt || new Date()).status === 'expiring-soon' ? '⏳ Expiring' :
+                                        calculateCrewStatus(documents.filter(d => d.crewMemberId === crew.id), crew.createdAt || new Date()).status === 'all-valid' ? '✓ All Valid' : 'New'}
                             </Badge>
+                            <span className={`text-[10px] font-medium ${calculateCrewStatus(documents.filter(d => d.crewMemberId === crew.id), crew.createdAt || new Date()).status === 'action-required' ? 'text-red-600' :
+                                    calculateCrewStatus(documents.filter(d => d.crewMemberId === crew.id), crew.createdAt || new Date()).status === 'expiring-soon' ? 'text-orange-600' : 'text-gray-500'
+                                }`}>
+                                {getStatusText(crew)}
+                            </span>
                         </div>
                     </div>
                 ))}

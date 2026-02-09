@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileText, Heart, Ship, Award, Eye, Upload, Edit, Trash2, Download, Mail, Camera, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { getAuthHeaders } from '@/lib/auth';
 import type { Document } from '@shared/schema';
 
 interface DocumentCardDetailedProps {
@@ -204,12 +205,12 @@ export function DocumentCardDetailed({ document, documentType, allDocuments, onV
                                             if (!response.ok) throw new Error('Failed to download');
                                             const blob = await response.blob();
                                             const url = window.URL.createObjectURL(blob);
-                                            const a = document.createElement('a');
+                                            const a = window.document.createElement('a');
                                             a.href = url;
                                             a.download = `${document.type}_${document.documentNumber || document.id}.pdf`;
-                                            document.body.appendChild(a);
+                                            window.document.body.appendChild(a);
                                             a.click();
-                                            document.body.removeChild(a);
+                                            window.document.body.removeChild(a);
                                             window.URL.revokeObjectURL(url);
                                         } catch (error) {
                                             console.error('Download error:', error);

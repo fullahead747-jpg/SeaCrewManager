@@ -7,6 +7,7 @@ export interface CrewDocumentStatus {
     expiringCount: number;
     expiredCount: number;
     missingCount: number;
+    missingDocuments: string[]; // Added list of missing doc types
     daysUntilNextExpiry: number | null;
     criticalDocument: string | null;
 }
@@ -27,6 +28,7 @@ export function calculateCrewStatus(
     let expiringCount = 0;
     let expiredCount = 0;
     let missingCount = 0;
+    let missingDocuments: string[] = []; // Initialize array
     let nearestExpiry: Date | null = null;
     let criticalDocument: string | null = null;
 
@@ -42,6 +44,7 @@ export function calculateCrewStatus(
 
         if (!doc || !doc.filePath) {
             missingCount++;
+            missingDocuments.push(docType); // Add to missing list
             if (!criticalDocument) criticalDocument = docType.toUpperCase();
             continue;
         }
@@ -95,6 +98,7 @@ export function calculateCrewStatus(
         expiringCount,
         expiredCount,
         missingCount,
+        missingDocuments,
         daysUntilNextExpiry,
         criticalDocument
     };

@@ -384,12 +384,12 @@ export default function Documents() {
                                     if (!response.ok) throw new Error('Failed to download document');
                                     const blob = await response.blob();
                                     const url = window.URL.createObjectURL(blob);
-                                    const a = document.createElement('a');
+                                    const a = window.document.createElement('a');
                                     a.href = url;
                                     a.download = `${document.type}_${document.documentNumber}.pdf`;
-                                    document.body.appendChild(a);
+                                    window.document.body.appendChild(a);
                                     a.click();
-                                    document.body.removeChild(a);
+                                    window.document.body.removeChild(a);
                                     window.URL.revokeObjectURL(url);
                                   } catch (error) {
                                     toast({ title: 'Error', description: 'Failed to download document', variant: 'destructive' });
@@ -511,12 +511,12 @@ export default function Documents() {
                             if (!response.ok) throw new Error('Failed to download document');
                             const blob = await response.blob();
                             const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
+                            const a = window.document.createElement('a');
                             a.href = url;
                             a.download = `${selectedDocument.type}_${selectedDocument.documentNumber}.pdf`;
-                            document.body.appendChild(a);
+                            window.document.body.appendChild(a);
                             a.click();
-                            document.body.removeChild(a);
+                            window.document.body.removeChild(a);
                             window.URL.revokeObjectURL(url);
                           } catch (error) {
                             toast({ title: 'Error', description: 'Failed to download document', variant: 'destructive' });
