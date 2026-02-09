@@ -178,8 +178,8 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
         ...data,
         crewMemberId: selectedCrewId,
         documentNumber: data.documentNumber || 'N/A',
-        issueDate: data.issueDate ? new Date(data.issueDate) : new Date(),
-        expiryDate: data.expiryDate ? new Date(data.expiryDate) : new Date(new Date().setFullYear(new Date().getFullYear() + 10)),
+        issueDate: data.issueDate ? new Date(data.issueDate + 'T00:00:00.000Z') : new Date(),
+        expiryDate: data.expiryDate ? new Date(data.expiryDate + 'T00:00:00.000Z') : new Date(new Date().setFullYear(new Date().getFullYear() + 10)),
         issuingAuthority: data.issuingAuthority || 'N/A',
         filePath,
       };

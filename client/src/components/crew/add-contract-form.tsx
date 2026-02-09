@@ -326,6 +326,36 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
 
     setIsSaving(true);
 
+    const parseDateToUTC = (dateStr: string) => {
+      if (!dateStr) return new Date().toISOString();
+
+      // Handle DD-MMM-YYYY (e.g. 04-JUL-2017)
+      const ddmmyyyyMatch = dateStr.match(/^(\d{1,2})[-/](\w{3})[-/](\d{4})$/i);
+      if (ddmmyyyyMatch) {
+        const day = parseInt(ddmmyyyyMatch[1], 10);
+        const monthMap: Record<string, number> = {
+          'JAN': 0, 'FEB': 1, 'MAR': 2, 'APR': 3, 'MAY': 4, 'JUN': 5,
+          'JUL': 6, 'AUG': 7, 'SEP': 8, 'OCT': 9, 'NOV': 10, 'DEC': 11
+        };
+        const month = monthMap[ddmmyyyyMatch[2].toUpperCase()];
+        const year = parseInt(ddmmyyyyMatch[3], 10);
+
+        if (month !== undefined && !isNaN(day) && !isNaN(year)) {
+          return new Date(Date.UTC(year, month, day)).toISOString();
+        }
+      }
+
+      // Handle YYYY-MM-DD (e.g. 2017-07-04)
+      if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return new Date(dateStr + 'T00:00:00.000Z').toISOString();
+      }
+
+      // Fallback: try parsing but ensure it's treated as UTC if it looks like a date only
+      const d = new Date(dateStr);
+      // If valid, use it as is (might be local, but best effort fallback)
+      return !isNaN(d.getTime()) ? d.toISOString() : new Date().toISOString();
+    };
+
     try {
       // Parse name into first and last name
       const nameParts = seafarerName.trim().split(' ');
@@ -333,7 +363,7 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       const lastName = nameParts.slice(1).join(' ') || nameParts[0] || '';
 
       // Parse date of birth from seafarerDatePlaceOfBirth (format: "09-MAR-1982 & ROHTAS-BIHAR")
-      let dateOfBirth = new Date(1990, 0, 1); // Default date if parsing fails
+      let dateOfBirth = new Date(Date.UTC(1990, 0, 1)); // Default date
       if (seafarerDatePlaceOfBirth) {
         const dobMatch = seafarerDatePlaceOfBirth.match(/(\d{1,2})[-/](\w{3})[-/](\d{4})/);
         if (dobMatch) {
@@ -348,7 +378,7 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
 
           const month = monthMap[monthStr];
           if (month !== undefined && !isNaN(day) && !isNaN(year)) {
-            dateOfBirth = new Date(year, month, day);
+            dateOfBirth = new Date(Date.UTC(year, month, day));
           }
         }
       }
@@ -396,8 +426,8 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
               type,
               documentNumber: docNumber,
               issuingAuthority: placeOfIssue || '',
-              issueDate: new Date(issueDate).toISOString(),
-              expiryDate: new Date(expiryDate).toISOString(),
+              issueDate: parseDateToUTC(issueDate),
+              expiryDate: parseDateToUTC(expiryDate),
             });
           } catch (docError) {
             console.error(`Failed to create ${type} document:`, docError);
@@ -442,8 +472,8 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       const contractData = {
         crewMemberId: crewMember.id,
         vesselId: selectedVesselId,
-        startDate: new Date(contractStartDate).toISOString(),
-        endDate: new Date(contractEndDate).toISOString(),
+        startDate: parseDateToUTC(contractStartDate),
+        endDate: parseDateToUTC(contractEndDate),
         durationDays: typeof contractDays === 'number' ? contractDays : null,
         contractNumber: contractNumber || null,
         contractType: contractType || 'SEA',
