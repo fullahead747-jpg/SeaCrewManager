@@ -3646,7 +3646,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const crewDocuments = documents.filter(d => d.crewMemberId === crewMemberId);
 
       // Use Gmail SMTP service instead of SendGrid
+      // Use Gmail SMTP service instead of SendGrid
       const { smtpEmailService } = await import('./services/smtp-email-service');
+      const { DocumentStorageService } = await import('./objectStorage');
+      const documentStorageService = new DocumentStorageService();
 
       // PREPARE ATTACHMENTS
       const attachments: Array<{ filename: string, content: Buffer, contentType?: string }> = [];
@@ -3656,29 +3659,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const doc of crewDocuments) {
         if (doc.filePath) {
           try {
-            // Remove leading slash if present to ensure correct path joining
-            let relativePath = doc.filePath;
-            if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
-              relativePath = relativePath.substring(1);
-            }
+            const extension = path.extname(doc.filePath).toLowerCase();
+            // Basic content type detection
+            let contentType = 'application/pdf';
+            if (['.jpg', '.jpeg'].includes(extension)) contentType = 'image/jpeg';
+            else if (extension === '.png') contentType = 'image/png';
 
-            const absolutePath = path.join(process.cwd(), relativePath);
-            if (fs.existsSync(absolutePath)) {
-              const fileContent = await fs.promises.readFile(absolutePath);
-              const extension = path.extname(doc.filePath).toLowerCase();
+            const fileName = `${doc.type.toUpperCase()}_${doc.documentNumber || 'Document'}${extension}`;
 
-              // Basic content type detection
-              let contentType = 'application/pdf';
-              if (['.jpg', '.jpeg'].includes(extension)) contentType = 'image/jpeg';
-              else if (extension === '.png') contentType = 'image/png';
+            if (doc.filePath.startsWith('/')) {
+              // Handle Object Storage path
+              try {
+                console.log(`Attempting to fetch document from Object Storage: ${doc.filePath}`);
+                const file = await documentStorageService.getDocumentFile(doc.filePath);
+                const [fileContent] = await file.download();
 
-              attachments.push({
-                filename: `${doc.type.toUpperCase()}_${doc.documentNumber || 'Document'}${extension}`,
-                content: fileContent,
-                contentType
-              });
+                attachments.push({
+                  filename: fileName,
+                  content: fileContent,
+                  contentType
+                });
+                console.log(`Attached document from Object Storage: ${fileName}`);
+              } catch (objStoreError) {
+                console.error(`Failed to fetch from Object Storage: ${doc.filePath}`, objStoreError);
+                // Fallback to local check if it might be a weird path, but usually / means object storage
+              }
             } else {
-              console.warn(`Attachment file not found: ${absolutePath}`);
+              // Remove leading slash if present to ensure correct path joining (for legacy localized paths)
+              let relativePath = doc.filePath;
+              if (relativePath.startsWith('\\')) {
+                relativePath = relativePath.substring(1);
+              }
+
+              const absolutePath = path.join(process.cwd(), relativePath);
+              if (fs.existsSync(absolutePath)) {
+                const fileContent = await fs.promises.readFile(absolutePath);
+
+                attachments.push({
+                  filename: fileName,
+                  content: fileContent,
+                  contentType
+                });
+              } else {
+                console.warn(`Attachment file not found locally: ${absolutePath}`);
+              }
             }
           } catch (err) {
             console.error(`Error reading attachment file for document ${doc.id}:`, err);
@@ -3689,28 +3713,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // ATTACH CONTRACT DOCUMENT IF AVAILABLE
       if (activeContract && activeContract.filePath) {
         try {
-          let contractFilePath = activeContract.filePath;
-          // Handle both /uploads/ and uploads/ paths by removing optional leading slash
-          if (contractFilePath.startsWith('/')) {
-            contractFilePath = contractFilePath.substring(1);
-          }
+          const extension = path.extname(activeContract.filePath).toLowerCase() || '.pdf';
+          const fileName = hasAoaDoc
+            ? `CONTRACT_${activeContract.contractNumber || 'Agreement'}${extension}`
+            : `AOA_CONTRACT_${activeContract.contractNumber || 'Agreement'}${extension}`;
 
-          const absoluteContractPath = path.join(process.cwd(), contractFilePath);
-          if (fs.existsSync(absoluteContractPath)) {
-            const contractContent = await fs.promises.readFile(absoluteContractPath);
-            const extension = path.extname(contractFilePath).toLowerCase() || '.pdf';
+          if (activeContract.filePath.startsWith('/')) {
+            // Handle Object Storage path for contract
+            try {
+              console.log(`Attempting to fetch contract from Object Storage: ${activeContract.filePath}`);
+              const file = await documentStorageService.getDocumentFile(activeContract.filePath);
+              const [contractContent] = await file.download();
 
-            attachments.push({
-              filename: hasAoaDoc
-                ? `CONTRACT_${activeContract.contractNumber || 'Agreement'}${extension}`
-                : `AOA_CONTRACT_${activeContract.contractNumber || 'Agreement'}${extension}`,
-              content: contractContent,
-              contentType: 'application/pdf'
-            });
-            console.log(`Attached contract document: ${activeContract.filePath}`);
-          }
-          else {
-            console.warn(`Contract attachment file not found: ${absoluteContractPath}`);
+              attachments.push({
+                filename: fileName,
+                content: contractContent,
+                contentType: 'application/pdf'
+              });
+              console.log(`Attached contract document from Object Storage: ${fileName}`);
+            } catch (objStoreError) {
+              console.error(`Failed to fetch contract from Object Storage: ${activeContract.filePath}`, objStoreError);
+            }
+          } else {
+            let contractFilePath = activeContract.filePath;
+            // Handle both /uploads/ and uploads/ paths by removing optional leading slash
+            if (contractFilePath.startsWith('/') && !contractFilePath.startsWith('/replit-objstore')) {
+              if (contractFilePath.startsWith('/')) contractFilePath = contractFilePath.substring(1);
+            }
+
+            const absoluteContractPath = path.join(process.cwd(), contractFilePath);
+            if (fs.existsSync(absoluteContractPath)) {
+              const contractContent = await fs.promises.readFile(absoluteContractPath);
+
+              attachments.push({
+                filename: fileName,
+                content: contractContent,
+                contentType: 'application/pdf'
+              });
+              console.log(`Attached contract document: ${activeContract.filePath}`);
+            }
+            else {
+              console.warn(`Contract attachment file not found: ${absoluteContractPath}`);
+            }
           }
         } catch (err) {
           console.error(`Error reading contract attachment file for contract ${activeContract.id}:`, err);
