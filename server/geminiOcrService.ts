@@ -1,6 +1,16 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ExtractedCrewData } from './groqOcrService';
 
+export interface ExtractedAttendanceRow {
+    name: string;
+    rank: string;
+    joinDate: string;
+}
+
+export interface ExtractedAttendanceData {
+    crew: ExtractedAttendanceRow[];
+}
+
 export class GeminiOCRService {
     private genAI: GoogleGenerativeAI | null = null;
 
@@ -248,6 +258,84 @@ Important: Return ONLY the JSON object, no additional text or explanation.`;
         } catch (error) {
             console.error('Gemini OCR error:', error);
             throw new Error(`Gemini processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    async extractAttendanceData(base64Data: string, filename?: string): Promise<ExtractedAttendanceData> {
+        try {
+            console.log('Starting Gemini Attendance Sheet extraction for file:', filename);
+
+            const genAI = this.getClient();
+            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+            const prompt = `You are an expert at extracting tabular data from maritime attendance sheets.
+Analyze this document image and extract the list of crew members.
+
+For each crew member, extract:
+1. Full Name
+2. Rank/Position
+3. Date of Joining (this is usually the date they joined the vessel or the start of the attendance period)
+
+The output MUST be a valid JSON object with a single key "crew" containing an array of objects.
+Each object should have keys: "name", "rank", "joinDate".
+
+Example Output Format:
+{
+  "crew": [
+    { "name": "JOHN DOE", "rank": "MASTER", "joinDate": "01-01-2024" },
+    { "name": "JANE SMITH", "rank": "CHIEF OFFICER", "joinDate": "15-01-2024" }
+  ]
+}
+
+CRITICAL:
+- Return ONLY the JSON object.
+- If a date is in a different format (like 01/01/24 or 1 Jan 2024), convert it to DD-MM-YYYY if possible, or extract it as is.
+- Ensure 100% character-level precision for names and ranks.
+- If you see multiple pages, process all of them to find all crew members.`;
+
+            // Detect MIME type
+            const isPDF = base64Data.startsWith('JVBERi') || filename?.toLowerCase().endsWith('.pdf');
+            const mimeType = isPDF ? "application/pdf" : "image/jpeg";
+
+            const result = await model.generateContent([
+                prompt,
+                {
+                    inlineData: {
+                        data: base64Data,
+                        mimeType: mimeType
+                    }
+                }
+            ]);
+
+            const response = await result.response;
+            let text = response.text();
+
+            console.log('--- GEMINI ATTENDANCE RAW RESPONSE ---');
+            console.log(text);
+            console.log('---------------------------');
+
+            // Robust JSON extraction
+            let jsonStr = text;
+            const firstBrace = text.indexOf('{');
+            const lastBrace = text.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                jsonStr = text.substring(firstBrace, lastBrace + 1);
+            }
+
+            try {
+                const parsed = JSON.parse(jsonStr);
+                if (!parsed.crew || !Array.isArray(parsed.crew)) {
+                    throw new Error('Invalid attendance data format: missing "crew" array');
+                }
+                return parsed as ExtractedAttendanceData;
+            } catch (pErr) {
+                console.error('[OCR-GEMINI] JSON Parse Error for Attendance. Raw string:', jsonStr);
+                throw new Error('Failed to parse Gemini Attendance JSON response');
+            }
+
+        } catch (error) {
+            console.error('Gemini Attendance OCR error:', error);
+            throw new Error(`Gemini attendance processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 }

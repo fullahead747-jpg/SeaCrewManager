@@ -27,8 +27,8 @@ export class CompliancePolicyService {
             const crewDocs = await storage.getDocumentsByCrewMember(crewMember.id);
             const criticalTypes = ['passport', 'cdc', 'medical'];
 
-            // coc is critical for officers
-            if (this.isOfficer(crewMember.rank)) {
+            // coc is critical for officers, unless marked as Not Applicable
+            if (this.isOfficer(crewMember.rank) && !crewMember.cocNotApplicable) {
                 criticalTypes.push('coc');
             }
 

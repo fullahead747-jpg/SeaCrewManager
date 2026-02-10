@@ -2882,6 +2882,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fortyFiveDaysFromNow = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
       const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       const fifteenDaysFromNow = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+      const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+      const oneEightyDaysFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+
+      // --- DOCUMENT HEALTH STATISTICS ---
+      const expiredDocs = allDocuments.filter(doc => doc.expiryDate && doc.expiryDate < now).length;
+      const criticalDocs = allDocuments.filter(doc => doc.expiryDate && doc.expiryDate >= now && doc.expiryDate <= thirtyDaysFromNow).length;
+      const warningDocs = allDocuments.filter(doc => doc.expiryDate && doc.expiryDate > thirtyDaysFromNow && doc.expiryDate <= ninetyDaysFromNow).length;
+      const attentionDocs = allDocuments.filter(doc => doc.expiryDate && doc.expiryDate > ninetyDaysFromNow && doc.expiryDate <= oneEightyDaysFromNow).length;
+      // Valid are those > 180 days OR permanent (no expiry)
+      const validDocs = allDocuments.filter(doc => !doc.expiryDate || doc.expiryDate > oneEightyDaysFromNow).length;
 
       const signOffDue = contracts.filter(contract => {
         if (contract.status !== 'active') return false;
@@ -2898,6 +2908,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return contract.endDate > now && contract.endDate <= fifteenDaysFromNow;
       }).length;
 
+      // --- CONTRACT HEALTH STATISTICS ---
+      const overdueContracts = crewMembers.filter(m => {
+        if (m.status !== 'onBoard') return false;
+        const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
+        return !activeContract || activeContract.endDate < now;
+      }).length;
+
+      const criticalContracts = contracts.filter(c => c.status === 'active' && c.endDate >= now && c.endDate <= fifteenDaysFromNow).length;
+      const upcomingContracts = contracts.filter(c => c.status === 'active' && c.endDate > fifteenDaysFromNow && c.endDate <= thirtyDaysFromNow).length;
+      const soonContracts = contracts.filter(c => c.status === 'active' && c.endDate > thirtyDaysFromNow && c.endDate <= fortyFiveDaysFromNow).length;
+      const stableContracts = contracts.filter(c => c.status === 'active' && c.endDate > fortyFiveDaysFromNow).length;
+      const shoredContracts = crewOnShore;
+
       res.json({
         activeCrew,
         activeVessels,
@@ -2908,10 +2931,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalDocuments: allDocuments.length,
         signOffDue,
         signOffDue30Days,
-        signOffDue15Days
+        signOffDue15Days,
+        documentHealth: {
+          expired: expiredDocs,
+          critical: criticalDocs,
+          warning: warningDocs,
+          attention: attentionDocs,
+          valid: validDocs,
+          total: allDocuments.length
+        },
+        contractHealth: {
+          overdue: overdueContracts,
+          critical: criticalContracts,
+          upcoming: upcomingContracts,
+          soon: soonContracts,
+          stable: stableContracts,
+          shored: shoredContracts,
+          total: crewMembers.length
+        }
       });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch dashboard stats" });
+    }
+  });
+
+  // Dashboard drill-down details
+  app.get("/api/dashboard/drilldown", authenticate, async (req, res) => {
+    try {
+      const { type, key } = req.query as { type: string, key: string };
+      const now = new Date();
+      const fifteenDaysFromNow = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const fortyFiveDaysFromNow = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
+      const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+      const oneEightyDaysFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+
+      const crewMembers = await storage.getCrewMembers();
+      const vessels = await storage.getVessels();
+      const contracts = await storage.getContracts();
+      const allDocuments = await storage.getDocuments();
+
+      let results: any[] = [];
+
+      if (type === 'document') {
+        const filteredDocs = allDocuments.filter(doc => {
+          if (key === 'expired') return doc.expiryDate && doc.expiryDate < now;
+          if (key === 'critical') return doc.expiryDate && doc.expiryDate >= now && doc.expiryDate <= thirtyDaysFromNow;
+          if (key === 'warning') return doc.expiryDate && doc.expiryDate > thirtyDaysFromNow && doc.expiryDate <= ninetyDaysFromNow;
+          if (key === 'attention') return doc.expiryDate && doc.expiryDate > ninetyDaysFromNow && doc.expiryDate <= oneEightyDaysFromNow;
+          if (key === 'valid') return !doc.expiryDate || doc.expiryDate > oneEightyDaysFromNow;
+          return false;
+        });
+
+        results = filteredDocs.map(doc => {
+          const crew = crewMembers.find(m => m.id === doc.crewMemberId);
+          const daysRemaining = doc.expiryDate
+            ? Math.ceil((new Date(doc.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            : undefined;
+
+          return {
+            id: doc.id,
+            crewName: crew ? `${crew.firstName} ${crew.lastName}` : 'Unknown',
+            docType: doc.type,
+            docNumber: doc.documentNumber,
+            expiryDate: doc.expiryDate,
+            daysRemaining
+          };
+        });
+      } else if (type === 'contract') {
+        if (key === 'shored') {
+          results = crewMembers
+            .filter(m => m.status === 'onShore')
+            .map(m => ({
+              id: m.id,
+              crewName: `${m.firstName} ${m.lastName}`,
+              vesselName: 'On Shore',
+              expiryDate: null,
+              daysRemaining: undefined
+            }));
+        } else if (key === 'overdue') {
+          results = crewMembers
+            .filter(m => {
+              if (m.status !== 'onBoard') return false;
+              const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
+              return !activeContract || activeContract.endDate < now;
+            })
+            .map(m => {
+              const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
+              const vessel = vessels.find(v => v.id === m.currentVesselId);
+              const daysRemaining = activeContract
+                ? Math.ceil((new Date(activeContract.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                : -1;
+
+              return {
+                id: m.id,
+                crewName: `${m.firstName} ${m.lastName}`,
+                vesselName: vessel ? vessel.name : 'Unknown',
+                expiryDate: activeContract ? activeContract.endDate : null,
+                daysRemaining,
+                docType: activeContract ? 'Expired Contract' : 'Missing Contract'
+              };
+            });
+        } else {
+          const filteredContracts = contracts.filter(c => {
+            if (c.status !== 'active') return false;
+            const endDate = new Date(c.endDate);
+            if (key === 'critical') return endDate <= fifteenDaysFromNow;
+            if (key === 'upcoming') return endDate > fifteenDaysFromNow && endDate <= thirtyDaysFromNow;
+            if (key === 'soon') return endDate > thirtyDaysFromNow && endDate <= fortyFiveDaysFromNow;
+            if (key === 'stable') return endDate > fortyFiveDaysFromNow;
+            return false;
+          });
+
+          results = filteredContracts.map(c => {
+            const crew = crewMembers.find(m => m.id === c.crewMemberId);
+            const vessel = vessels.find(v => v.id === c.vesselId);
+            const daysRemaining = Math.ceil((new Date(c.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+            return {
+              id: c.id,
+              crewName: crew ? `${crew.firstName} ${crew.lastName}` : 'Unknown',
+              vesselName: vessel ? vessel.name : 'Unknown',
+              expiryDate: c.endDate,
+              daysRemaining
+            };
+          });
+        }
+      }
+
+      res.json(results);
+    } catch (error) {
+      console.error('Drilldown error:', error);
+      res.status(500).json({ error: 'Failed to fetch drilldown details' });
     }
   });
 
@@ -4793,6 +4944,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch WhatsApp messages" });
     }
   });
+
+  // Attendance Sheet Routes
+  const attendanceRoutes = await import('./attendanceRoutes');
+  app.use('/api/attendance', attendanceRoutes.default);
 
   // Voice Assistant API endpoint
   app.post("/api/assistant/query", (req, res, next) => {

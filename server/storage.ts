@@ -69,6 +69,7 @@ export interface IStorage {
   findDuplicateCrewMember(firstName: string, lastName: string, dateOfBirth: Date): Promise<CrewMember | undefined>;
   createCrewMember(crewMember: InsertCrewMember): Promise<CrewMember>;
   updateCrewMember(id: string, crewMember: Partial<InsertCrewMember>): Promise<CrewMember | undefined>;
+  findCrewMemberByNameAndRank(name: string, rank: string): Promise<CrewMember | undefined>;
   deleteCrewMember(id: string): Promise<boolean>;
 
   // Contract operations
@@ -303,6 +304,21 @@ export class DatabaseStorage implements IStorage {
       .values(crewMember)
       .returning();
     return newCrewMember;
+  }
+
+  async findCrewMemberByNameAndRank(name: string, rank: string): Promise<CrewMember | undefined> {
+    const normalizedName = name.replace(/\s+/g, ' ').trim().toLowerCase();
+    const normalizedRank = rank.replace(/\s+/g, ' ').trim().toLowerCase();
+
+    const allCrew = await db.select().from(crewMembers);
+
+    const match = allCrew.find(member => {
+      const memberFullName = `${member.firstName} ${member.lastName}`.replace(/\s+/g, ' ').trim().toLowerCase();
+      const memberRank = member.rank.replace(/\s+/g, ' ').trim().toLowerCase();
+      return memberFullName === normalizedName && memberRank === normalizedRank;
+    });
+
+    return match;
   }
 
   async updateCrewMember(id: string, crewMember: Partial<InsertCrewMember>): Promise<CrewMember | undefined> {

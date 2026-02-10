@@ -41,6 +41,7 @@ export const crewMembers = pgTable("crew_members", {
   currentVesselId: varchar("current_vessel_id").references(() => vessels.id),
   lastVesselId: varchar("last_vessel_id").references(() => vessels.id), // Track previous vessel for ex-hand records
   status: text("status").notNull().default('onBoard'), // 'onBoard', 'onShore'
+  cocNotApplicable: boolean("coc_not_applicable").default(false), // Crew member does not hold a COC
   signOffDate: timestamp("sign_off_date"), // Auto-stamped when crew member is signed off
   createdAt: timestamp("created_at").defaultNow(),
 });

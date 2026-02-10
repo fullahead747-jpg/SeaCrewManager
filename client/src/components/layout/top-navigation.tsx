@@ -14,7 +14,6 @@ const navItems: NavItem[] = [
     { path: '/documents', label: 'Documents', icon: FileText },
     { path: '/status-history', label: 'Status History', icon: History },
     { path: '/settings', label: 'Settings', icon: Settings },
-    { path: '/notifications', label: 'Notifications', icon: Bell },
 ];
 
 export default function TopNavigation() {
@@ -28,9 +27,9 @@ export default function TopNavigation() {
     };
 
     return (
-        <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-20 z-40 pt-4">
-            <div className="max-w-7xl mx-auto px-6">
-                <div className="flex items-center justify-center gap-1">
+        <nav className="z-40">
+            <div className="px-4">
+                <div className="flex items-center justify-start gap-1">
                     {navItems.map((item, index) => {
                         const Icon = item.icon;
                         const active = isActive(item.path);
@@ -41,7 +40,7 @@ export default function TopNavigation() {
                                     key={item.path}
                                     onClick={() => setLocation(item.path)}
                                     className={cn(
-                                        'flex items-center gap-2.5 px-6 py-3.5 text-sm font-medium transition-all duration-300',
+                                        'flex items-center gap-2 px-4 py-2 text-[13px] font-medium transition-all duration-300',
                                         'rounded-t-lg relative group',
                                         active
                                             ? 'text-blue-600 bg-gradient-to-b from-blue-50 to-white shadow-sm'
@@ -49,10 +48,10 @@ export default function TopNavigation() {
                                     )}
                                 >
                                     <Icon className={cn(
-                                        "w-5 h-5 transition-transform duration-300",
+                                        "w-4 h-4 transition-transform duration-300",
                                         active ? "scale-110" : "group-hover:scale-105"
                                     )} />
-                                    <span className="font-semibold">{item.label}</span>
+                                    <span>{item.label}</span>
                                     {active && (
                                         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-blue-400 via-blue-600 to-blue-400 rounded-full" />
                                     )}

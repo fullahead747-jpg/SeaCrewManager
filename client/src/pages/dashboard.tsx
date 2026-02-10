@@ -16,13 +16,17 @@ import DashboardNotifications from '@/components/dashboard/dashboard-notificatio
 import MissingDocumentsNotifications from '@/components/documents/missing-documents-notifications';
 import ExpiringDocumentsWidget from '@/components/dashboard/expiring-documents-widget';
 import AddContractForm from '@/components/crew/add-contract-form';
+import AttendanceUploadDialog from '@/components/crew/attendance-upload-dialog';
 import ChatWidget from '@/components/dashboard/chat-widget';
 import SignOffDueModal from '@/components/dashboard/sign-off-due-modal';
 import ContractExpiryTimelineModal from '@/components/dashboard/contract-expiry-timeline-modal';
+import InteractiveHealthCard, { HealthDataPoint } from '@/components/dashboard/interactive-health-card';
+import HealthDrillDownModal from '@/components/dashboard/health-drill-down-modal';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, FileText, Download, Calendar, Plus } from 'lucide-react';
+import { AlertTriangle, FileText, Download, Calendar, Plus, ExternalLink, ClipboardList } from 'lucide-react';
 import { DashboardStats } from '@/types';
+import MinimalHealthRow from '@/components/dashboard/minimal-health-row';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -30,6 +34,18 @@ export default function Dashboard() {
   const [showAddContractForm, setShowAddContractForm] = useState(false);
   const [showSignOffDueModal, setShowSignOffDueModal] = useState(false);
   const [showExpiryTimelineModal, setShowExpiryTimelineModal] = useState(false);
+  const [showAttendanceDialog, setShowAttendanceDialog] = useState(false);
+
+  // Drill-down states
+  const [drillDownOpen, setDrillDownOpen] = useState(false);
+  const [drillDownCategory, setDrillDownCategory] = useState({ key: '', name: '' });
+  const [drillDownType, setDrillDownType] = useState<'contract' | 'document'>('document');
+
+  const handleDrillDown = (type: 'contract' | 'document', key: string, name: string) => {
+    setDrillDownType(type);
+    setDrillDownCategory({ key, name });
+    setDrillDownOpen(true);
+  };
 
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
@@ -528,98 +544,60 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      {/* Dashboard Header */}
-      <div className="mb-3 sm:mb-4">
-        <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2" data-testid="dashboard-title">
-          {user?.role === 'admin' ? 'Fleet Dashboard' : 'Operations Dashboard'}
+      {/* Page Header - Tighter & Smaller */}
+      <div className="mb-4">
+        <h2 className="text-xl font-bold text-foreground tracking-tight">
+          Fleet Dashboard
         </h2>
-        <p className="text-sm sm:text-base text-secondary-foreground">
+        <p className="text-xs text-secondary-foreground opacity-80">
           {user?.role === 'admin' ? 'Overview of your maritime operations and crew status' :
             'Manage crew data entry and monitor document compliance'}
         </p>
       </div>
 
-      {/* KPI Cards */}
+      {/* Minimal Health Index Summary - Text Only */}
       {stats && (
-        <motion.div
-          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 mb-6 sm:mb-8"
-          initial="hidden"
-          animate="visible"
-          variants={{
-            hidden: { opacity: 0 },
-            visible: {
-              opacity: 1,
-              transition: {
-                staggerChildren: 0.1
-              }
-            }
-          }}
-        >
-          <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} transition={{ duration: 0.5 }}>
-            <StatsCard
-              title="Crew On Board"
-              value={stats.activeCrew}
-              icon="users"
-              trend={{ value: 5.2, isPositive: true }}
-              color="ocean-blue"
-            />
-          </motion.div>
-          <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} transition={{ duration: 0.5 }}>
-            <StatsCard
-              title="Crew On Shore"
-              value={stats.crewOnShore}
-              icon="user-check"
-              description="Available crew members"
-              color="compliance-green"
-            />
-          </motion.div>
-          <motion.div
-            variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
-            transition={{ duration: 0.5 }}
-            onClick={() => setShowSignOffDueModal(true)}
-            className="cursor-pointer"
-          >
-            <StatsCard
-              title="Sign Off Due"
-              value={stats.signOffDue}
-              icon="clock"
-              description="Contracts expiring within 45 days"
-              color="contract-purple"
-            />
-          </motion.div>
-          <motion.div
-            variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }}
-            transition={{ duration: 0.5 }}
-            onClick={() => setShowExpiryTimelineModal(true)}
-            className="cursor-pointer"
-          >
-            <StatsCard
-              title="Sign Off Due in 30 Days & 15 Days"
-              value={stats.signOffDue30Days}
-              icon="alert-circle"
-              description="Contracts expiring within 30 Days & 15 Days"
-              color="expiry-red"
-            />
-          </motion.div>
-          <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} transition={{ duration: 0.5 }}>
-            <StatsCard
-              title="Managed Vessel"
-              value={stats.activeVessels}
-              icon="ship"
-              description="All vessels operational"
-              color="maritime-navy"
-            />
-          </motion.div>
-          <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0 } }} transition={{ duration: 0.5 }}>
-            <StatsCard
-              title="Crew Document Status"
-              value={stats.pendingActions}
-              icon="clock"
-              description="Document renewals & approvals"
-              color="warning-amber"
-            />
-          </motion.div>
-        </motion.div>
+        <MinimalHealthRow stats={stats} className="mb-4" />
+      )}
+
+      {/* Interactive Health Sections - Vertical Stack */}
+      {stats && (
+        <div className="space-y-6 mb-8">
+          {/* Contract Health Section */}
+          <InteractiveHealthCard
+            title="Contract Health Index"
+            description="Personnel contract statuses and sign-off planning"
+            total={stats.contractHealth.total}
+            totalLabel="CREW RECORDS"
+            isLoading={statsLoading}
+            onSegmentClick={(key, name) => handleDrillDown('contract', key, name)}
+            data={[
+              { key: 'overdue', name: 'Overdue / No Contract', value: stats.contractHealth.overdue, color: '#475569' }, // Slate-600
+              { key: 'critical', name: 'Critical (<= 15 Days)', value: stats.contractHealth.critical, color: '#ef4444' },
+              { key: 'upcoming', name: 'Upcoming (16-30 Days)', value: stats.contractHealth.upcoming, color: '#f97316' },
+              { key: 'soon', name: 'Attention (31-45 Days)', value: stats.contractHealth.soon, color: '#eab308' },
+              { key: 'shored', name: 'On Shore Standby', value: stats.contractHealth.shored, color: '#3b82f6' },
+              { key: 'stable', name: 'Active & Stable (> 45d)', value: stats.contractHealth.stable, color: '#10b981' },
+            ]}
+          />
+
+          {/* Certificate Health Section */}
+          <InteractiveHealthCard
+            title="Certificate Compliance Index"
+            description="Real-time validity status of mandatory documents"
+            total={stats.documentHealth.total}
+            totalLabel="CERTIFICATES"
+            isLoading={statsLoading}
+            onSegmentClick={(key, name) => handleDrillDown('document', key, name)}
+            data={[
+              { key: 'expired', name: 'Expired Documents', value: stats.documentHealth.expired, color: '#ef4444' },
+              { key: 'critical', name: 'Critical Expiry (< 30d)', value: stats.documentHealth.critical, color: '#f97316' },
+              { key: 'warning', name: 'Warning (< 90d)', value: stats.documentHealth.warning, color: '#eab308' },
+              { key: 'attention', name: 'Attention (< 180d)', value: stats.documentHealth.attention, color: '#3b82f6' },
+              { key: 'valid', name: 'Valid / Permanent', value: stats.documentHealth.valid, color: '#10b981' },
+            ]}
+          />
+        </div>
       )}
 
       {/* Vessel Overview Section */}
@@ -635,7 +613,6 @@ export default function Dashboard() {
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Crew Overview - Expanded to take more space */}
         <div className="lg:col-span-8">
           <div className="bg-card rounded-xl shadow-sm border border-border h-full min-h-[800px]">
             <div className="p-6 border-b border-border">
@@ -652,8 +629,16 @@ export default function Dashboard() {
                       onClick={() => setShowAddContractForm(true)}
                       data-testid="add-contract-button"
                     >
-                      <FileText className="h-4 w-4 mr-2" />
                       Add Contract
+                    </Button>
+                    <Button
+                      className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
+                      size="sm"
+                      onClick={() => setShowAttendanceDialog(true)}
+                      data-testid="upload-attendance-button"
+                    >
+                      <ClipboardList className="h-4 w-4 mr-2" />
+                      Attendance Sheet
                     </Button>
                     <Button
                       variant="outline"
@@ -678,9 +663,7 @@ export default function Dashboard() {
         {/* Right Sidebar */}
         <div className="lg:col-span-4 space-y-6">
           <UpcomingEvents />
-
           <ExpiringDocumentsWidget />
-
           {crewMembers && documents && (
             <MissingDocumentsNotifications
               crewMembers={crewMembers}
@@ -692,29 +675,38 @@ export default function Dashboard() {
               }}
             />
           )}
-
           <DashboardNotifications />
         </div>
       </div>
 
-      {/* Add Contract Form Dialog */}
       <AddContractForm
         open={showAddContractForm}
         onOpenChange={setShowAddContractForm}
       />
 
-      {/* Sign Off Due Modal */}
+      <AttendanceUploadDialog
+        open={showAttendanceDialog}
+        onOpenChange={setShowAttendanceDialog}
+      />
+
       <SignOffDueModal
         isOpen={showSignOffDueModal}
         onClose={() => setShowSignOffDueModal(false)}
       />
 
-      {/* Contract Expiry Timeline Modal */}
       <ContractExpiryTimelineModal
         isOpen={showExpiryTimelineModal}
         onClose={() => setShowExpiryTimelineModal(false)}
       />
+
+      {/* Drill-down Detail Modal */}
+      <HealthDrillDownModal
+        isOpen={drillDownOpen}
+        onClose={() => setDrillDownOpen(false)}
+        type={drillDownType}
+        categoryKey={drillDownCategory.key}
+        categoryName={drillDownCategory.name}
+      />
     </div>
   );
 }
-

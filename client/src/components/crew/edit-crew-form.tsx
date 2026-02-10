@@ -59,6 +59,7 @@ const editCrewSchema = z.object({
   cocPlaceOfIssue: z.string().optional(),
   cocIssueDate: z.string().optional(),
   cocExpiryDate: z.string().optional(),
+  cocNotApplicable: z.boolean().optional(),
   medicalIssuingAuthority: z.string().optional(),
   medicalApprovalNo: z.string().optional(),
   medicalIssueDate: z.string().optional(),
@@ -148,6 +149,7 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       cocPlaceOfIssue: coc?.issuingAuthority || '',
       cocIssueDate: formatDateForInput(coc?.issueDate),
       cocExpiryDate: formatDateForInput(coc?.expiryDate),
+      cocNotApplicable: crewMember.cocNotApplicable || false,
       medicalIssuingAuthority: medical?.issuingAuthority || '',
       medicalApprovalNo: medical?.documentNumber || '',
       medicalIssueDate: formatDateForInput(medical?.issueDate),
@@ -195,6 +197,7 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       cocPlaceOfIssue: coc?.issuingAuthority || '',
       cocIssueDate: formatDateForInput(coc?.issueDate),
       cocExpiryDate: formatDateForInput(coc?.expiryDate),
+      cocNotApplicable: crewMember.cocNotApplicable || false,
       medicalIssuingAuthority: medical?.issuingAuthority || '',
       medicalApprovalNo: medical?.documentNumber || '',
       medicalIssueDate: formatDateForInput(medical?.issueDate),
@@ -224,6 +227,7 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
           postalAddress: data.emergencyContactPostalAddress || '',
         } : null,
         postalAddress: data.postalAddress || null,
+        cocNotApplicable: data.cocNotApplicable || false,
       };
 
       // Include status change reason if status changed
@@ -317,7 +321,17 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       // Update documents
       await updateOrCreateDocument('passport', data.passportNumber, data.passportPlaceOfIssue, data.passportIssueDate, data.passportExpiryDate, passport);
       await updateOrCreateDocument('cdc', data.cdcNumber, data.cdcPlaceOfIssue, data.cdcIssueDate, data.cdcExpiryDate, cdc);
-      await updateOrCreateDocument('coc', data.cocGradeNo, data.cocPlaceOfIssue, data.cocIssueDate, data.cocExpiryDate, coc);
+
+      // Only update/create COC if not marked as Not Applicable
+      if (!data.cocNotApplicable) {
+        await updateOrCreateDocument('coc', data.cocGradeNo, data.cocPlaceOfIssue, data.cocIssueDate, data.cocExpiryDate, coc);
+      } else if (coc) {
+        // If coc exists but now marked as N/A, we should probably delete it or mark it
+        // For now, let's just not update it. 
+        // In a real scenario, we might want to delete the document record:
+        await fetch(`/api/documents/${coc.id}`, { method: 'DELETE', headers: getAuthHeaders() });
+      }
+
       await updateOrCreateDocument('medical', data.medicalApprovalNo, data.medicalIssuingAuthority, data.medicalIssueDate, data.medicalExpiryDate, medical);
 
       console.log('Sending update data:', updateData);
@@ -848,10 +862,32 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
 
         {/* COC Details Section */}
         <div className="space-y-3 p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-          <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-100 flex items-center">
-            <div className="w-2 h-2 bg-amber-600 rounded-full mr-3"></div>
-            COC Details
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-amber-900 dark:text-amber-100 flex items-center">
+              <div className="w-2 h-2 bg-amber-600 rounded-full mr-3"></div>
+              COC Details
+            </h3>
+            <FormField
+              control={form.control}
+              name="cocNotApplicable"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                  <FormControl>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                      checked={field.value}
+                      onChange={field.onChange}
+                      data-testid="edit-cocNotApplicable"
+                    />
+                  </FormControl>
+                  <FormLabel className="text-sm font-medium text-amber-900 dark:text-amber-100 cursor-pointer">
+                    NILL / Not Applicable
+                  </FormLabel>
+                </FormItem>
+              )}
+            />
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FormField
@@ -859,9 +895,9 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
               name="cocGradeNo"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>COC Grade/Number</FormLabel>
+                  <FormLabel className={form.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>COC Grade/Number</FormLabel>
                   <FormControl>
-                    <Input {...field} data-testid="edit-cocGradeNo" />
+                    <Input {...field} disabled={form.watch('cocNotApplicable')} data-testid="edit-cocGradeNo" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -873,9 +909,9 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
               name="cocPlaceOfIssue"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Place of Issue</FormLabel>
+                  <FormLabel className={form.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Place of Issue</FormLabel>
                   <FormControl>
-                    <Input {...field} data-testid="edit-cocPlaceOfIssue" />
+                    <Input {...field} disabled={form.watch('cocNotApplicable')} data-testid="edit-cocPlaceOfIssue" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -887,9 +923,9 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
               name="cocIssueDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Issue Date</FormLabel>
+                  <FormLabel className={form.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Issue Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} data-testid="edit-cocIssueDate" />
+                    <Input type="date" {...field} disabled={form.watch('cocNotApplicable')} data-testid="edit-cocIssueDate" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -901,15 +937,20 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
               name="cocExpiryDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Expiry Date</FormLabel>
+                  <FormLabel className={form.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Expiry Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} data-testid="edit-cocExpiryDate" />
+                    <Input type="date" {...field} disabled={form.watch('cocNotApplicable')} data-testid="edit-cocExpiryDate" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </div>
+          {form.watch('cocNotApplicable') && (
+            <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 italic">
+              * COC requirement is waived for this crew member.
+            </p>
+          )}
         </div>
 
         {/* Medical Certificate Details Section */}

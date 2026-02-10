@@ -57,8 +57,8 @@ export class DocumentValidationService {
         // Mandatory documents
         const mandatoryTypes = ['passport', 'cdc', 'medical'];
 
-        // COC is mandatory for officers
-        if (crew && this.isOfficer(crew.rank)) {
+        // COC is mandatory for officers, unless marked as Not Applicable
+        if (crew && this.isOfficer(crew.rank) && !crew.cocNotApplicable) {
             mandatoryTypes.push('coc');
         }
 

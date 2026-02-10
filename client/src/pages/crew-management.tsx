@@ -5,15 +5,17 @@ import { useAuth } from '@/contexts/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import CrewTable from '@/components/crew/crew-table';
 import AddContractForm from '@/components/crew/add-contract-form';
+import AttendanceUploadDialog from '@/components/crew/attendance-upload-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Download, FileText } from 'lucide-react';
+import { Users, Download, FileText, ClipboardList } from 'lucide-react';
 import { format } from 'date-fns';
 
 export default function CrewManagement() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [showAddContractForm, setShowAddContractForm] = useState(false);
+  const [showAttendanceDialog, setShowAttendanceDialog] = useState(false);
 
   const { data: crewStats } = useQuery({
     queryKey: ['/api/dashboard/stats'],
@@ -226,6 +228,15 @@ export default function CrewManagement() {
             <span className="hidden sm:inline">Add Contract</span>
             <span className="sm:hidden">Contract</span>
           </Button>
+
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white w-full sm:w-auto flex items-center justify-center shadow-sm"
+            onClick={() => setShowAttendanceDialog(true)}
+            data-testid="upload-attendance"
+          >
+            <ClipboardList className="h-4 w-4 mr-2" />
+            <span>Attendance Sheet</span>
+          </Button>
         </div>
       </div>
 
@@ -286,10 +297,14 @@ export default function CrewManagement() {
         </CardContent>
       </Card>
 
-      {/* Add Contract Form Dialog */}
       <AddContractForm
         open={showAddContractForm}
         onOpenChange={setShowAddContractForm}
+      />
+
+      <AttendanceUploadDialog
+        open={showAttendanceDialog}
+        onOpenChange={setShowAttendanceDialog}
       />
     </div>
   );

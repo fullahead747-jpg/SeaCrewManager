@@ -43,6 +43,11 @@ export default function MissingDocumentsNotifications({
 
         // Check for each required document type
         const missingDocs = REQUIRED_DOCUMENTS.map(reqDoc => {
+            // Skip COC check if not applicable
+            if (reqDoc.type === 'coc' && member.cocNotApplicable) {
+                return null;
+            }
+
             // Prioritize documents with file paths to avoid placeholders showing as missing
             const existingDoc = memberDocs.find(d =>
                 (d.type.toLowerCase() === reqDoc.type.toLowerCase() ||

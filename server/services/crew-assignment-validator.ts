@@ -28,10 +28,15 @@ export class CrewAssignmentValidator {
             .select()
             .from(documents)
             .where(
-                and(
-                    eq(documents.crewMemberId, crewMemberId)
-                )
+                eq(documents.crewMemberId, crewMemberId)
             );
+
+        // Fetch crew details for cocNotApplicable flag
+        const [crew] = await db
+            .select()
+            .from(crewMembers)
+            .where(eq(crewMembers.id, crewMemberId))
+            .limit(1);
 
         const blockedDocuments: AssignmentEligibility['blockedDocuments'] = [];
         const warnings: string[] = [];
@@ -39,8 +44,8 @@ export class CrewAssignmentValidator {
         // Define mandatory documents
         const mandatoryDocTypes = ['passport', 'cdc', 'medical'];
 
-        // COC is mandatory only for officer positions
-        if (position && this.isOfficerPosition(position)) {
+        // COC is mandatory only for officer positions, unless marked as Not Applicable
+        if (position && this.isOfficerPosition(position) && !(crew?.cocNotApplicable)) {
             mandatoryDocTypes.push('coc');
         }
 

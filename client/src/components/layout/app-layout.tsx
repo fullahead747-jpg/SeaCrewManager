@@ -86,39 +86,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
         transition={{ duration: 0.5, ease: "easeOut" }}
         className="bg-card border-b border-border shadow-sm fixed w-full top-0 z-50"
       >
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4">
-          <div className="flex items-center space-x-2 sm:space-x-4 min-w-0 flex-1">
-            <div className="flex items-center space-x-2 min-w-0">
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-maritime-navy rounded-lg flex items-center justify-center wave-animation shrink-0">
-                <span className="text-white text-xs sm:text-sm">⚓</span>
-              </div>
-              <h1 className="text-lg sm:text-xl font-semibold text-foreground truncate">
-                <span className="hidden sm:inline">CrewTrack Pro</span>
-                <span className="sm:hidden">CrewTrack</span>
-              </h1>
-            </div>
+        <div className="flex items-center justify-between px-4 sm:px-6 py-2">
+          <div className="flex-1">
+            <TopNavigation />
           </div>
 
           <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
-            {/* Theme Toggle */}
-            <ThemeToggle />
-
-            {/* Role Switcher for Demo */}
-            <Select value={user.role} onValueChange={handleRoleChange}>
-              <SelectTrigger className="w-32 sm:w-48 text-xs sm:text-sm" data-testid="role-selector">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="admin">
-                  <span className="hidden sm:inline">Admin (Head Office)</span>
-                  <span className="sm:hidden">Admin</span>
-                </SelectItem>
-                <SelectItem value="office_staff">
-                  <span className="hidden sm:inline">Office Staff</span>
-                  <span className="sm:hidden">Staff</span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
 
             <Popover open={notificationPopoverOpen} onOpenChange={setNotificationPopoverOpen}>
               <PopoverTrigger asChild>
@@ -203,28 +176,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
               </PopoverContent>
             </Popover>
 
-            <div className="flex items-center space-x-2 bg-muted rounded-lg px-2 sm:px-3 py-2">
-              <div className="w-6 h-6 sm:w-8 sm:h-8 bg-maritime-navy rounded-full flex items-center justify-center shrink-0">
-                <User className="h-3 w-3 sm:h-4 sm:w-4 text-white dark:text-white" />
-              </div>
-              <div className="hidden sm:block min-w-0">
-                <p className="text-sm font-medium text-foreground truncate" data-testid="user-name">{user.name}</p>
-                <p className="text-xs text-muted-foreground" data-testid="user-role">
-                  {user.role === 'admin' ? 'Fleet Administrator' : 'Operations Staff'}
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </motion.header>
 
-      {/* Top Navigation */}
-      <div className="pt-20">
-        <TopNavigation />
-      </div>
-
       {/* Main Content - Full Width */}
-      <main className="mt-8 p-3 sm:p-4 lg:p-6 xl:p-8 max-w-full overflow-x-hidden">
+      <main className="mt-16 p-3 sm:p-4 lg:p-6 xl:p-8 max-w-full overflow-x-hidden">
         <div className="max-w-full w-full min-w-0 overflow-x-hidden">
           {children}
         </div>

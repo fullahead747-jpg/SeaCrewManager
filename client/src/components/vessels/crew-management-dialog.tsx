@@ -68,6 +68,7 @@ const addCrewSchema = z.object({
   medicalApprovalNo: z.string().optional(),
   medicalIssueDate: z.string().optional(),
   medicalExpiryDate: z.string().optional(),
+  cocNotApplicable: z.boolean().optional().default(false),
 });
 
 type AddCrewFormData = z.infer<typeof addCrewSchema>;
@@ -136,6 +137,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       medicalApprovalNo: '',
       medicalIssueDate: '',
       medicalExpiryDate: '',
+      cocNotApplicable: false,
     },
   });
 
@@ -171,6 +173,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       medicalApprovalNo: '',
       medicalIssueDate: '',
       medicalExpiryDate: '',
+      cocNotApplicable: false,
     },
   });
 
@@ -213,6 +216,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
         medicalApprovalNo: medical?.documentNumber || '',
         medicalIssueDate: medical?.issueDate ? new Date(medical.issueDate).toISOString().split('T')[0] : '',
         medicalExpiryDate: medical?.expiryDate ? new Date(medical.expiryDate).toISOString().split('T')[0] : '',
+        cocNotApplicable: selectedCrewForEdit.cocNotApplicable || false,
       });
       setOriginalStatus(selectedCrewForEdit.status);
     }
@@ -587,6 +591,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           email: data.emergencyContactEmail || '',
           postalAddress: data.emergencyContactPostalAddress || '',
         } : null,
+        cocNotApplicable: data.cocNotApplicable || false,
       };
 
       const response = await fetch('/api/crew', {
@@ -631,7 +636,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
         });
       }
 
-      if (data.cocGradeNo || data.cocExpiryDate) {
+      if (!data.cocNotApplicable && (data.cocGradeNo || data.cocExpiryDate)) {
         documentsToCreate.push({
           crewMemberId: newCrewMember.id,
           type: 'coc',
@@ -958,6 +963,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           email: data.emergencyContactEmail || '',
           postalAddress: data.emergencyContactPostalAddress || '',
         } : null,
+        cocNotApplicable: data.cocNotApplicable || false,
       };
 
       if (data.statusChangeReason) {
@@ -1036,7 +1042,14 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       }
 
       // Save COC document
-      if (data.cocGradeNo || data.cocExpiryDate || existingDocs.find(d => d.type === 'coc')) {
+      const cocDoc = existingDocs.find(d => d.type === 'coc');
+      if (data.cocNotApplicable) {
+        // If N/A but document exists, delete it
+        if (cocDoc) {
+          console.log('Deleting COC document because it is now N/A');
+          await fetch(`/api/documents/${cocDoc.id}`, { method: 'DELETE', headers: getAuthHeaders() });
+        }
+      } else if (data.cocGradeNo || data.cocExpiryDate || cocDoc) {
         await saveDocument('coc', {
           documentNumber: data.cocGradeNo || 'N/A',
           issuingAuthority: data.cocPlaceOfIssue || 'Unknown',
@@ -1395,6 +1408,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                     <h4 className="font-medium text-amber-900 dark:text-amber-100 flex items-center mb-3">
                       <div className="w-2 h-2 bg-amber-600 rounded-full mr-3"></div>
                       Details of Competency Certificates
+                      {selectedCrewForView.cocNotApplicable && (
+                        <Badge className="ml-3 bg-amber-100 text-amber-800 border-amber-200">NILL / Not Applicable</Badge>
+                      )}
                     </h4>
                     <div className="text-sm space-y-2">
                       <p><span className="font-medium">COC Grade/Number:</span> {coc?.documentNumber || 'Not provided'}</p>
@@ -1938,6 +1954,22 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                     <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-100 flex items-center">
                       <div className="w-2 h-2 bg-indigo-600 rounded-full mr-3"></div>
                       COC Details
+                      <FormField
+                        control={addCrewForm.control}
+                        name="cocNotApplicable"
+                        render={({ field }) => (
+                          <div className="ml-auto flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="add-cocNotApplicable"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <Label htmlFor="add-cocNotApplicable" className="text-sm font-medium cursor-pointer">NILL / Not Applicable</Label>
+                          </div>
+                        )}
+                      />
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
@@ -1945,9 +1977,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cocGradeNo"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Grade / Certificate Number</FormLabel>
+                            <FormLabel className={addCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Grade / Certificate Number</FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter COC grade/number" {...field} data-testid="input-cocGradeNo" />
+                              <Input placeholder="Enter COC grade/number" {...field} disabled={addCrewForm.watch('cocNotApplicable')} data-testid="input-cocGradeNo" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1958,9 +1990,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cocPlaceOfIssue"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Place of Issue</FormLabel>
+                            <FormLabel className={addCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Place of Issue</FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter place of issue" {...field} data-testid="input-cocPlaceOfIssue" />
+                              <Input placeholder="Enter place of issue" {...field} disabled={addCrewForm.watch('cocNotApplicable')} data-testid="input-cocPlaceOfIssue" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1971,9 +2003,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cocIssueDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Issue Date</FormLabel>
+                            <FormLabel className={addCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Issue Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="input-cocIssueDate" />
+                              <Input type="date" {...field} disabled={addCrewForm.watch('cocNotApplicable')} data-testid="input-cocIssueDate" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1984,9 +2016,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cocExpiryDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Expiry Date</FormLabel>
+                            <FormLabel className={addCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Expiry Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="input-cocExpiryDate" />
+                              <Input type="date" {...field} disabled={addCrewForm.watch('cocNotApplicable')} data-testid="input-cocExpiryDate" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -2608,6 +2640,22 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                     <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-100 flex items-center">
                       <div className="w-2 h-2 bg-indigo-600 rounded-full mr-3"></div>
                       COC Details
+                      <FormField
+                        control={editCrewForm.control}
+                        name="cocNotApplicable"
+                        render={({ field }) => (
+                          <div className="ml-auto flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="edit-cocNotApplicable"
+                              checked={field.value}
+                              onChange={field.onChange}
+                              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            />
+                            <Label htmlFor="edit-cocNotApplicable" className="text-sm font-medium cursor-pointer">NILL / Not Applicable</Label>
+                          </div>
+                        )}
+                      />
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
@@ -2615,9 +2663,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cocGradeNo"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Grade / Certificate Number</FormLabel>
+                            <FormLabel className={editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Grade / Certificate Number</FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter COC grade/number" {...field} data-testid="edit-input-cocGradeNo" />
+                              <Input placeholder="Enter COC grade/number" {...field} disabled={editCrewForm.watch('cocNotApplicable')} data-testid="edit-input-cocGradeNo" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -2628,9 +2676,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cocPlaceOfIssue"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Place of Issue</FormLabel>
+                            <FormLabel className={editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Place of Issue</FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter place of issue" {...field} data-testid="edit-input-cocPlaceOfIssue" />
+                              <Input placeholder="Enter place of issue" {...field} disabled={editCrewForm.watch('cocNotApplicable')} data-testid="edit-input-cocPlaceOfIssue" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -2641,9 +2689,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cocIssueDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Issue Date</FormLabel>
+                            <FormLabel className={editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Issue Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="edit-input-cocIssueDate" />
+                              <Input type="date" {...field} disabled={editCrewForm.watch('cocNotApplicable')} data-testid="edit-input-cocIssueDate" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -2654,9 +2702,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cocExpiryDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Expiry Date</FormLabel>
+                            <FormLabel className={editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Expiry Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="edit-input-cocExpiryDate" />
+                              <Input type="date" {...field} disabled={editCrewForm.watch('cocNotApplicable')} data-testid="edit-input-cocExpiryDate" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>

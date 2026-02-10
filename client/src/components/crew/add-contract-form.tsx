@@ -10,6 +10,7 @@ import { OCRDocumentScanner } from './OCRDocumentScanner';
 import { FileText, Loader2 } from 'lucide-react';
 import { getAuthHeaders } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface AddContractFormProps {
   open: boolean;
@@ -99,10 +100,11 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       const end = new Date(start);
       end.setDate(start.getDate() + contractDays);
       setContractEndDate(end.toISOString().split('T')[0]);
-    } else {
       setContractEndDate('');
     }
   }, [contractStartDate, contractDays]);
+
+  const [cocSkipped, setCocSkipped] = useState(false);
 
   const resetForm = () => {
     setSeafarerName('');
@@ -145,7 +147,9 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
     setIsSaving(false);
     setIsUploading(false);
     setAppliedRecordId(null);
+    setAppliedRecordId(null);
     setAppliedRecordName(null);
+    setCocSkipped(false);
   };
 
   const handleOCRDataExtracted = (extractedData: any) => {
@@ -438,7 +442,11 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       // Create all documents BEFORE contract to pass sign-on validation
       await createDocument('passport', passportNumber, passportPlaceOfIssue, passportIssueDate, passportExpiryDate);
       await createDocument('cdc', cdcNumber, cdcPlaceOfIssue, cdcIssueDate, cdcExpiryDate);
-      await createDocument('coc', cocGradeNo, cocPlaceOfIssue, cocIssueDate, cocExpiryDate);
+
+      if (!cocSkipped) {
+        await createDocument('coc', cocGradeNo, cocPlaceOfIssue, cocIssueDate, cocExpiryDate);
+      }
+
       await createDocument('medical', medicalApprovalNo, medicalIssuingAuthority, medicalIssueDate, medicalExpiryDate);
 
       // Create contract for the crew member
@@ -800,46 +808,59 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
               Details of Competency Certificates
             </h4>
             <div className="space-y-3">
-              <div className="space-y-2">
-                <Label htmlFor="coc-grade-no">COC Grade / No</Label>
-                <Input
-                  id="coc-grade-no"
-                  placeholder="e.g., MASTER (F.G.) / 23-MUM-2024"
-                  value={cocGradeNo}
-                  onChange={(e) => setCocGradeNo(e.target.value)}
-                  data-testid="coc-grade-no-input"
+              <div className="flex items-center space-x-2 pb-2">
+                <Checkbox
+                  id="coc-skipped"
+                  checked={cocSkipped}
+                  onCheckedChange={(checked) => setCocSkipped(checked === true)}
                 />
+                <Label htmlFor="coc-skipped" className="cursor-pointer font-normal text-indigo-900 dark:text-indigo-100">
+                  NILL / Not Applicable (Crew member does not hold a COC)
+                </Label>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="coc-place-of-issue">Place of Issue</Label>
-                <Input
-                  id="coc-place-of-issue"
-                  placeholder="e.g., MUMBAI"
-                  value={cocPlaceOfIssue}
-                  onChange={(e) => setCocPlaceOfIssue(e.target.value)}
-                  data-testid="coc-place-of-issue-input"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+
+              <div className={cocSkipped ? "opacity-50 pointer-events-none transition-opacity" : "transition-opacity"}>
                 <div className="space-y-2">
-                  <Label htmlFor="coc-issue-date">Date of Issue</Label>
+                  <Label htmlFor="coc-grade-no">COC Grade / No</Label>
                   <Input
-                    id="coc-issue-date"
-                    placeholder="e.g., 15-JAN-2024"
-                    value={cocIssueDate}
-                    onChange={(e) => setCocIssueDate(e.target.value)}
-                    data-testid="coc-issue-date-input"
+                    id="coc-grade-no"
+                    placeholder="e.g., MASTER (F.G.) / 23-MUM-2024"
+                    value={cocGradeNo}
+                    onChange={(e) => setCocGradeNo(e.target.value)}
+                    data-testid="coc-grade-no-input"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="coc-expiry-date">Date of Expiry</Label>
+                  <Label htmlFor="coc-place-of-issue">Place of Issue</Label>
                   <Input
-                    id="coc-expiry-date"
-                    placeholder="e.g., 14-JAN-2029"
-                    value={cocExpiryDate}
-                    onChange={(e) => setCocExpiryDate(e.target.value)}
-                    data-testid="coc-expiry-date-input"
+                    id="coc-place-of-issue"
+                    placeholder="e.g., MUMBAI"
+                    value={cocPlaceOfIssue}
+                    onChange={(e) => setCocPlaceOfIssue(e.target.value)}
+                    data-testid="coc-place-of-issue-input"
                   />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="coc-issue-date">Date of Issue</Label>
+                    <Input
+                      id="coc-issue-date"
+                      placeholder="e.g., 15-JAN-2024"
+                      value={cocIssueDate}
+                      onChange={(e) => setCocIssueDate(e.target.value)}
+                      data-testid="coc-issue-date-input"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="coc-expiry-date">Date of Expiry</Label>
+                    <Input
+                      id="coc-expiry-date"
+                      placeholder="e.g., 14-JAN-2029"
+                      value={cocExpiryDate}
+                      onChange={(e) => setCocExpiryDate(e.target.value)}
+                      data-testid="coc-expiry-date-input"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

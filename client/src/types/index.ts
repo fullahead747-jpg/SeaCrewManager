@@ -9,6 +9,23 @@ export interface DashboardStats {
   signOffDue: number;
   signOffDue30Days: number;
   signOffDue15Days: number;
+  documentHealth: {
+    expired: number;
+    critical: number;
+    warning: number;
+    attention: number;
+    valid: number;
+    total: number;
+  };
+  contractHealth: {
+    overdue: number;
+    critical: number;
+    upcoming: number;
+    soon: number;
+    stable: number;
+    shored: number;
+    total: number;
+  };
 }
 
 export interface UpcomingEvent {
