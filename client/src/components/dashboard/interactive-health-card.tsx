@@ -43,7 +43,7 @@ const DonutSegment = ({
 }) => {
     const getPath = (start: number, end: number) => {
         // Enforce a small gap between arcs for the rounded caps to show
-        const padding = 2;
+        const padding = 4;
         const s = start + padding;
         const e = end - padding;
 
