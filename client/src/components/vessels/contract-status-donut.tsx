@@ -109,8 +109,7 @@ const ContractStatusDonut = memo(function ContractStatusDonut({ vesselId }: { ve
     return (
         <div className="relative h-full w-full flex items-center justify-center">
             <svg width="120" height="120" viewBox="0 0 120 120" className="transform -rotate-90">
-                {/* Background circle */}
-                <circle cx="60" cy="60" r="48" fill="none" stroke="#f1f5f9" strokeWidth="6" className="dark:stroke-slate-800 opacity-50" />
+                {/* Background circle removed for clarity */}
 
                 {/* Data segments */}
                 {segments.map((segment, i) => (

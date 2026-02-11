@@ -206,14 +206,7 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
                     {/* Custom SVG Donut with Rounded Segments and Gaps */}
                     <div className="w-full md:w-1/2 h-[240px] relative flex items-center justify-center">
                         <svg width="220" height="220" viewBox="0 0 200 200" className="transform -rotate-90">
-                            {/* Background Circle */}
-                            <circle
-                                cx="100" cy="100" r="82.5"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="22"
-                                className="text-secondary/10"
-                            />
+                            {/* Background Circle Removed to make gaps perfectly clear */}
 
                             {/* Animated Rounded Segments */}
                             {segments.map((segment) => (
