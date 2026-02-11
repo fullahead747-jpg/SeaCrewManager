@@ -56,7 +56,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch stats');
       return response.json();
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
   const { data: expiringDocuments, isLoading: alertsLoading } = useQuery({
@@ -81,7 +81,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch crew');
       return response.json();
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
   // Fetch vessels data for export
@@ -94,7 +94,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch vessels');
       return response.json();
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
   // Fetch contracts data for export
@@ -107,7 +107,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch contracts');
       return response.json();
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
   // Fetch documents data for export
@@ -120,7 +120,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch documents');
       return response.json();
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
   // Fetch rotations data for export
@@ -133,7 +133,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch rotations');
       return response.json();
     },
-    refetchInterval: 10000, // Auto-refresh every 10 seconds
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
   const exportCrewByVessel = async () => {

@@ -884,63 +884,63 @@ export class DatabaseStorage implements IStorage {
     const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
     const oneEightyDaysFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
 
-    // 1. Crew Stats (SQL Count)
-    const [activeCrewCount] = await db.select({ count: count() }).from(crewMembers).where(eq(crewMembers.status, 'onBoard'));
-    const [crewOnShoreCount] = await db.select({ count: count() }).from(crewMembers).where(eq(crewMembers.status, 'onShore'));
-    const [totalCrewCount] = await db.select({ count: count() }).from(crewMembers); // For contract health later
+    // Optimized parallel query execution
+    const [
+      [activeCrewCount],
+      [crewOnShoreCount],
+      [totalCrewCount],
+      [activeVesselsCount],
+      [expiredDocsCount],
+      [criticalDocsCount],
+      [warningDocsCount],
+      [attentionDocsCount],
+      [permanentDocsCount],
+      [farFutureDocsCount],
+      [totalDocsCount],
+      [validStatusDocsCount],
+      [totalContractsCount],
+      [signOffDueCount],
+      [signOffDue30Count],
+      [signOffDue15Count],
+      [criticalContractsCount],
+      [upcomingContractsCount],
+      [soonContractsCount],
+      [stableContractsCount],
+      [validContactCrewCount]
+    ] = await Promise.all([
+      db.select({ count: count() }).from(crewMembers).where(eq(crewMembers.status, 'onBoard')),
+      db.select({ count: count() }).from(crewMembers).where(eq(crewMembers.status, 'onShore')),
+      db.select({ count: count() }).from(crewMembers),
+      db.select({ count: count() }).from(vessels).where(inArray(vessels.status, ['harbour-mining', 'coastal-mining', 'world-wide', 'oil-field', 'line-up-mining', 'active'])),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now))),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gte(documents.expiryDate, now), lte(documents.expiryDate, thirtyDaysFromNow))),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, thirtyDaysFromNow), lte(documents.expiryDate, ninetyDaysFromNow))),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, ninetyDaysFromNow), lte(documents.expiryDate, oneEightyDaysFromNow))),
+      db.select({ count: count() }).from(documents).where(isNull(documents.expiryDate)),
+      db.select({ count: count() }).from(documents).where(gt(documents.expiryDate, oneEightyDaysFromNow)),
+      db.select({ count: count() }).from(documents),
+      db.select({ count: count() }).from(documents).where(eq(documents.status, 'valid')),
+      db.select({ count: count() }).from(contracts),
+      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, fortyFiveDaysFromNow))),
+      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, thirtyDaysFromNow))),
+      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, fifteenDaysFromNow))),
+      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gte(contracts.endDate, now), lte(contracts.endDate, fifteenDaysFromNow))),
+      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, fifteenDaysFromNow), lte(contracts.endDate, thirtyDaysFromNow))),
+      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, thirtyDaysFromNow), lte(contracts.endDate, fortyFiveDaysFromNow))),
+      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, fortyFiveDaysFromNow))),
+      db.select({ count: count() })
+        .from(crewMembers)
+        .innerJoin(contracts, eq(crewMembers.id, contracts.crewMemberId))
+        .where(and(
+          eq(crewMembers.status, 'onBoard'),
+          eq(contracts.status, 'active'),
+          gte(contracts.endDate, now)
+        ))
+    ]);
 
-    // 2. Vessel Stats (SQL Count with InArray)
-    const activeVesselStatuses = ['harbour-mining', 'coastal-mining', 'world-wide', 'oil-field', 'line-up-mining', 'active'];
-    const [activeVesselsCount] = await db.select({ count: count() }).from(vessels).where(inArray(vessels.status, activeVesselStatuses));
-
-    // 3. Document Stats (SQL Count)
-    const [expiredDocsCount] = await db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now)));
-    const [criticalDocsCount] = await db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gte(documents.expiryDate, now), lte(documents.expiryDate, thirtyDaysFromNow)));
-    const [warningDocsCount] = await db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, thirtyDaysFromNow), lte(documents.expiryDate, ninetyDaysFromNow)));
-    const [attentionDocsCount] = await db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, ninetyDaysFromNow), lte(documents.expiryDate, oneEightyDaysFromNow)));
-
-    // Valid: No expiry OR > 180 days
-    // This is trickier to do in one query without complex OR logic in drizzle, separate query is fine
-    const [permanentDocsCount] = await db.select({ count: count() }).from(documents).where(isNull(documents.expiryDate));
-    const [farFutureDocsCount] = await db.select({ count: count() }).from(documents).where(gt(documents.expiryDate, oneEightyDaysFromNow));
     const validDocsCount = permanentDocsCount.count + farFutureDocsCount.count;
-
-    const [totalDocsCount] = await db.select({ count: count() }).from(documents);
-    const [validStatusDocsCount] = await db.select({ count: count() }).from(documents).where(eq(documents.status, 'valid'));
-
     const complianceRate = totalDocsCount.count > 0 ? (validStatusDocsCount.count / totalDocsCount.count) * 100 : 100;
     const pendingActions = criticalDocsCount.count; // Same as expires <= 30 days
-
-    // 4. Contract Stats
-    const [totalContractsCount] = await db.select({ count: count() }).from(contracts);
-
-    const [signOffDueCount] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, fortyFiveDaysFromNow)));
-    const [signOffDue30Count] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, thirtyDaysFromNow)));
-    const [signOffDue15Count] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, fifteenDaysFromNow)));
-
-    // Contract Health Breakdowns
-    const [criticalContractsCount] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gte(contracts.endDate, now), lte(contracts.endDate, fifteenDaysFromNow)));
-    const [upcomingContractsCount] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, fifteenDaysFromNow), lte(contracts.endDate, thirtyDaysFromNow)));
-    const [soonContractsCount] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, thirtyDaysFromNow), lte(contracts.endDate, fortyFiveDaysFromNow)));
-    const [stableContractsCount] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, fortyFiveDaysFromNow)));
-
-    // Overdue Contracts Calculation (Optimized)
-    // We need count of Crew Members who are 'onBoard' AND (have NO active contract OR have an EXPIRED active contract)
-    // This is efficiently done by: Count(onBoard Crew) - Count(onBoard Crew with Valid Active Contract)
-
-    // Count of Crew onBoard with a VALID active contract (endDate >= now)
-    // Join contracts on crewId, where contract.status='active' AND contract.endDate >= now AND crew.status='onBoard'
-    // Drizzle doesn't support joins in `db.select().from()` easily without the relational query builder or explicit joins.
-    // Explicit join approach:
-    const [validContactCrewCount] = await db.select({ count: count() })
-      .from(crewMembers)
-      .innerJoin(contracts, eq(crewMembers.id, contracts.crewMemberId))
-      .where(and(
-        eq(crewMembers.status, 'onBoard'),
-        eq(contracts.status, 'active'),
-        gte(contracts.endDate, now)
-      ));
-
     const overdueContractsCount = activeCrewCount.count - validContactCrewCount.count;
 
     return {
