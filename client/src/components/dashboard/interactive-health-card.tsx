@@ -42,8 +42,8 @@ const DonutSegment = ({
     onClick?: () => void;
 }) => {
     const getPath = (start: number, end: number) => {
-        // Enforce a small gap between arcs for the rounded caps to show
-        const padding = 4;
+        // Enforce a significant gap between arcs for the rounded caps to show
+        const padding = 6;
         const s = start + padding;
         const e = end - padding;
 
