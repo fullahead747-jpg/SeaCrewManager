@@ -5,51 +5,49 @@ import { useQuery } from '@tanstack/react-query';
 import { getAuthHeaders } from '@/lib/auth';
 
 /**
- * Custom SVG Donut Segment for Vessel Cards
+ * High-performance Donut Segment for Vessel Cards with rounded ends and gaps
  */
 const SimpleDonutSegment = ({
     startAngle,
     endAngle,
     color,
-    innerRadius,
-    outerRadius
+    radius,
+    strokeWidth
 }: {
     startAngle: number;
     endAngle: number;
     color: string;
-    innerRadius: number;
-    outerRadius: number;
+    radius: number;
+    strokeWidth: number;
 }) => {
     const getPath = (start: number, end: number) => {
-        if (end - start < 0.1) return "";
-        const startRad = (start - 90) * (Math.PI / 180);
-        const endRad = (end - 90) * (Math.PI / 180);
-        const x1 = 60 + outerRadius * Math.cos(startRad);
-        const y1 = 60 + outerRadius * Math.sin(startRad);
-        const x2 = 60 + outerRadius * Math.cos(endRad);
-        const y2 = 60 + outerRadius * Math.sin(endRad);
-        const x3 = 60 + innerRadius * Math.cos(endRad);
-        const y3 = 60 + innerRadius * Math.sin(endRad);
-        const x4 = 60 + innerRadius * Math.cos(startRad);
-        const y4 = 60 + innerRadius * Math.sin(startRad);
-        const largeArc = end - start <= 180 ? 0 : 1;
+        const padding = 4; // Larger relative padding for smaller charts
+        const s = start + padding;
+        const e = end - padding;
 
-        return `
-            M ${x1} ${y1}
-            A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x2} ${y2}
-            L ${x3} ${y3}
-            A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4}
-            Z
-        `;
+        if (e - s <= 0) return "";
+
+        const startRad = (s - 90) * (Math.PI / 180);
+        const endRad = (e - 90) * (Math.PI / 180);
+        const x1 = 60 + radius * Math.cos(startRad);
+        const y1 = 60 + radius * Math.sin(startRad);
+        const x2 = 60 + radius * Math.cos(endRad);
+        const y2 = 60 + radius * Math.sin(endRad);
+        const largeArc = e - s <= 180 ? 0 : 1;
+
+        return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`;
     };
 
     return (
         <motion.path
             d={getPath(startAngle, endAngle)}
-            fill={color}
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", stiffness: 200, damping: 20 }}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            fill="none"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 1, ease: "easeInOut" }}
         />
     );
 };
@@ -96,7 +94,6 @@ const ContractStatusDonut = memo(function ContractStatusDonut({ vesselId }: { ve
         data.push({ name: 'No Crew', value: 1, color: '#e2e8f0' });
     }
 
-    // Calculate angles
     let currentAngle = 0;
     const segments = data.map(item => {
         const angleSize = (item.value / normalizedTotal) * 360;
@@ -113,7 +110,7 @@ const ContractStatusDonut = memo(function ContractStatusDonut({ vesselId }: { ve
         <div className="relative h-full w-full flex items-center justify-center">
             <svg width="120" height="120" viewBox="0 0 120 120" className="transform -rotate-90">
                 {/* Background circle */}
-                <circle cx="60" cy="60" r="48" fill="none" stroke="#f1f5f9" strokeWidth="8" className="dark:stroke-slate-800" />
+                <circle cx="60" cy="60" r="48" fill="none" stroke="#f1f5f9" strokeWidth="6" className="dark:stroke-slate-800 opacity-50" />
 
                 {/* Data segments */}
                 {segments.map((segment, i) => (
@@ -122,8 +119,8 @@ const ContractStatusDonut = memo(function ContractStatusDonut({ vesselId }: { ve
                         startAngle={segment.startAngle}
                         endAngle={segment.endAngle}
                         color={segment.color}
-                        innerRadius={44}
-                        outerRadius={52}
+                        radius={48}
+                        strokeWidth={8}
                     />
                 ))}
             </svg>

@@ -24,62 +24,57 @@ interface InteractiveHealthCardProps {
 }
 
 /**
- * Custom SVG Donut Segment that draws in a circle
+ * High-performance Donut Segment using centerline arcs for rounded ends
  */
 const DonutSegment = ({
     startAngle,
     endAngle,
     color,
-    innerRadius,
-    outerRadius,
+    radius,
+    strokeWidth,
     onClick
 }: {
     startAngle: number;
     endAngle: number;
     color: string;
-    innerRadius: number;
-    outerRadius: number;
+    radius: number;
+    strokeWidth: number;
     onClick?: () => void;
 }) => {
-    // Generate SVG path for a donut segment
     const getPath = (start: number, end: number) => {
-        // Handle zero-length or full-circle edge cases
-        if (end - start < 0.1) return "";
+        // Enforce a small gap between arcs for the rounded caps to show
+        const padding = 2;
+        const s = start + padding;
+        const e = end - padding;
 
-        const startRad = (start - 90) * (Math.PI / 180);
-        const endRad = (end - 90) * (Math.PI / 180);
+        if (e - s <= 0) return "";
 
-        const x1 = 100 + outerRadius * Math.cos(startRad);
-        const y1 = 100 + outerRadius * Math.sin(startRad);
-        const x2 = 100 + outerRadius * Math.cos(endRad);
-        const y2 = 100 + outerRadius * Math.sin(endRad);
+        const startRad = (s - 90) * (Math.PI / 180);
+        const endRad = (e - 90) * (Math.PI / 180);
 
-        const x3 = 100 + innerRadius * Math.cos(endRad);
-        const y3 = 100 + innerRadius * Math.sin(endRad);
-        const x4 = 100 + innerRadius * Math.cos(startRad);
-        const y4 = 100 + innerRadius * Math.sin(startRad);
+        const x1 = 100 + radius * Math.cos(startRad);
+        const y1 = 100 + radius * Math.sin(startRad);
+        const x2 = 100 + radius * Math.cos(endRad);
+        const y2 = 100 + radius * Math.sin(endRad);
 
-        const largeArc = end - start <= 180 ? 0 : 1;
+        const largeArc = e - s <= 180 ? 0 : 1;
 
-        return `
-            M ${x1} ${y1}
-            A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x2} ${y2}
-            L ${x3} ${y3}
-            A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4}
-            Z
-        `;
+        return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`;
     };
 
     return (
         <motion.path
             d={getPath(startAngle, endAngle)}
-            fill={color}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            whileHover={{ opacity: 0.8, scale: 1.02 }}
+            stroke={color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            fill="none"
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            whileHover={{ strokeWidth: strokeWidth + 4, opacity: 0.9 }}
             onClick={onClick}
-            className="cursor-pointer focus:outline-none transition-opacity duration-200"
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+            className="cursor-pointer focus:outline-none transition-all duration-300"
+            transition={{ duration: 1.2, ease: "easeInOut" }}
         />
     );
 };
@@ -100,7 +95,6 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
         isFirstRender.current = false;
     }, []);
 
-    // Memoize the data to prevent re-calculations
     const memoizedData = useMemo(() => data, [data]);
 
     if (isLoading) {
@@ -209,7 +203,7 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
                         })}
                     </div>
 
-                    {/* Custom SVG Donut - Right Side */}
+                    {/* Custom SVG Donut with Rounded Segments and Gaps */}
                     <div className="w-full md:w-1/2 h-[240px] relative flex items-center justify-center">
                         <svg width="220" height="220" viewBox="0 0 200 200" className="transform -rotate-90">
                             {/* Background Circle */}
@@ -217,19 +211,19 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
                                 cx="100" cy="100" r="82.5"
                                 fill="none"
                                 stroke="currentColor"
-                                strokeWidth="25"
-                                className="text-secondary/20"
+                                strokeWidth="22"
+                                className="text-secondary/10"
                             />
 
-                            {/* Animated Segments */}
+                            {/* Animated Rounded Segments */}
                             {segments.map((segment) => (
                                 <DonutSegment
                                     key={segment.key}
                                     startAngle={segment.startAngle}
                                     endAngle={segment.endAngle}
                                     color={segment.color}
-                                    innerRadius={70}
-                                    outerRadius={95}
+                                    radius={82.5}
+                                    strokeWidth={22}
                                     onClick={() => onSegmentClick(segment.key, segment.name)}
                                 />
                             ))}
@@ -259,7 +253,6 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
         </Card>
     );
 }, (prevProps, nextProps) => {
-    // Custom comparison to avoid re-renders if data values are identical
     if (prevProps.total !== nextProps.total) return false;
     if (prevProps.isLoading !== nextProps.isLoading) return false;
     if (prevProps.data.length !== nextProps.data.length) return false;
