@@ -42,23 +42,17 @@ const DonutSegment = ({
     onClick?: () => void;
 }) => {
     const getPath = (start: number, end: number) => {
-        // Dynamic padding based on segment size
-        const segmentSize = end - start;
-        const padding = segmentSize < 12 ? 1 : 3;
-        const s = start + padding;
-        const e = end - padding;
+        if (end - start <= 0.1) return "";
 
-        if (e - s <= 0.1) return "";
-
-        const startRad = (s - 90) * (Math.PI / 180);
-        const endRad = (e - 90) * (Math.PI / 180);
+        const startRad = (start - 90) * (Math.PI / 180);
+        const endRad = (end - 90) * (Math.PI / 180);
 
         const x1 = 100 + radius * Math.cos(startRad);
         const y1 = 100 + radius * Math.sin(startRad);
         const x2 = 100 + radius * Math.cos(endRad);
         const y2 = 100 + radius * Math.sin(endRad);
 
-        const largeArc = e - s <= 180 ? 0 : 1;
+        const largeArc = end - start <= 180 ? 0 : 1;
 
         return `M ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 1 ${x2} ${y2}`;
     };
@@ -115,39 +109,49 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
     }
 
     const normalizedTotal = total > 0 ? total : 1;
+    const activeData = memoizedData.filter(d => d.value > 0);
 
-    // Calculate angles with a minimum size to prevent tiny segments from vanishing
+    // Fixed Gap Logic (similar to Recharts paddingAngle)
+    const GAP_SIZE = 12; // Degrees
+    const totalGaps = activeData.length * GAP_SIZE;
+    const availableAngle = 360 - totalGaps;
+
     let currentAngle = 0;
-    const padding = 3; // Reduced padding for better visibility
-    const minAngle = 8; // Enforce minimum angle for non-zero values
-
-    // Sort data to put larger segments first for better layout, or keep original order
-    // Here we keep original order but adjust sizes
     const segments = memoizedData.map(item => {
-        let angleSize = (item.value / normalizedTotal) * 360;
-        if (item.value > 0 && angleSize < minAngle) {
-            angleSize = minAngle;
+        let angleSize = 0;
+        if (item.value > 0) {
+            // Distribute available space proportionally
+            angleSize = (item.value / normalizedTotal) * availableAngle;
+            // Ensure even tiny values (1%) are visible as rounded pills
+            if (angleSize < 10) angleSize = 10;
         }
 
         const segment = {
             ...item,
             startAngle: currentAngle,
-            endAngle: currentAngle + angleSize
+            endAngle: currentAngle + angleSize,
+            isVisible: item.value > 0
         };
-        currentAngle += angleSize;
+
+        if (item.value > 0) {
+            currentAngle += angleSize + GAP_SIZE;
+        }
         return segment;
     });
 
-    // Normalize so it fits in 360 if we bumped it too much
-    const totalAngle = currentAngle;
-    if (totalAngle > 360) {
-        let runningAngle = 0;
+    // Final normalization to ensure it closes the circle if we bumped tiny values
+    const actualTotalUsed = currentAngle - (activeData.length > 0 ? GAP_SIZE : 0);
+    if (actualTotalUsed > 360 && activeData.length > 0) {
+        let running = 0;
         segments.forEach(s => {
-            const originalSize = s.endAngle - s.startAngle;
-            const normalizedSize = (originalSize / totalAngle) * 360;
-            s.startAngle = runningAngle;
-            s.endAngle = runningAngle + normalizedSize;
-            runningAngle += normalizedSize;
+            if (s.isVisible) {
+                const size = s.endAngle - s.startAngle;
+                const ratio = size / actualTotalUsed;
+                const normalizedSize = ratio * (360 - (activeData.length * GAP_SIZE));
+                s.startAngle = running;
+                s.endAngle = running + normalizedSize;
+                running += normalizedSize + GAP_SIZE;
+            }
         });
     }
 
