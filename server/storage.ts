@@ -44,7 +44,7 @@ import {
   type InsertScannedDocument,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, sql, isNotNull, desc } from "drizzle-orm";
+import { eq, and, gte, gt, lte, sql, isNotNull, isNull, desc, inArray, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -133,6 +133,37 @@ export interface IStorage {
   // WhatsApp message operations
   saveWhatsappMessage(message: InsertWhatsappMessage): Promise<WhatsappMessage>;
   getWhatsappMessages(remoteJid: string, limit?: number): Promise<WhatsappMessage[]>;
+
+  // Dashboard statistics
+  getDashboardStats(): Promise<{
+    activeCrew: number;
+    activeVessels: number;
+    pendingActions: number;
+    crewOnShore: number;
+    complianceRate: number;
+    totalContracts: number;
+    totalDocuments: number;
+    signOffDue: number;
+    signOffDue30Days: number;
+    signOffDue15Days: number;
+    documentHealth: {
+      expired: number;
+      critical: number;
+      warning: number;
+      attention: number;
+      valid: number;
+      total: number;
+    };
+    contractHealth: {
+      overdue: number;
+      critical: number;
+      upcoming: number;
+      soon: number;
+      stable: number;
+      shored: number;
+      total: number;
+    };
+  }>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -218,24 +249,63 @@ export class DatabaseStorage implements IStorage {
   async getCrewMembers(): Promise<CrewMemberWithDetails[]> {
     const crewList = await db.select().from(crewMembers);
 
-    const detailedCrew = await Promise.all(crewList.map(async (member) => {
-      const user = member.userId ? await this.getUser(member.userId) : undefined;
-      const currentVessel = member.currentVesselId ? await this.getVessel(member.currentVesselId) : undefined;
-      const lastVessel = member.lastVesselId ? await this.getVessel(member.lastVesselId) : undefined;
-      const memberDocuments = await this.getDocumentsByCrewMember(member.id);
-      const activeContract = await this.getActiveContract(member.id);
+    if (crewList.length === 0) return [];
 
-      return {
-        ...member,
-        user,
-        currentVessel,
-        lastVessel,
-        documents: memberDocuments,
-        activeContract,
-      };
+    const userIds = [...new Set(crewList.map(c => c.userId).filter(id => id !== null))] as string[];
+    const vesselIds = [...new Set([
+      ...crewList.map(c => c.currentVesselId).filter(id => id !== null),
+      ...crewList.map(c => c.lastVesselId).filter(id => id !== null)
+    ])] as string[];
+    const crewIds = crewList.map(c => c.id);
+
+    // Fetch related data in parallel batches
+    const [usersList, vesselsList, allDocs, allContracts] = await Promise.all([
+      userIds.length > 0 ? db.select().from(users).where(inArray(users.id, userIds)) : [],
+      vesselIds.length > 0 ? db.select().from(vessels).where(inArray(vessels.id, vesselIds)) : [],
+      // For very large datasets, fetching ALL docs might be heavy, but it's better than N+1 queries.
+      // If crewIds > 1000, we might need chunking, but for now this is safe.
+      crewIds.length > 0 ? db.select().from(documents).where(inArray(documents.crewMemberId, crewIds)) : [],
+      crewIds.length > 0 ? db.select().from(contracts).where(inArray(contracts.crewMemberId, crewIds)) : []
+    ]);
+
+    // Create maps for O(1) lookup
+    const userMap = new Map(usersList.map(u => [u.id, u]));
+    const vesselMap = new Map(vesselsList.map(v => [v.id, v]));
+
+    // Group docs by crewId
+    const docsMap = new Map<string, Document[]>();
+    allDocs.forEach(d => {
+      if (!docsMap.has(d.crewMemberId)) docsMap.set(d.crewMemberId, []);
+      docsMap.get(d.crewMemberId)!.push(d);
+    });
+
+    // Determine active contract for each crew
+    const activeContractMap = new Map<string, Contract>();
+    allContracts.forEach(c => {
+      // Use the same logic as getActiveContract: descending by createdAt (implicitly or explicitly)
+      // We filter for active statuses first if needed, but the original getActiveContract just took the latest contract regardless of status?
+      // Checking original implementation: 
+      // async getActiveContract(crewMemberId: string): Promise<Contract | undefined> {
+      //   const [contract] = await db.select().from(contracts).where(eq(contracts.crewMemberId, crewMemberId)).orderBy(desc(contracts.createdAt));
+      //   return contract || undefined;
+      // }
+      // Wait, the original implementation didn't check for status='active'! It just returned the *latest created* contract.
+      // We should replicate that behavior to maintain compatibility.
+
+      const existing = activeContractMap.get(c.crewMemberId);
+      if (!existing || (c.createdAt && existing.createdAt && c.createdAt > existing.createdAt)) {
+        activeContractMap.set(c.crewMemberId, c);
+      }
+    });
+
+    return crewList.map(member => ({
+      ...member,
+      user: member.userId ? userMap.get(member.userId) : undefined,
+      currentVessel: member.currentVesselId ? vesselMap.get(member.currentVesselId) : undefined,
+      lastVessel: member.lastVesselId ? vesselMap.get(member.lastVesselId) : undefined,
+      documents: docsMap.get(member.id) || [],
+      activeContract: activeContractMap.get(member.id)
     }));
-
-    return detailedCrew;
   }
 
   async getCrewMember(id: string): Promise<CrewMemberWithDetails | undefined> {
@@ -262,22 +332,47 @@ export class DatabaseStorage implements IStorage {
   async getCrewMembersByVessel(vesselId: string): Promise<CrewMemberWithDetails[]> {
     const vesselCrew = await db.select().from(crewMembers).where(eq(crewMembers.currentVesselId, vesselId));
 
-    const detailedCrew = await Promise.all(vesselCrew.map(async (member) => {
-      const user = member.userId ? await this.getUser(member.userId) : undefined;
-      const currentVessel = await this.getVessel(vesselId);
-      const memberDocuments = await this.getDocumentsByCrewMember(member.id);
-      const activeContract = await this.getActiveContract(member.id);
+    if (vesselCrew.length === 0) return [];
 
-      return {
-        ...member,
-        user,
-        currentVessel,
-        documents: memberDocuments,
-        activeContract,
-      };
+    const userIds = [...new Set(vesselCrew.map(c => c.userId).filter(id => id !== null))] as string[];
+    const crewIds = vesselCrew.map(c => c.id);
+
+    // Fetch related data
+    const [usersList, currentVessel, allDocs, allContracts] = await Promise.all([
+      userIds.length > 0 ? db.select().from(users).where(inArray(users.id, userIds)) : [],
+      this.getVessel(vesselId),
+      crewIds.length > 0 ? db.select().from(documents).where(inArray(documents.crewMemberId, crewIds)) : [],
+      crewIds.length > 0 ? db.select().from(contracts).where(inArray(contracts.crewMemberId, crewIds)) : []
+    ]);
+
+    const userMap = new Map(usersList.map(u => [u.id, u]));
+
+    // Group docs
+    const docsMap = new Map<string, Document[]>();
+    allDocs.forEach(d => {
+      if (!docsMap.has(d.crewMemberId)) docsMap.set(d.crewMemberId, []);
+      docsMap.get(d.crewMemberId)!.push(d);
+    });
+
+    // Active contract logic (latest created)
+    const activeContractMap = new Map<string, Contract>();
+    allContracts.forEach(c => {
+      const existing = activeContractMap.get(c.crewMemberId);
+      if (!existing || (c.createdAt && existing.createdAt && c.createdAt > existing.createdAt)) {
+        activeContractMap.set(c.crewMemberId, c);
+      }
+    });
+
+    return vesselCrew.map(member => ({
+      ...member,
+      user: member.userId ? userMap.get(member.userId) : undefined,
+      currentVessel: currentVessel,
+      // Detailed view usually doesn't show lastVessel in the table list context, but checking type definition...
+      // The type CrewMemberWithDetails includes lastVessel. 
+      // Logic: The original function didn't fetch lastVessel. So we can leave it undefined.
+      documents: docsMap.get(member.id) || [],
+      activeContract: activeContractMap.get(member.id)
     }));
-
-    return detailedCrew;
   }
 
   async findDuplicateCrewMember(firstName: string, lastName: string, dateOfBirth: Date): Promise<CrewMember | undefined> {
@@ -424,10 +519,16 @@ export class DatabaseStorage implements IStorage {
         gte(documents.expiryDate, now)
       ));
 
+    if (expiringDocs.length === 0) return [];
+
+    const crewIds = [...new Set(expiringDocs.map(d => d.crewMemberId))];
+    const crewList = await db.select().from(crewMembers).where(inArray(crewMembers.id, crewIds));
+    const crewMap = new Map(crewList.map(c => [c.id, c]));
+
     const alerts: DocumentAlert[] = [];
 
     for (const doc of expiringDocs) {
-      const member = await this.getCrewMember(doc.crewMemberId);
+      const member = crewMap.get(doc.crewMemberId);
       if (member) {
         const daysUntilExpiry = Math.ceil((doc.expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
         const severity = daysUntilExpiry <= 7 ? 'critical' : daysUntilExpiry <= 15 ? 'warning' : 'info';
@@ -446,18 +547,31 @@ export class DatabaseStorage implements IStorage {
 
   async getExpiringContracts(days: number): Promise<ContractAlert[]> {
     const now = new Date();
-    const futureDate = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000));
+    // const futureDate = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000)); // unused in original logic explicitly, but used for filtering
 
     const allContracts = await db
       .select()
       .from(contracts)
       .where(eq(contracts.status, 'active'));
 
+    if (allContracts.length === 0) return [];
+
+    const crewIds = [...new Set(allContracts.map(c => c.crewMemberId))];
+    const vesselIds = [...new Set(allContracts.map(c => c.vesselId))];
+
+    const [crewList, vesselList] = await Promise.all([
+      db.select().from(crewMembers).where(inArray(crewMembers.id, crewIds)),
+      db.select().from(vessels).where(inArray(vessels.id, vesselIds))
+    ]);
+
+    const crewMap = new Map(crewList.map(c => [c.id, c]));
+    const vesselMap = new Map(vesselList.map(v => [v.id, v]));
+
     const alerts: ContractAlert[] = [];
 
     for (const contract of allContracts) {
-      const member = await this.getCrewMember(contract.crewMemberId);
-      const vessel = await this.getVessel(contract.vesselId);
+      const member = crewMap.get(contract.crewMemberId);
+      const vessel = vesselMap.get(contract.vesselId);
 
       if (member && vessel) {
         const daysUntilExpiry = Math.ceil((contract.endDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
@@ -762,6 +876,104 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
+  async getDashboardStats() {
+    const now = new Date();
+    const fifteenDaysFromNow = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    const fortyFiveDaysFromNow = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
+    const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    const oneEightyDaysFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+
+    // 1. Crew Stats (SQL Count)
+    const [activeCrewCount] = await db.select({ count: count() }).from(crewMembers).where(eq(crewMembers.status, 'onBoard'));
+    const [crewOnShoreCount] = await db.select({ count: count() }).from(crewMembers).where(eq(crewMembers.status, 'onShore'));
+    const [totalCrewCount] = await db.select({ count: count() }).from(crewMembers); // For contract health later
+
+    // 2. Vessel Stats (SQL Count with InArray)
+    const activeVesselStatuses = ['harbour-mining', 'coastal-mining', 'world-wide', 'oil-field', 'line-up-mining', 'active'];
+    const [activeVesselsCount] = await db.select({ count: count() }).from(vessels).where(inArray(vessels.status, activeVesselStatuses));
+
+    // 3. Document Stats (SQL Count)
+    const [expiredDocsCount] = await db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now)));
+    const [criticalDocsCount] = await db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gte(documents.expiryDate, now), lte(documents.expiryDate, thirtyDaysFromNow)));
+    const [warningDocsCount] = await db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, thirtyDaysFromNow), lte(documents.expiryDate, ninetyDaysFromNow)));
+    const [attentionDocsCount] = await db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, ninetyDaysFromNow), lte(documents.expiryDate, oneEightyDaysFromNow)));
+
+    // Valid: No expiry OR > 180 days
+    // This is trickier to do in one query without complex OR logic in drizzle, separate query is fine
+    const [permanentDocsCount] = await db.select({ count: count() }).from(documents).where(isNull(documents.expiryDate));
+    const [farFutureDocsCount] = await db.select({ count: count() }).from(documents).where(gt(documents.expiryDate, oneEightyDaysFromNow));
+    const validDocsCount = permanentDocsCount.count + farFutureDocsCount.count;
+
+    const [totalDocsCount] = await db.select({ count: count() }).from(documents);
+    const [validStatusDocsCount] = await db.select({ count: count() }).from(documents).where(eq(documents.status, 'valid'));
+
+    const complianceRate = totalDocsCount.count > 0 ? (validStatusDocsCount.count / totalDocsCount.count) * 100 : 100;
+    const pendingActions = criticalDocsCount.count; // Same as expires <= 30 days
+
+    // 4. Contract Stats
+    const [totalContractsCount] = await db.select({ count: count() }).from(contracts);
+
+    const [signOffDueCount] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, fortyFiveDaysFromNow)));
+    const [signOffDue30Count] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, thirtyDaysFromNow)));
+    const [signOffDue15Count] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, fifteenDaysFromNow)));
+
+    // Contract Health Breakdowns
+    const [criticalContractsCount] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gte(contracts.endDate, now), lte(contracts.endDate, fifteenDaysFromNow)));
+    const [upcomingContractsCount] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, fifteenDaysFromNow), lte(contracts.endDate, thirtyDaysFromNow)));
+    const [soonContractsCount] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, thirtyDaysFromNow), lte(contracts.endDate, fortyFiveDaysFromNow)));
+    const [stableContractsCount] = await db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, fortyFiveDaysFromNow)));
+
+    // Overdue Contracts Calculation (Optimized)
+    // We need count of Crew Members who are 'onBoard' AND (have NO active contract OR have an EXPIRED active contract)
+    // This is efficiently done by: Count(onBoard Crew) - Count(onBoard Crew with Valid Active Contract)
+
+    // Count of Crew onBoard with a VALID active contract (endDate >= now)
+    // Join contracts on crewId, where contract.status='active' AND contract.endDate >= now AND crew.status='onBoard'
+    // Drizzle doesn't support joins in `db.select().from()` easily without the relational query builder or explicit joins.
+    // Explicit join approach:
+    const [validContactCrewCount] = await db.select({ count: count() })
+      .from(crewMembers)
+      .innerJoin(contracts, eq(crewMembers.id, contracts.crewMemberId))
+      .where(and(
+        eq(crewMembers.status, 'onBoard'),
+        eq(contracts.status, 'active'),
+        gte(contracts.endDate, now)
+      ));
+
+    const overdueContractsCount = activeCrewCount.count - validContactCrewCount.count;
+
+    return {
+      activeCrew: activeCrewCount.count,
+      activeVessels: activeVesselsCount.count,
+      pendingActions: pendingActions,
+      crewOnShore: crewOnShoreCount.count,
+      complianceRate: Math.round(complianceRate * 10) / 10,
+      totalContracts: totalContractsCount.count,
+      totalDocuments: totalDocsCount.count,
+      signOffDue: signOffDueCount.count,
+      signOffDue30Days: signOffDue30Count.count,
+      signOffDue15Days: signOffDue15Count.count,
+      documentHealth: {
+        expired: expiredDocsCount.count,
+        critical: criticalDocsCount.count,
+        warning: warningDocsCount.count,
+        attention: attentionDocsCount.count,
+        valid: validDocsCount,
+        total: totalDocsCount.count
+      },
+      contractHealth: {
+        overdue: overdueContractsCount, // Using the optimized calculation
+        critical: criticalContractsCount.count,
+        upcoming: upcomingContractsCount.count,
+        soon: soonContractsCount.count,
+        stable: stableContractsCount.count,
+        shored: crewOnShoreCount.count,
+        total: totalCrewCount.count
+      }
+    };
+  }
+
   // Vessel document operations
   async getVesselDocuments(vesselId: string): Promise<VesselDocument[]> {
     return await db.select().from(vesselDocuments)
@@ -1055,6 +1267,7 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onBoard",
       signOffDate: null,
+      cocNotApplicable: false,
       createdAt: new Date(),
     };
 
@@ -1078,6 +1291,7 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onBoard",
       signOffDate: null,
+      cocNotApplicable: false,
       createdAt: new Date(),
     };
 
@@ -1101,6 +1315,7 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onBoard",
       signOffDate: null,
+      cocNotApplicable: false,
       createdAt: new Date(),
     };
 
@@ -1125,6 +1340,7 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onBoard",
       signOffDate: null,
+      cocNotApplicable: false,
       createdAt: new Date(),
     };
 
@@ -1148,6 +1364,7 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onBoard",
       signOffDate: null,
+      cocNotApplicable: false,
       createdAt: new Date(),
     };
 
@@ -1172,6 +1389,7 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore",
       signOffDate: null,
+      cocNotApplicable: false,
       createdAt: new Date(),
     };
 
@@ -1195,6 +1413,7 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore",
       signOffDate: null,
+      cocNotApplicable: false,
       createdAt: new Date(),
     };
 
@@ -1218,6 +1437,7 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore",
       signOffDate: null,
+      cocNotApplicable: false,
       createdAt: new Date(),
     };
 
@@ -1242,6 +1462,7 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore", // Signed off
       signOffDate: new Date("2024-12-20"),
+      cocNotApplicable: false,
       createdAt: new Date(),
     };
 
@@ -1265,6 +1486,7 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore", // Signed off
       signOffDate: new Date("2024-12-18"),
+      cocNotApplicable: false,
       createdAt: new Date(),
     };
 
@@ -1288,6 +1510,7 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore", // Signed off
       signOffDate: new Date("2024-12-15"),
+      cocNotApplicable: false,
       createdAt: new Date(),
     };
 
@@ -1648,6 +1871,7 @@ export class MemStorage implements IStorage {
       lastVesselId: data.lastVesselId || null,
       status: data.status || 'onBoard',
       signOffDate: data.signOffDate || null,
+      cocNotApplicable: data.cocNotApplicable ?? false,
       createdAt: new Date(),
     };
 
@@ -1703,6 +1927,14 @@ export class MemStorage implements IStorage {
       member.firstName.toLowerCase() === firstName.toLowerCase() &&
       member.lastName.toLowerCase() === lastName.toLowerCase() &&
       new Date(member.dateOfBirth).toDateString() === dateOfBirth.toDateString()
+    );
+  }
+
+  async findCrewMemberByNameAndRank(name: string, rank: string): Promise<CrewMember | undefined> {
+    const allMembers = Array.from(this.crewMembers.values());
+    return allMembers.find(member =>
+      `${member.firstName} ${member.lastName}`.toLowerCase() === name.toLowerCase() &&
+      member.rank.toLowerCase() === rank.toLowerCase()
     );
   }
 

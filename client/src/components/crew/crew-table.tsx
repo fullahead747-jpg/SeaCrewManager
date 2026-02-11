@@ -41,6 +41,7 @@ import { CrewMemberWithDetails, Document } from '@shared/schema';
 import EditCrewForm from './edit-crew-form';
 import SignOnWizardDialog from './sign-on-wizard-dialog';
 import { ContractProgress } from './contract-progress';
+import { AOAViewDialog } from './aoa-view-dialog';
 import { formatDate } from '@/lib/utils';
 
 // Helper function for calculating contract days remaining
@@ -92,6 +93,8 @@ export default function CrewTable() {
   const [selectedCrewForEmail, setSelectedCrewForEmail] = useState<CrewMemberWithDetails | null>(null);
   const [emailRecipientType, setEmailRecipientType] = useState<'crew' | 'additional'>('crew');
   const [additionalEmail, setAdditionalEmail] = useState('');
+  const [showAOADialog, setShowAOADialog] = useState(false);
+  const [selectedCrewForAOA, setSelectedCrewForAOA] = useState<CrewMemberWithDetails | null>(null);
 
   const { data: crewMembers = [], isLoading, refetch } = useQuery<CrewMemberWithDetails[]>({
     queryKey: ['/api/crew'],
@@ -601,6 +604,58 @@ export default function CrewTable() {
       reason: deletionReason,
       deletedBy: deletedBy,
     });
+  };
+
+  const handleViewAOAClick = async (member: CrewMemberWithDetails) => {
+    // Check for existing AOA document first
+    const aoaDoc = member.documents?.find(d => d.type.toLowerCase() === 'aoa' && d.filePath);
+
+    if (aoaDoc) {
+      try {
+        const response = await fetch(`/api/documents/${aoaDoc.id}/view`, {
+          headers: getAuthHeaders(),
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          window.open(url, '_blank');
+          setTimeout(() => window.URL.revokeObjectURL(url), 100);
+          return;
+        }
+      } catch (error) {
+        console.error('Failed to view AOA doc', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to open saved AOA document.',
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
+    // Fallback to active contract if it has a file (common for AOA uploads)
+    if (member.activeContract?.filePath) {
+      try {
+        const response = await fetch(`/api/contracts/${member.activeContract.id}/view`, {
+          headers: getAuthHeaders(),
+        });
+
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          window.open(url, '_blank');
+          setTimeout(() => window.URL.revokeObjectURL(url), 100);
+          return;
+        }
+      } catch (error) {
+        console.error('Failed to view contract as AOA', error);
+      }
+    }
+
+    // Fallback to generator dialog
+    setSelectedCrewForAOA(member);
+    setShowAOADialog(true);
   };
 
   // Handle contract confirmation
@@ -1348,6 +1403,16 @@ export default function CrewTable() {
                             <Archive className="h-3 w-3" />
                             <span>Download</span>
                           </button>
+                          {member.activeContract && (
+                            <button
+                              className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium text-cyan-700 bg-cyan-50 border border-cyan-200 hover:bg-cyan-100 hover:border-cyan-300 rounded-lg transition-all shadow-sm"
+                              data-testid={`view-aoa-${member.id}`}
+                              onClick={() => handleViewAOAClick(member)}
+                            >
+                              <FileText className="h-3 w-3" />
+                              <span>AOA</span>
+                            </button>
+                          )}
                           {member.status === 'onShore' ? (
                             <React.Fragment>
                               <button
@@ -1534,6 +1599,17 @@ export default function CrewTable() {
                     <Archive className="h-3 w-3 mr-1" />
                     Download
                   </Button>
+                  {member.activeContract && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-cyan-600 hover:bg-cyan-50 h-7 text-xs px-2 flex-shrink-0"
+                      onClick={() => handleViewAOAClick(member)}
+                    >
+                      <FileText className="h-3 w-3 mr-1" />
+                      View AOA
+                    </Button>
+                  )}
                   {member.status === 'onShore' ? (
                     <>
                       <Button
@@ -2294,6 +2370,8 @@ export default function CrewTable() {
         </DialogContent>
       </Dialog>
 
+
+
       {/* Send Crew Details Email Dialog */}
       <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -2424,6 +2502,13 @@ export default function CrewTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* AOA View Dialog */}
+      <AOAViewDialog
+        open={showAOADialog}
+        onOpenChange={setShowAOADialog}
+        crewMember={selectedCrewForAOA}
+        vessels={vessels || []}
+      />
     </div>
   );
 }

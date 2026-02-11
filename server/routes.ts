@@ -2857,100 +2857,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard stats
   app.get("/api/dashboard/stats", authenticate, async (req, res) => {
     try {
-      const crewMembers = await storage.getCrewMembers();
-      const vessels = await storage.getVessels();
-      const expiringAlerts = await storage.getExpiringDocuments(30);
-      const contracts = await storage.getContracts();
-
-      const activeCrew = crewMembers.filter(member => member.status === 'onBoard').length;
-      const activeVessels = vessels.filter(vessel =>
-        ['harbour-mining', 'coastal-mining', 'world-wide', 'oil-field', 'line-up-mining', 'active'].includes(vessel.status)
-      ).length;
-      const pendingActions = expiringAlerts.length;
-
-      // Calculate crew on shore count
-      const crewOnShore = crewMembers.filter(member => member.status === 'onShore').length;
-
-      const allDocuments = await storage.getDocuments();
-
-      // Calculate compliance rate (documents not expiring soon)
-      const validDocuments = allDocuments.filter(doc => doc.status === 'valid').length;
-      const complianceRate = allDocuments.length > 0 ? (validDocuments / allDocuments.length) * 100 : 100;
-
-      // Calculate sign off due contracts (expiring within 45 days)
-      const now = new Date();
-      const fortyFiveDaysFromNow = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
-      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-      const fifteenDaysFromNow = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
-      const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
-      const oneEightyDaysFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
-
-      // --- DOCUMENT HEALTH STATISTICS ---
-      const expiredDocs = allDocuments.filter(doc => doc.expiryDate && doc.expiryDate < now).length;
-      const criticalDocs = allDocuments.filter(doc => doc.expiryDate && doc.expiryDate >= now && doc.expiryDate <= thirtyDaysFromNow).length;
-      const warningDocs = allDocuments.filter(doc => doc.expiryDate && doc.expiryDate > thirtyDaysFromNow && doc.expiryDate <= ninetyDaysFromNow).length;
-      const attentionDocs = allDocuments.filter(doc => doc.expiryDate && doc.expiryDate > ninetyDaysFromNow && doc.expiryDate <= oneEightyDaysFromNow).length;
-      // Valid are those > 180 days OR permanent (no expiry)
-      const validDocs = allDocuments.filter(doc => !doc.expiryDate || doc.expiryDate > oneEightyDaysFromNow).length;
-
-      const signOffDue = contracts.filter(contract => {
-        if (contract.status !== 'active') return false;
-        return contract.endDate > now && contract.endDate <= fortyFiveDaysFromNow;
-      }).length;
-
-      const signOffDue30Days = contracts.filter(contract => {
-        if (contract.status !== 'active') return false;
-        return contract.endDate > now && contract.endDate <= thirtyDaysFromNow;
-      }).length;
-
-      const signOffDue15Days = contracts.filter(contract => {
-        if (contract.status !== 'active') return false;
-        return contract.endDate > now && contract.endDate <= fifteenDaysFromNow;
-      }).length;
-
-      // --- CONTRACT HEALTH STATISTICS ---
-      const overdueContracts = crewMembers.filter(m => {
-        if (m.status !== 'onBoard') return false;
-        const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
-        return !activeContract || activeContract.endDate < now;
-      }).length;
-
-      const criticalContracts = contracts.filter(c => c.status === 'active' && c.endDate >= now && c.endDate <= fifteenDaysFromNow).length;
-      const upcomingContracts = contracts.filter(c => c.status === 'active' && c.endDate > fifteenDaysFromNow && c.endDate <= thirtyDaysFromNow).length;
-      const soonContracts = contracts.filter(c => c.status === 'active' && c.endDate > thirtyDaysFromNow && c.endDate <= fortyFiveDaysFromNow).length;
-      const stableContracts = contracts.filter(c => c.status === 'active' && c.endDate > fortyFiveDaysFromNow).length;
-      const shoredContracts = crewOnShore;
-
-      res.json({
-        activeCrew,
-        activeVessels,
-        pendingActions,
-        crewOnShore,
-        complianceRate: Math.round(complianceRate * 10) / 10,
-        totalContracts: contracts.length,
-        totalDocuments: allDocuments.length,
-        signOffDue,
-        signOffDue30Days,
-        signOffDue15Days,
-        documentHealth: {
-          expired: expiredDocs,
-          critical: criticalDocs,
-          warning: warningDocs,
-          attention: attentionDocs,
-          valid: validDocs,
-          total: allDocuments.length
-        },
-        contractHealth: {
-          overdue: overdueContracts,
-          critical: criticalContracts,
-          upcoming: upcomingContracts,
-          soon: soonContracts,
-          stable: stableContracts,
-          shored: shoredContracts,
-          total: crewMembers.length
-        }
-      });
+      const stats = await storage.getDashboardStats();
+      res.json(stats);
     } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
       res.status(500).json({ message: "Failed to fetch dashboard stats" });
     }
   });
@@ -2971,9 +2881,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const contracts = await storage.getContracts();
       const allDocuments = await storage.getDocuments();
 
-      let results: any[] = [];
-
-      if (type === 'document') {
+      const results = await (type === 'document' ? (async () => {
         const filteredDocs = allDocuments.filter(doc => {
           if (key === 'expired') return doc.expiryDate && doc.expiryDate < now;
           if (key === 'critical') return doc.expiryDate && doc.expiryDate >= now && doc.expiryDate <= thirtyDaysFromNow;
@@ -2983,11 +2891,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return false;
         });
 
-        results = filteredDocs.map(doc => {
+        return filteredDocs.map(doc => {
           const crew = crewMembers.find(m => m.id === doc.crewMemberId);
           const daysRemaining = doc.expiryDate
             ? Math.ceil((new Date(doc.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
             : undefined;
+
+          let systemComment = '';
+          if (daysRemaining !== undefined) {
+            if (daysRemaining < 0) {
+              systemComment = `⚠️ ${doc.type.toUpperCase()} expired on ${formatDateForDisplay(doc.expiryDate)} (${Math.abs(daysRemaining)} days overdue). Renewal required.`;
+            } else if (daysRemaining <= 30) {
+              systemComment = `🟠 ${doc.type.toUpperCase()} expires in ${daysRemaining} days (${formatDateForDisplay(doc.expiryDate)}). Renewal advised.`;
+            } else {
+              systemComment = `✅ ${doc.type.toUpperCase()} is valid until ${formatDateForDisplay(doc.expiryDate)}.`;
+            }
+          } else {
+            systemComment = `✅ ${doc.type.toUpperCase()} is valid (Permanent).`;
+          }
 
           return {
             id: doc.id,
@@ -2995,22 +2916,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
             docType: doc.type,
             docNumber: doc.documentNumber,
             expiryDate: doc.expiryDate,
-            daysRemaining
+            crewMemberId: doc.crewMemberId,
+            daysRemaining,
+            systemComment
           };
         });
-      } else if (type === 'contract') {
+      })() : (async () => {
         if (key === 'shored') {
-          results = crewMembers
+          return crewMembers
             .filter(m => m.status === 'onShore')
             .map(m => ({
               id: m.id,
               crewName: `${m.firstName} ${m.lastName}`,
               vesselName: 'On Shore',
               expiryDate: null,
-              daysRemaining: undefined
+              crewMemberId: m.id,
+              daysRemaining: undefined,
+              systemComment: `✅ Crew member is currently on shore standby and ready for assignment.`
             }));
         } else if (key === 'overdue') {
-          results = crewMembers
+          return crewMembers
             .filter(m => {
               if (m.status !== 'onBoard') return false;
               const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
@@ -3023,13 +2948,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 ? Math.ceil((new Date(activeContract.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
                 : -1;
 
+              const crewDocs = allDocuments.filter(d => d.crewMemberId === m.id);
+              const expiredDocs = crewDocs.filter(d => d.expiryDate && new Date(d.expiryDate) < now);
+              const missingMandatory = ['passport', 'cdc', 'medical'].filter(type => !crewDocs.some(d => d.type === type));
+
+              let systemComment = '';
+              if (!activeContract) {
+                systemComment = `⚠️ No active contract found for this crew member on board. Documentation required immediately.`;
+              } else {
+                systemComment = `⚠️ Contract expired on ${formatDateForDisplay(activeContract.endDate)} (${Math.abs(daysRemaining)} days overdue). Renewal required.`;
+              }
+
+              // Add document compliance context
+              if (expiredDocs.length > 0) {
+                systemComment += ` ❌ ${expiredDocs.length} document(s) expired (${expiredDocs.map(d => d.type.toUpperCase()).join(', ')}).`;
+              } else if (missingMandatory.length > 0) {
+                systemComment += ` ❌ Missing mandatory documents: ${missingMandatory.map(m => m.toUpperCase()).join(', ')}.`;
+              } else {
+                systemComment += ` ✅ All mandatory crew documents are valid.`;
+              }
+
               return {
                 id: m.id,
                 crewName: `${m.firstName} ${m.lastName}`,
                 vesselName: vessel ? vessel.name : 'Unknown',
                 expiryDate: activeContract ? activeContract.endDate : null,
                 daysRemaining,
-                docType: activeContract ? 'Expired Contract' : 'Missing Contract'
+                crewMemberId: m.id,
+                docType: activeContract ? 'Expired Contract' : 'Missing Contract',
+                systemComment
               };
             });
         } else {
@@ -3043,21 +2990,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return false;
           });
 
-          results = filteredContracts.map(c => {
+          return filteredContracts.map(c => {
             const crew = crewMembers.find(m => m.id === c.crewMemberId);
             const vessel = vessels.find(v => v.id === c.vesselId);
             const daysRemaining = Math.ceil((new Date(c.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+            const crewDocs = allDocuments.filter(d => d.crewMemberId === c.crewMemberId);
+            const expiredDocs = crewDocs.filter(d => d.expiryDate && new Date(d.expiryDate) < now);
+            const missingMandatory = ['passport', 'cdc', 'medical'].filter(type => !crewDocs.some(d => d.type === type));
+
+            let systemComment = '';
+            if (daysRemaining <= 15) {
+              systemComment = `🟠 Contract expires in ${daysRemaining} days (${formatDateForDisplay(c.endDate)}). Starting renewal process advised.`;
+            } else if (daysRemaining <= 30) {
+              systemComment = `🔵 Contract expiry approaching in ${daysRemaining} days. Monitor for renewal.`;
+            } else {
+              systemComment = `✅ Contract is active and stable until ${formatDateForDisplay(c.endDate)}.`;
+            }
+
+            if (expiredDocs.length > 0) {
+              systemComment += ` ❌ ${expiredDocs.length} document(s) expired.`;
+            } else if (missingMandatory.length > 0) {
+              systemComment += ` ❌ Missing mandatory documents.`;
+            } else {
+              systemComment += ` ✅ All mandatory crew documents are valid.`;
+            }
 
             return {
               id: c.id,
               crewName: crew ? `${crew.firstName} ${crew.lastName}` : 'Unknown',
               vesselName: vessel ? vessel.name : 'Unknown',
               expiryDate: c.endDate,
-              daysRemaining
+              crewMemberId: c.crewMemberId,
+              daysRemaining,
+              systemComment
             };
           });
         }
-      }
+      })());
 
       res.json(results);
     } catch (error) {

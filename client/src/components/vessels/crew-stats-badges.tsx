@@ -12,6 +12,7 @@ import { REQUIRED_DOCUMENTS } from '@/components/documents/missing-documents-not
 interface CrewStatsProps {
   vesselId: string;
   vesselName: string;
+  variant?: 'default' | 'sleek';
 }
 
 interface ContractStats {
@@ -28,7 +29,7 @@ interface DocumentStats {
   nonCompliantCrew: any[];
 }
 
-export default function CrewStatsBadges({ vesselId, vesselName }: CrewStatsProps) {
+export default function CrewStatsBadges({ vesselId, vesselName, variant = 'default' }: CrewStatsProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedContractType, setSelectedContractType] = useState<'valid' | 'due' | 'expired'>('valid');
 
@@ -186,6 +187,92 @@ export default function CrewStatsBadges({ vesselId, vesselName }: CrewStatsProps
     });
   };
 
+  if (variant === 'sleek') {
+    return (
+      <div className="space-y-4">
+        {/* Horizontal Contract Status Strip */}
+        <div className="flex items-center justify-between gap-1 w-full bg-slate-50/50 dark:bg-slate-900/10 rounded-xl p-1.5 border border-slate-200/40 dark:border-slate-800/40">
+          {/* Valid */}
+          <button
+            className="flex-1 flex flex-col items-center justify-center p-2 rounded-lg hover:bg-white dark:hover:bg-slate-950 hover:shadow-sm border border-transparent hover:border-slate-200/60 dark:hover:border-slate-700/50 transition-all duration-300"
+            onClick={() => handleContractClick('valid')}
+          >
+            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-tighter mb-0.5 whitespace-nowrap">Valid</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-none">{stats.valid}</span>
+          </button>
+
+          <div className="w-px h-6 bg-slate-200/60 dark:bg-slate-800/60 self-center" />
+
+          {/* Due */}
+          <button
+            className="flex-1 flex flex-col items-center justify-center p-2 rounded-lg hover:bg-white dark:hover:bg-slate-950 hover:shadow-sm border border-transparent hover:border-slate-200/60 dark:hover:border-slate-700/50 transition-all duration-300 group"
+            onClick={() => handleContractClick('due')}
+          >
+            <span className="text-[9px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-tighter mb-0.5 whitespace-nowrap">Sign Off Due</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-none">{stats.due}</span>
+          </button>
+
+          <div className="w-px h-6 bg-slate-200/60 dark:bg-slate-800/60 self-center" />
+
+          {/* Expired */}
+          <button
+            className="flex-1 flex flex-col items-center justify-center p-2 rounded-lg hover:bg-white dark:hover:bg-slate-950 hover:shadow-sm border border-transparent hover:border-slate-200/60 dark:hover:border-slate-700/50 transition-all duration-300"
+            onClick={() => handleContractClick('expired')}
+          >
+            <span className="text-[9px] font-bold text-rose-600 dark:text-rose-500 uppercase tracking-tighter mb-0.5 whitespace-nowrap tracking-tighter">Expired</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-none">{stats.expired}</span>
+          </button>
+        </div>
+
+        {/* Integrated DOC Compliance Section */}
+        <div className="bg-slate-50/30 dark:bg-slate-900/5 rounded-xl p-3 border border-slate-200/30 dark:border-slate-800/30">
+          <div className="flex items-center gap-2 mb-3">
+            <CheckCircle className="h-3 w-3 text-slate-400" />
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">DOC Compliance</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <CompliancePopover type="OK" crew={docStats.compliantCrew} vesselName={vesselName}>
+              <button className="flex flex-col gap-1 text-left w-full group/ok">
+                <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-900/30 hover:bg-emerald-100/50 dark:hover:bg-emerald-900/20 transition-all duration-300 cursor-pointer shadow-sm group-hover/ok:shadow-md">
+                  <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-tight">OK</span>
+                  <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400">{docStats.compliant}</span>
+                </div>
+              </button>
+            </CompliancePopover>
+
+            <CompliancePopover type="EX" crew={docStats.nonCompliantCrew} vesselName={vesselName}>
+              <button className="flex flex-col gap-1 text-left w-full group/ex">
+                <div className={cn(
+                  "flex items-center justify-between px-3 py-2 rounded-lg border transition-all duration-300 cursor-pointer shadow-sm group-hover/ex:shadow-md",
+                  docStats.nonCompliantCrew.length > 0
+                    ? "bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/30 hover:bg-red-100/50 dark:hover:bg-red-900/30 shadow-red-500/10"
+                    : "bg-slate-50/50 dark:bg-slate-900/10 border-slate-100 dark:border-slate-800"
+                )}>
+                  <span className={cn(
+                    "text-[9px] font-bold uppercase tracking-tight",
+                    docStats.nonCompliantCrew.length > 0 ? 'text-red-600' : 'text-slate-400'
+                  )}>EX</span>
+                  <span className={cn(
+                    "text-sm font-bold",
+                    docStats.nonCompliantCrew.length > 0 ? 'text-red-700 dark:text-red-400' : 'text-slate-500'
+                  )}>{docStats.nonCompliantCrew.length}</span>
+                </div>
+              </button>
+            </CompliancePopover>
+          </div>
+        </div>
+
+        <ContractStatusModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          contractType={selectedContractType}
+          crewMembers={getFilteredCrewMembers(selectedContractType)}
+          vesselName={vesselName}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">

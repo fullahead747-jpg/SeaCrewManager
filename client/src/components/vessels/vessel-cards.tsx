@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ContractStatusBadges } from './contract-status-badges';
+import ContractStatusDonutContainer from './contract-status-donut';
 import CrewStatsBadges from './crew-stats-badges';
 import { Ship, Users, Calendar, Flag, Hash, Plus, Download, Search, GripVertical, FileText } from 'lucide-react';
 import { format } from 'date-fns';
@@ -171,7 +172,7 @@ function SortableVesselCard({ vessel, onViewDetails, onManageCrew, onUploadDocum
         }
       }}
       whileHover={{
-        y: -6,
+        y: -4,
         transition: { duration: 0.3, ease: "easeOut" }
       }}
       className="h-full"
@@ -181,150 +182,150 @@ function SortableVesselCard({ vessel, onViewDetails, onManageCrew, onUploadDocum
         style={style}
         className={cn(
           'group relative overflow-hidden transition-all duration-500 h-full',
-          'bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm',
-          'border border-slate-200/60 dark:border-slate-800/60 rounded-2xl',
-          'hover:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.08)] dark:hover:shadow-[0_20px_60px_-15px_rgba(0,0,0,0.3)]',
-          `hover:${statusConfig.glow}`,
+          'bg-white/95 dark:bg-slate-950/95 backdrop-blur-md',
+          'border border-slate-200/80 dark:border-slate-800/80 rounded-[2rem]',
+          'hover:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_32px_64px_-16px_rgba(0,0,0,0.4)]',
           isDragging && 'shadow-2xl ring-2 ring-blue-500 z-50 scale-105'
         )}
         data-testid={`vessel-card-${vessel.id}`}
       >
-        {/* Gradient Overlay */}
+        {/* Subtle status glow top border */}
         <div className={cn(
-          'absolute inset-0 bg-gradient-to-br opacity-40 dark:opacity-20 pointer-events-none',
-          statusConfig.gradient
+          'absolute top-0 left-0 right-0 h-1.5 opacity-60',
+          statusConfig.bg
         )} />
 
         <CardContent className="p-0 h-full relative z-10">
-          {/* SINGLE PANEL LAYOUT */}
-          <div className="p-6 flex flex-col h-full">
-            {/* Drag Handle */}
-            {isAdmin && (
-              <div
-                className="absolute top-4 right-4 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-20"
-                {...attributes}
-                {...listeners}
-              >
-                <GripVertical className="h-4 w-4 text-slate-400" />
-              </div>
-            )}
-
-            {/* Animated Status Indicator */}
-            <div className="flex items-start gap-4 mb-6">
-              <div className="relative flex-shrink-0">
-                {/* Pulsing Ring Animation */}
+          <div className="p-5 flex flex-col h-full">
+            {/* Header Area */}
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-3">
                 <div className={cn(
-                  'absolute inset-0 rounded-full animate-ping opacity-20',
-                  statusConfig.bg
-                )} style={{ animationDuration: '2s' }} />
-                <div className={cn(
-                  'relative w-12 h-12 rounded-full flex items-center justify-center',
+                  'w-10 h-10 rounded-2xl flex items-center justify-center border transition-transform duration-500 group-hover:scale-110',
                   statusConfig.bg,
-                  statusConfig.border,
-                  'border-2 shadow-lg',
-                  statusConfig.glow
+                  statusConfig.border
                 )}>
-                  <Ship className={cn('h-6 w-6', statusConfig.text)} />
+                  <Ship className={cn('h-5 w-5', statusConfig.text)} />
                 </div>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className={cn(
-                    'text-[9px] font-bold tracking-[0.2em]',
-                    statusConfig.text
-                  )}>
-                    {statusConfig.label}
-                  </span>
-                </div>
-                <h4 className="text-lg font-semibold text-slate-700 dark:text-slate-100 leading-tight truncate tracking-wide group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" data-testid={`vessel-name-${vessel.id}`} title={vessel.name}>
-                  {vessel.name}
-                </h4>
-                <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">
-                  {vessel.type}
-                </p>
-              </div>
-            </div>
-
-            {/* Horizontal Info Grid */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Flag className="h-3 w-3 text-slate-400" />
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Flag</span>
-                </div>
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-100 truncate tracking-wide uppercase">{vessel.flag}</span>
-              </div>
-
-              {vessel.imoNumber && (
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <Hash className="h-3 w-3 text-slate-400" />
-                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">IMO</span>
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className={cn(
+                      'text-[10px] font-black uppercase tracking-[0.2em] px-2 py-1 rounded-md border',
+                      statusConfig.bg,
+                      statusConfig.text,
+                      statusConfig.border
+                    )}>
+                      {statusConfig.label}
+                    </span>
                   </div>
-                  <span className="text-sm font-mono font-medium text-slate-700 dark:text-slate-100 tracking-wider font-bold">{vessel.imoNumber.replace(/^IMO\s*/i, '')}</span>
+                  <h4 className="text-base font-bold text-slate-800 dark:text-slate-100 leading-tight truncate max-w-[160px] tracking-tight" title={vessel.name}>
+                    {vessel.name}
+                  </h4>
+                  <div className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-2 capitalize">
+                    {vessel.type.toLowerCase().includes('dredger') ? 'Dredger' : vessel.type.toLowerCase()}
+                  </div>
                 </div>
-              )}
+              </div>
 
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Users className="h-3 w-3 text-slate-400" />
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Crew</span>
-                </div>
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-100 text-center tracking-wide">{vessel.crewCount || 0}</span>
+              {/* Drag Handle & Simple Meta */}
+              <div className="flex flex-col items-end gap-2">
+                {isAdmin && (
+                  <div
+                    className="cursor-grab active:cursor-grabbing text-slate-300 hover:text-slate-400 dark:text-slate-700 dark:hover:text-slate-600 transition-colors"
+                    {...attributes}
+                    {...listeners}
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Vessel Compliance Section */}
-            <div className="mb-6 flex-grow">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                <h5 className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-[0.15em]">
-                  Vessel Compliance
-                </h5>
+            {/* Analytic Split Layout: Left (Info) | Right (Graph) */}
+            <div className="grid grid-cols-[1fr,auto] gap-2 mb-4 items-center pl-1">
+              {/* Left Column: Specs Grid */}
+              <div className="space-y-3">
+                {/* Specs: Flag & IMO */}
+                <div className="grid grid-cols-1 gap-2.5">
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5 block">Flag</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{vessel.flag}</span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-0.5 block">IMO</span>
+                    <span className="text-sm font-mono font-medium text-slate-600 dark:text-slate-300 tracking-tight">
+                      {vessel.imoNumber?.replace(/^IMO\s*/i, '')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* DOC Status - Cleaner Integration */}
+                <div className="pt-1">
+                  <div className="inline-flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-2 py-1 rounded-md border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] font-bold text-slate-400">DOC</span>
+                    <div className="w-0.5 h-0.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
+                  </div>
+                </div>
               </div>
-              {showUploadButton ? (
-                <ContractStatusBadges vesselId={vessel.id} vesselName={vessel.name} />
-              ) : (
-                <CrewStatsBadges vesselId={vessel.id} vesselName={vessel.name} />
-              )}
+
+              {/* Right Column: The Graph */}
+              <div className="relative flex justify-end pr-1">
+                {/* Graph Container - Adjusted Size to prevent clipping */}
+                <div className="relative w-[110px] h-[110px]">
+                  <ContractStatusDonutContainer vesselId={vessel.id} />
+                </div>
+              </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className={`grid ${showUploadButton ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
+            {/* Legend / Status Text Bottom Strip */}
+            <div className="flex items-center justify-center gap-3 mb-5 text-[10px] font-medium text-slate-500">
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-500" /> Valid
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-amber-500" /> Due
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-red-500" /> Expired
+              </div>
+            </div>
+
+            {/* Action Bar */}
+            <div className="grid grid-cols-2 gap-3">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="h-9 text-[10px] font-bold tracking-tight rounded-lg border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-300 dark:hover:border-blue-700 transition-all duration-300 active:scale-95 backdrop-blur-sm"
+                className="h-10 text-[10px] font-black uppercase tracking-widest rounded-xl bg-slate-100/50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all duration-300"
                 onClick={() => onViewDetails(vessel)}
-                data-testid={`view-vessel-${vessel.id}`}
               >
-                <FileText className="h-3 w-3 mr-1.5" />
-                Details
+                <FileText className="h-3 w-3 mr-2 opacity-60" />
+                Dossier
               </Button>
               <Button
-                variant="outline"
+                variant="default"
                 size="sm"
-                className="h-9 text-[10px] font-bold tracking-tight rounded-lg border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-300 dark:hover:border-emerald-700 transition-all duration-300 active:scale-95 backdrop-blur-sm"
+                className="h-10 text-[10px] font-black uppercase tracking-widest rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:scale-[1.02] shadow-xl shadow-slate-950/10 dark:shadow-white/5 transition-all duration-300"
                 onClick={() => onManageCrew(vessel)}
-                data-testid={`manage-crew-${vessel.id}`}
               >
-                <Users className="h-3 w-3 mr-1.5" />
-                Crew
+                <Users className="h-3 w-3 mr-2" />
+                Manage
               </Button>
-              {showUploadButton && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 text-[10px] font-bold tracking-tight rounded-lg border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 hover:text-indigo-600 dark:hover:text-indigo-400 hover:border-indigo-300 dark:hover:border-indigo-700 transition-all duration-300 active:scale-95 backdrop-blur-sm"
-                  onClick={() => onUploadDocument(vessel)}
-                  data-testid={`upload-document-${vessel.id}`}
-                >
-                  <Download className="h-3 w-3 mr-1.5" />
-                  Upload
-                </Button>
-              )}
             </div>
+
+            {/* Floating Upload Trigger */}
+            {showUploadButton && (
+              <button
+                className="absolute top-1/2 -right-3 transform -translate-y-1/2 w-8 h-12 flex items-center justify-center rounded-l-2xl bg-indigo-600 text-white shadow-xl translate-x-3 group-hover:translate-x-0 transition-transform duration-500 z-20"
+                onClick={() => onUploadDocument(vessel)}
+                title="Quick Upload"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </CardContent>
       </Card>

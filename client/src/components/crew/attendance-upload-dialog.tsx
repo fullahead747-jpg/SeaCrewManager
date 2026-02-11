@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAuthHeaders } from '@/lib/auth';
-import { Loader2, Upload, Check, AlertCircle, FileText, Trash2, ShieldCheck } from 'lucide-react';
+import { Loader2, Upload, Check, AlertCircle, FileText, Trash2, ShieldCheck, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface AttendanceUploadDialogProps {

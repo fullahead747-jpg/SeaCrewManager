@@ -28,6 +28,7 @@ interface ContractStats {
 interface ContractStatusBadgesProps {
   vesselId: string;
   vesselName: string;
+  variant?: 'default' | 'sleek';
 }
 
 interface ContractWithCrew {
@@ -47,7 +48,7 @@ interface ContractWithCrew {
   contractType?: string | null;
 }
 
-export function ContractStatusBadges({ vesselId, vesselName }: ContractStatusBadgesProps) {
+export function ContractStatusBadges({ vesselId, vesselName, variant = 'default' }: ContractStatusBadgesProps) {
   const { toast } = useToast();
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -87,13 +88,6 @@ export function ContractStatusBadges({ vesselId, vesselName }: ContractStatusBad
     setSelectedStatus(null);
   };
 
-  const getRemainingDays = (endDate: string) => {
-    const end = new Date(endDate);
-    const now = new Date();
-    const diffTime = end.getTime() - now.getTime();
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  };
-
   const getStatusTitle = (status: string) => {
     switch (status) {
       case 'active':
@@ -106,6 +100,71 @@ export function ContractStatusBadges({ vesselId, vesselName }: ContractStatusBad
         return 'Contracts';
     }
   };
+
+  const getRemainingDays = (endDate: string) => {
+    const end = new Date(endDate);
+    const now = new Date();
+    const diffTime = end.getTime() - now.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  if (variant === 'sleek') {
+    return (
+      <>
+        <div className="flex items-center justify-between gap-1 w-full bg-slate-50/50 dark:bg-slate-900/10 rounded-xl p-1.5 border border-slate-200/40 dark:border-slate-800/40">
+          {/* Valid */}
+          <button
+            className="flex-1 flex flex-col items-center justify-center p-2 rounded-lg hover:bg-white dark:hover:bg-slate-950 hover:shadow-sm border border-transparent hover:border-slate-200/60 dark:hover:border-slate-700/50 transition-all duration-300"
+            onClick={() => handleStatusClick('active')}
+          >
+            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-500 uppercase tracking-tighter mb-0.5">Valid</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-none">{stats.active}</span>
+          </button>
+
+          <div className="w-px h-6 bg-slate-200/60 dark:bg-slate-800/60 self-center" />
+
+          {/* Due */}
+          <button
+            className="flex-1 flex flex-col items-center justify-center p-2 rounded-lg hover:bg-white dark:hover:bg-slate-950 hover:shadow-sm border border-transparent hover:border-slate-200/60 dark:hover:border-slate-700/50 transition-all duration-300 group"
+            onClick={() => handleStatusClick('expiring')}
+          >
+            <span className="text-[9px] font-bold text-amber-600 dark:text-amber-500 uppercase tracking-tighter mb-0.5 whitespace-nowrap">Sign Off Due</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-none">{stats.expiringSoon}</span>
+          </button>
+
+          <div className="w-px h-6 bg-slate-200/60 dark:bg-slate-800/60 self-center" />
+
+          {/* Expired */}
+          <button
+            className="flex-1 flex flex-col items-center justify-center p-2 rounded-lg hover:bg-white dark:hover:bg-slate-950 hover:shadow-sm border border-transparent hover:border-slate-200/60 dark:hover:border-slate-700/50 transition-all duration-300"
+            onClick={() => handleStatusClick('expired')}
+          >
+            <span className="text-[9px] font-bold text-rose-600 dark:text-rose-500 uppercase tracking-tighter mb-0.5 whitespace-nowrap">Expired</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-200 leading-none">{stats.expired}</span>
+          </button>
+        </div>
+
+        <ContractStatusDialogs
+          selectedStatus={selectedStatus}
+          closeDialog={closeDialog}
+          getStatusTitle={getStatusTitle}
+          vesselName={vesselName}
+          contracts={contracts}
+          getRemainingDays={getRemainingDays}
+          setContractToEmail={setContractToEmail}
+          setEmailRecipient={setEmailRecipient}
+          setEmailDialogOpen={setEmailDialogOpen}
+          toast={toast}
+          emailDialogOpen={emailDialogOpen}
+          contractToEmail={contractToEmail}
+          emailRecipient={emailRecipient}
+          setEmailRecipientState={setEmailRecipient}
+          isSendingEmail={isSendingEmail}
+          setIsSendingEmail={setIsSendingEmail}
+        />
+      </>
+    );
+  }
 
   return (
     <>
@@ -156,6 +215,49 @@ export function ContractStatusBadges({ vesselId, vesselName }: ContractStatusBad
         </button>
       </div>
 
+      <ContractStatusDialogs
+        selectedStatus={selectedStatus}
+        closeDialog={closeDialog}
+        getStatusTitle={getStatusTitle}
+        vesselName={vesselName}
+        contracts={contracts}
+        getRemainingDays={getRemainingDays}
+        setContractToEmail={setContractToEmail}
+        setEmailRecipient={setEmailRecipient}
+        setEmailDialogOpen={setEmailDialogOpen}
+        toast={toast}
+        emailDialogOpen={emailDialogOpen}
+        contractToEmail={contractToEmail}
+        emailRecipient={emailRecipient}
+        setEmailRecipientState={setEmailRecipient}
+        isSendingEmail={isSendingEmail}
+        setIsSendingEmail={setIsSendingEmail}
+      />
+    </>
+  );
+}
+
+// Sub-component to clean up parent
+function ContractStatusDialogs({
+  selectedStatus,
+  closeDialog,
+  getStatusTitle,
+  vesselName,
+  contracts,
+  getRemainingDays,
+  setContractToEmail,
+  setEmailRecipient,
+  setEmailDialogOpen,
+  toast,
+  emailDialogOpen,
+  contractToEmail,
+  emailRecipient,
+  setEmailRecipientState,
+  isSendingEmail,
+  setIsSendingEmail
+}: any) {
+  return (
+    <>
       {/* Contract Details Dialog */}
       <Dialog open={!!selectedStatus} onOpenChange={closeDialog}>
         <DialogContent className="sm:max-w-[600px]" aria-describedby="contract-details-description">
@@ -169,7 +271,7 @@ export function ContractStatusBadges({ vesselId, vesselName }: ContractStatusBad
           <div className="max-h-[400px] overflow-y-auto">
             {contracts && contracts.length > 0 ? (
               <div className="space-y-3">
-                {contracts.map((contract) => {
+                {contracts.map((contract: any) => {
                   const remainingDays = getRemainingDays(contract.endDate);
                   const isExpiring = remainingDays <= 45 && remainingDays > 0;
                   const isExpired = remainingDays < 0;
@@ -314,7 +416,7 @@ export function ContractStatusBadges({ vesselId, vesselName }: ContractStatusBad
                 id="email"
                 placeholder="email@example.com"
                 value={emailRecipient}
-                onChange={(e) => setEmailRecipient(e.target.value)}
+                onChange={(e) => setEmailRecipientState(e.target.value)}
               />
             </div>
           </div>

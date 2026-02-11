@@ -6,7 +6,6 @@ import { getAuthHeaders } from '@/lib/auth';
 import { useAuth } from '@/contexts/auth-context';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import StatsCard from '@/components/dashboard/stats-card';
 import UpcomingEvents from '@/components/dashboard/upcoming-events';
@@ -137,8 +136,9 @@ export default function Dashboard() {
     refetchInterval: 10000, // Auto-refresh every 10 seconds
   });
 
-  const exportCrewByVessel = () => {
+  const exportCrewByVessel = async () => {
     try {
+      const XLSX = await import('xlsx');
       if (!crewMembers || crewMembers.length === 0) {
         toast({
           title: 'No Data',
