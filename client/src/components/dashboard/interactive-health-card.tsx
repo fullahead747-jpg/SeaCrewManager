@@ -42,12 +42,13 @@ const DonutSegment = ({
     onClick?: () => void;
 }) => {
     const getPath = (start: number, end: number) => {
-        // Enforce a significant gap between arcs for the rounded caps to show
-        const padding = 6;
+        // Dynamic padding based on segment size
+        const segmentSize = end - start;
+        const padding = segmentSize < 12 ? 1 : 3;
         const s = start + padding;
         const e = end - padding;
 
-        if (e - s <= 0) return "";
+        if (e - s <= 0.1) return "";
 
         const startRad = (s - 90) * (Math.PI / 180);
         const endRad = (e - 90) * (Math.PI / 180);
@@ -66,7 +67,7 @@ const DonutSegment = ({
         <motion.path
             d={getPath(startAngle, endAngle)}
             stroke={color}
-            strokeWidth={strokeWidth}
+            strokeWidth={25}
             strokeLinecap="round"
             fill="none"
             initial={{ pathLength: 0, opacity: 0 }}
@@ -115,10 +116,19 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
 
     const normalizedTotal = total > 0 ? total : 1;
 
-    // Calculate angles for segments
+    // Calculate angles with a minimum size to prevent tiny segments from vanishing
     let currentAngle = 0;
+    const padding = 3; // Reduced padding for better visibility
+    const minAngle = 8; // Enforce minimum angle for non-zero values
+
+    // Sort data to put larger segments first for better layout, or keep original order
+    // Here we keep original order but adjust sizes
     const segments = memoizedData.map(item => {
-        const angleSize = (item.value / normalizedTotal) * 360;
+        let angleSize = (item.value / normalizedTotal) * 360;
+        if (item.value > 0 && angleSize < minAngle) {
+            angleSize = minAngle;
+        }
+
         const segment = {
             ...item,
             startAngle: currentAngle,
@@ -127,6 +137,19 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
         currentAngle += angleSize;
         return segment;
     });
+
+    // Normalize so it fits in 360 if we bumped it too much
+    const totalAngle = currentAngle;
+    if (totalAngle > 360) {
+        let runningAngle = 0;
+        segments.forEach(s => {
+            const originalSize = s.endAngle - s.startAngle;
+            const normalizedSize = (originalSize / totalAngle) * 360;
+            s.startAngle = runningAngle;
+            s.endAngle = runningAngle + normalizedSize;
+            runningAngle += normalizedSize;
+        });
+    }
 
     return (
         <Card className={cn("shadow-lg border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden group transition-all duration-300 hover:shadow-xl", className)}>
