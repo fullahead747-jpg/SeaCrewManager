@@ -26,6 +26,66 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, FileText, Download, Calendar, Plus, ExternalLink, ClipboardList } from 'lucide-react';
 import { DashboardStats } from '@/types';
 import MinimalHealthRow from '@/components/dashboard/minimal-health-row';
+import { useMemo, memo } from 'react';
+
+// Memoized helper components to stabilize data references and prevent chart jitter
+const MemoizedContractHealth = memo(({ stats, statsLoading, onDrillDown }: { stats: DashboardStats, statsLoading: boolean, onDrillDown: any }) => {
+  const data = useMemo(() => [
+    { key: 'overdue', name: 'Overdue / No Contract', value: stats.contractHealth.overdue, color: '#475569' },
+    { key: 'critical', name: 'Critical (<= 15 Days)', value: stats.contractHealth.critical, color: '#ef4444' },
+    { key: 'upcoming', name: 'Upcoming (16-30 Days)', value: stats.contractHealth.upcoming, color: '#f97316' },
+    { key: 'soon', name: 'Attention (31-45 Days)', value: stats.contractHealth.soon, color: '#eab308' },
+    { key: 'shored', name: 'On Shore Standby', value: stats.contractHealth.shored, color: '#3b82f6' },
+    { key: 'stable', name: 'Active & Stable (> 45d)', value: stats.contractHealth.stable, color: '#10b981' },
+  ], [
+    stats.contractHealth.overdue,
+    stats.contractHealth.critical,
+    stats.contractHealth.upcoming,
+    stats.contractHealth.soon,
+    stats.contractHealth.shored,
+    stats.contractHealth.stable
+  ]);
+
+  return (
+    <InteractiveHealthCard
+      title="Contract Health Index"
+      description="Personnel contract statuses and sign-off planning"
+      total={stats.contractHealth.total}
+      totalLabel="CREW RECORDS"
+      isLoading={statsLoading}
+      onSegmentClick={(key, name) => onDrillDown('contract', key, name)}
+      data={data}
+    />
+  );
+});
+
+const MemoizedCertificateHealth = memo(({ stats, statsLoading, onDrillDown }: { stats: DashboardStats, statsLoading: boolean, onDrillDown: any }) => {
+  const data = useMemo(() => [
+    { key: 'expired', name: 'Expired Documents', value: stats.documentHealth.expired, color: '#ef4444' },
+    { key: 'critical', name: 'Critical Expiry (< 30d)', value: stats.documentHealth.critical, color: '#f97316' },
+    { key: 'warning', name: 'Warning (< 90d)', value: stats.documentHealth.warning, color: '#eab308' },
+    { key: 'attention', name: 'Attention (< 180d)', value: stats.documentHealth.attention, color: '#3b82f6' },
+    { key: 'valid', name: 'Valid / Permanent', value: stats.documentHealth.valid, color: '#10b981' },
+  ], [
+    stats.documentHealth.expired,
+    stats.documentHealth.critical,
+    stats.documentHealth.warning,
+    stats.documentHealth.attention,
+    stats.documentHealth.valid
+  ]);
+
+  return (
+    <InteractiveHealthCard
+      title="Certificate Compliance Index"
+      description="Real-time validity status of mandatory documents"
+      total={stats.documentHealth.total}
+      totalLabel="CERTIFICATES"
+      isLoading={statsLoading}
+      onSegmentClick={(key, name) => onDrillDown('document', key, name)}
+      data={data}
+    />
+  );
+});
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -564,39 +624,10 @@ export default function Dashboard() {
       {stats && (
         <div className="space-y-6 mb-8">
           {/* Contract Health Section */}
-          <InteractiveHealthCard
-            title="Contract Health Index"
-            description="Personnel contract statuses and sign-off planning"
-            total={stats.contractHealth.total}
-            totalLabel="CREW RECORDS"
-            isLoading={statsLoading}
-            onSegmentClick={(key, name) => handleDrillDown('contract', key, name)}
-            data={[
-              { key: 'overdue', name: 'Overdue / No Contract', value: stats.contractHealth.overdue, color: '#475569' }, // Slate-600
-              { key: 'critical', name: 'Critical (<= 15 Days)', value: stats.contractHealth.critical, color: '#ef4444' },
-              { key: 'upcoming', name: 'Upcoming (16-30 Days)', value: stats.contractHealth.upcoming, color: '#f97316' },
-              { key: 'soon', name: 'Attention (31-45 Days)', value: stats.contractHealth.soon, color: '#eab308' },
-              { key: 'shored', name: 'On Shore Standby', value: stats.contractHealth.shored, color: '#3b82f6' },
-              { key: 'stable', name: 'Active & Stable (> 45d)', value: stats.contractHealth.stable, color: '#10b981' },
-            ]}
-          />
+          <MemoizedContractHealth stats={stats} statsLoading={statsLoading} onDrillDown={handleDrillDown} />
 
           {/* Certificate Health Section */}
-          <InteractiveHealthCard
-            title="Certificate Compliance Index"
-            description="Real-time validity status of mandatory documents"
-            total={stats.documentHealth.total}
-            totalLabel="CERTIFICATES"
-            isLoading={statsLoading}
-            onSegmentClick={(key, name) => handleDrillDown('document', key, name)}
-            data={[
-              { key: 'expired', name: 'Expired Documents', value: stats.documentHealth.expired, color: '#ef4444' },
-              { key: 'critical', name: 'Critical Expiry (< 30d)', value: stats.documentHealth.critical, color: '#f97316' },
-              { key: 'warning', name: 'Warning (< 90d)', value: stats.documentHealth.warning, color: '#eab308' },
-              { key: 'attention', name: 'Attention (< 180d)', value: stats.documentHealth.attention, color: '#3b82f6' },
-              { key: 'valid', name: 'Valid / Permanent', value: stats.documentHealth.valid, color: '#10b981' },
-            ]}
-          />
+          <MemoizedCertificateHealth stats={stats} statsLoading={statsLoading} onDrillDown={handleDrillDown} />
         </div>
       )}
 

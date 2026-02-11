@@ -1,15 +1,15 @@
 
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts';
+import { useMemo, useRef, useEffect, memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from "@/lib/utils";
-import { AlertCircle, AlertTriangle, Clock, CheckCircle2, ShieldAlert, Zap } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Clock, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 export interface HealthDataPoint {
     name: string;
     value: number;
     color: string;
-    key: string; // The identifier for drill-down (e.g., 'expired', 'critical')
+    key: string;
 }
 
 interface InteractiveHealthCardProps {
@@ -23,7 +23,68 @@ interface InteractiveHealthCardProps {
     className?: string;
 }
 
-export default function InteractiveHealthCard({
+/**
+ * Custom SVG Donut Segment that draws in a circle
+ */
+const DonutSegment = ({
+    startAngle,
+    endAngle,
+    color,
+    innerRadius,
+    outerRadius,
+    onClick
+}: {
+    startAngle: number;
+    endAngle: number;
+    color: string;
+    innerRadius: number;
+    outerRadius: number;
+    onClick?: () => void;
+}) => {
+    // Generate SVG path for a donut segment
+    const getPath = (start: number, end: number) => {
+        // Handle zero-length or full-circle edge cases
+        if (end - start < 0.1) return "";
+
+        const startRad = (start - 90) * (Math.PI / 180);
+        const endRad = (end - 90) * (Math.PI / 180);
+
+        const x1 = 100 + outerRadius * Math.cos(startRad);
+        const y1 = 100 + outerRadius * Math.sin(startRad);
+        const x2 = 100 + outerRadius * Math.cos(endRad);
+        const y2 = 100 + outerRadius * Math.sin(endRad);
+
+        const x3 = 100 + innerRadius * Math.cos(endRad);
+        const y3 = 100 + innerRadius * Math.sin(endRad);
+        const x4 = 100 + innerRadius * Math.cos(startRad);
+        const y4 = 100 + innerRadius * Math.sin(startRad);
+
+        const largeArc = end - start <= 180 ? 0 : 1;
+
+        return `
+            M ${x1} ${y1}
+            A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x2} ${y2}
+            L ${x3} ${y3}
+            A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4}
+            Z
+        `;
+    };
+
+    return (
+        <motion.path
+            d={getPath(startAngle, endAngle)}
+            fill={color}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            whileHover={{ opacity: 0.8, scale: 1.02 }}
+            onClick={onClick}
+            className="cursor-pointer focus:outline-none transition-opacity duration-200"
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        />
+    );
+};
+
+const InteractiveHealthCard = memo(function InteractiveHealthCard({
     title,
     description,
     data,
@@ -33,6 +94,15 @@ export default function InteractiveHealthCard({
     onSegmentClick,
     className
 }: InteractiveHealthCardProps) {
+    const isFirstRender = useRef(true);
+
+    useEffect(() => {
+        isFirstRender.current = false;
+    }, []);
+
+    // Memoize the data to prevent re-calculations
+    const memoizedData = useMemo(() => data, [data]);
+
     if (isLoading) {
         return (
             <Card className={cn("shadow-lg border-border/50 bg-card/60 backdrop-blur-sm h-full min-h-[350px]", className)}>
@@ -51,6 +121,19 @@ export default function InteractiveHealthCard({
 
     const normalizedTotal = total > 0 ? total : 1;
 
+    // Calculate angles for segments
+    let currentAngle = 0;
+    const segments = memoizedData.map(item => {
+        const angleSize = (item.value / normalizedTotal) * 360;
+        const segment = {
+            ...item,
+            startAngle: currentAngle,
+            endAngle: currentAngle + angleSize
+        };
+        currentAngle += angleSize;
+        return segment;
+    });
+
     return (
         <Card className={cn("shadow-lg border-border/50 bg-card/60 backdrop-blur-sm overflow-hidden group transition-all duration-300 hover:shadow-xl", className)}>
             <CardHeader className="pb-2">
@@ -66,10 +149,9 @@ export default function InteractiveHealthCard({
 
                     {/* Legend / Stats List - Left Side */}
                     <div className="w-full md:w-1/2 space-y-3">
-                        {data.map((item, index) => {
+                        {memoizedData.map((item, index) => {
                             const percentage = Math.round((item.value / normalizedTotal) * 100);
 
-                            // Map keys to icons
                             const getIcon = (key: string) => {
                                 if (key.includes('overdue') || key.includes('expired')) return <AlertCircle className="w-3 h-3" />;
                                 if (key.includes('critical')) return <AlertTriangle className="w-3 h-3" />;
@@ -83,9 +165,9 @@ export default function InteractiveHealthCard({
                             return (
                                 <motion.div
                                     key={item.key}
-                                    initial={{ opacity: 0, x: -20 }}
+                                    initial={isFirstRender.current ? { opacity: 0, x: -20 } : false}
                                     animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: index * 0.1 }}
+                                    transition={{ duration: 0.4, delay: isFirstRender.current ? index * 0.05 : 0 }}
                                     className="space-y-1.5 cursor-pointer group/item relative"
                                     onClick={() => onSegmentClick(item.key, item.name)}
                                 >
@@ -117,9 +199,9 @@ export default function InteractiveHealthCard({
                                                 backgroundColor: item.color,
                                                 boxShadow: `0 0 12px ${item.color}40`
                                             }}
-                                            initial={{ width: 0 }}
+                                            initial={isFirstRender.current ? { width: 0 } : false}
                                             animate={{ width: `${percentage}%` }}
-                                            transition={{ duration: 1.2, ease: "easeOut", delay: 0.2 + index * 0.05 }}
+                                            transition={{ duration: 0.8, ease: "circOut", delay: isFirstRender.current ? 0.2 + index * 0.03 : 0 }}
                                         />
                                     </div>
                                 </motion.div>
@@ -127,57 +209,41 @@ export default function InteractiveHealthCard({
                         })}
                     </div>
 
-                    {/* Donut Chart - Right Side */}
+                    {/* Custom SVG Donut - Right Side */}
                     <div className="w-full md:w-1/2 h-[240px] relative flex items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={data}
-                                    cx="50%"
-                                    cy="50%"
+                        <svg width="220" height="220" viewBox="0 0 200 200" className="transform -rotate-90">
+                            {/* Background Circle */}
+                            <circle
+                                cx="100" cy="100" r="82.5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="25"
+                                className="text-secondary/20"
+                            />
+
+                            {/* Animated Segments */}
+                            {segments.map((segment) => (
+                                <DonutSegment
+                                    key={segment.key}
+                                    startAngle={segment.startAngle}
+                                    endAngle={segment.endAngle}
+                                    color={segment.color}
                                     innerRadius={70}
                                     outerRadius={95}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                    stroke="none"
-                                    onClick={(entry) => onSegmentClick(entry.key, entry.name)}
-                                    className="cursor-pointer"
-                                    animationDuration={1200}
-                                    animationBegin={0}
-                                    animationEasing="ease-out"
-                                >
-                                    {data.map((entry) => (
-                                        <Cell
-                                            key={`cell-${entry.key}`}
-                                            fill={entry.color}
-                                            className="transition-all duration-500 hover:opacity-80 focus:outline-none"
-                                        />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    formatter={(value: number) => [value, 'Count']}
-                                    contentStyle={{
-                                        borderRadius: '12px',
-                                        border: '1px solid rgba(255,255,255,0.1)',
-                                        boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
-                                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                                        backdropFilter: 'blur(8px)',
-                                        padding: '8px 12px'
-                                    }}
-                                    itemStyle={{ color: '#0f172a', fontWeight: 600, fontSize: '13px' }}
+                                    onClick={() => onSegmentClick(segment.key, segment.name)}
                                 />
-                            </PieChart>
-                        </ResponsiveContainer>
+                            ))}
+                        </svg>
 
-                        {/* Center Text - Animated cross-fade for total */}
+                        {/* Center Text */}
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <AnimatePresence mode="wait">
+                            <AnimatePresence mode="popLayout">
                                 <motion.span
-                                    key={`total-${total}`}
-                                    initial={{ opacity: 0, scale: 0.8, filter: 'blur(4px)' }}
-                                    animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                                    exit={{ opacity: 0, scale: 1.1, filter: 'blur(4px)' }}
-                                    transition={{ duration: 0.4, ease: "easeOut" }}
+                                    key={total}
+                                    initial={{ opacity: 0, scale: 0.8, y: 5 }}
+                                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                                    exit={{ opacity: 0, scale: 1.1, y: -5 }}
+                                    transition={{ duration: 0.2, ease: "easeOut" }}
                                     className="text-3xl font-bold text-foreground tracking-tighter"
                                 >
                                     {total}
@@ -192,4 +258,16 @@ export default function InteractiveHealthCard({
             </CardContent>
         </Card>
     );
-}
+}, (prevProps, nextProps) => {
+    // Custom comparison to avoid re-renders if data values are identical
+    if (prevProps.total !== nextProps.total) return false;
+    if (prevProps.isLoading !== nextProps.isLoading) return false;
+    if (prevProps.data.length !== nextProps.data.length) return false;
+    for (let i = 0; i < prevProps.data.length; i++) {
+        if (prevProps.data[i].value !== nextProps.data[i].value) return false;
+        if (prevProps.data[i].key !== nextProps.data[i].key) return false;
+    }
+    return true;
+});
+
+export default InteractiveHealthCard;
