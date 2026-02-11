@@ -142,12 +142,15 @@ export default function InteractiveHealthCard({
                                     stroke="none"
                                     onClick={(entry) => onSegmentClick(entry.key, entry.name)}
                                     className="cursor-pointer"
+                                    animationDuration={1200}
+                                    animationBegin={0}
+                                    animationEasing="ease-out"
                                 >
-                                    {data.map((entry, index) => (
+                                    {data.map((entry) => (
                                         <Cell
-                                            key={`cell-${index}`}
+                                            key={`cell-${entry.key}`}
                                             fill={entry.color}
-                                            className="transition-all duration-300 hover:opacity-80 focus:outline-none"
+                                            className="transition-all duration-500 hover:opacity-80 focus:outline-none"
                                         />
                                     ))}
                                 </Pie>
@@ -166,15 +169,20 @@ export default function InteractiveHealthCard({
                             </PieChart>
                         </ResponsiveContainer>
 
-                        {/* Center Text */}
+                        {/* Center Text - Animated cross-fade for total */}
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <motion.span
-                                initial={{ opacity: 0, scale: 0.5 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                className="text-3xl font-bold text-foreground tracking-tighter"
-                            >
-                                {total}
-                            </motion.span>
+                            <AnimatePresence mode="wait">
+                                <motion.span
+                                    key={`total-${total}`}
+                                    initial={{ opacity: 0, scale: 0.8, filter: 'blur(4px)' }}
+                                    animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+                                    exit={{ opacity: 0, scale: 1.1, filter: 'blur(4px)' }}
+                                    transition={{ duration: 0.4, ease: "easeOut" }}
+                                    className="text-3xl font-bold text-foreground tracking-tighter"
+                                >
+                                    {total}
+                                </motion.span>
+                            </AnimatePresence>
                             <span className="text-[9px] text-muted-foreground/70 uppercase tracking-[0.15em] font-semibold">
                                 {totalLabel}
                             </span>
