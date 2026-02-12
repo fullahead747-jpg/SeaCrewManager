@@ -2868,39 +2868,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard drill-down details
   app.get("/api/dashboard/drilldown", authenticate, async (req, res) => {
     try {
-      const { type, key } = req.query as { type: string, key: string };
+      const { type, key, vesselId } = req.query as { type: string, key: string, vesselId?: string };
       const now = new Date();
+      // ... date definitions ...
       const fifteenDaysFromNow = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
       const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
       const fortyFiveDaysFromNow = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
       const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
       const oneEightyDaysFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
 
-      const crewMembers = await storage.getCrewMembers();
-      const vessels = await storage.getVessels();
-      const contracts = await storage.getContracts();
-      const allDocuments = await storage.getDocuments();
+      const allCrew = await storage.getCrewMembers();
+      const allVessels = await storage.getVessels();
+      const allContracts = await storage.getContracts();
+      const allDocs = await storage.getDocuments();
+
+      // Apply vessel filtering if vesselId is provided
+      const crewMembers = vesselId
+        ? allCrew.filter(m => m.currentVesselId === vesselId)
+        : allCrew;
+
+      const vessels = allVessels;
+
+      const contracts = vesselId
+        ? allContracts.filter(c => c.vesselId === vesselId)
+        : allContracts;
+
+      const allDocuments = vesselId
+        ? allDocs.filter(d => {
+          const crew = allCrew.find(m => m.id === d.crewMemberId);
+          return crew && crew.currentVesselId === vesselId;
+        })
+        : allDocs;
 
       const results = await (type === 'document' ? (async () => {
         const filteredDocs = allDocuments.filter(doc => {
-          if (key === 'expired') return doc.expiryDate && doc.expiryDate < now;
+          if (key === 'expired') return doc.expiryDate && doc.expiryDate < now && new Date(doc.expiryDate).getFullYear() > 1900;
           if (key === 'critical') return doc.expiryDate && doc.expiryDate >= now && doc.expiryDate <= thirtyDaysFromNow;
           if (key === 'warning') return doc.expiryDate && doc.expiryDate > thirtyDaysFromNow && doc.expiryDate <= ninetyDaysFromNow;
           if (key === 'attention') return doc.expiryDate && doc.expiryDate > ninetyDaysFromNow && doc.expiryDate <= oneEightyDaysFromNow;
-          if (key === 'valid') return !doc.expiryDate || doc.expiryDate > oneEightyDaysFromNow;
+          if (key === 'valid') return !doc.expiryDate || doc.expiryDate > oneEightyDaysFromNow || new Date(doc.expiryDate).getFullYear() < 1900;
           return false;
         });
 
         return filteredDocs.map(doc => {
           const crew = crewMembers.find(m => m.id === doc.crewMemberId);
-          const daysRemaining = doc.expiryDate
+          const isTbd = doc.expiryDate && new Date(doc.expiryDate).getFullYear() < 1900;
+
+          const daysRemaining = doc.expiryDate && !isTbd
             ? Math.ceil((new Date(doc.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
             : undefined;
 
           let systemComment = '';
-          if (daysRemaining !== undefined) {
+          if (isTbd) {
+            systemComment = `🔵 ${doc.type.toUpperCase()} expiry is marked as TBD.`;
+          } else if (daysRemaining !== undefined) {
             if (daysRemaining < 0) {
-              systemComment = `⚠️ ${doc.type.toUpperCase()} expired on ${formatDateForDisplay(doc.expiryDate)} (${Math.abs(daysRemaining)} days overdue). Renewal required.`;
+              systemComment = `⚠️ ${doc.type.toUpperCase()} expired ${Math.abs(daysRemaining)} DAYS AGO (on ${formatDateForDisplay(doc.expiryDate)}). Renewal required.`;
             } else if (daysRemaining <= 30) {
               systemComment = `🟠 ${doc.type.toUpperCase()} expires in ${daysRemaining} days (${formatDateForDisplay(doc.expiryDate)}). Renewal advised.`;
             } else {
@@ -2917,6 +2940,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             docNumber: doc.documentNumber,
             expiryDate: doc.expiryDate,
             crewMemberId: doc.crewMemberId,
+            rank: crew ? crew.rank : 'Unknown',
             daysRemaining,
             systemComment
           };
@@ -2931,6 +2955,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               vesselName: 'On Shore',
               expiryDate: null,
               crewMemberId: m.id,
+              rank: m.rank,
               daysRemaining: undefined,
               systemComment: `✅ Crew member is currently on shore standby and ready for assignment.`
             }));
@@ -2956,7 +2981,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (!activeContract) {
                 systemComment = `⚠️ No active contract found for this crew member on board. Documentation required immediately.`;
               } else {
-                systemComment = `⚠️ Contract expired on ${formatDateForDisplay(activeContract.endDate)} (${Math.abs(daysRemaining)} days overdue). Renewal required.`;
+                systemComment = `⚠️ Contract expired ${Math.abs(daysRemaining)} DAYS AGO (on ${formatDateForDisplay(activeContract.endDate)}). Renewal required.`;
               }
 
               // Add document compliance context
@@ -2975,6 +3000,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 expiryDate: activeContract ? activeContract.endDate : null,
                 daysRemaining,
                 crewMemberId: m.id,
+                rank: m.rank,
                 docType: activeContract ? 'Expired Contract' : 'Missing Contract',
                 systemComment
               };
@@ -2983,7 +3009,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const filteredContracts = contracts.filter(c => {
             if (c.status !== 'active') return false;
             const endDate = new Date(c.endDate);
-            if (key === 'critical') return endDate <= fifteenDaysFromNow;
+            if (key === 'critical') return endDate >= now && endDate <= fifteenDaysFromNow;
             if (key === 'upcoming') return endDate > fifteenDaysFromNow && endDate <= thirtyDaysFromNow;
             if (key === 'soon') return endDate > thirtyDaysFromNow && endDate <= fortyFiveDaysFromNow;
             if (key === 'stable') return endDate > fortyFiveDaysFromNow;
@@ -3022,6 +3048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               vesselName: vessel ? vessel.name : 'Unknown',
               expiryDate: c.endDate,
               crewMemberId: c.crewMemberId,
+              rank: crew ? crew.rank : 'Unknown',
               daysRemaining,
               systemComment
             };

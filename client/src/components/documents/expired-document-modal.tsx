@@ -27,9 +27,13 @@ export function ExpiredDocumentModal({
     expiryDate,
     daysExpired,
 }: ExpiredDocumentModalProps) {
-    const formattedDate = typeof expiryDate === 'string'
-        ? format(new Date(expiryDate), 'dd/MM/yyyy')
-        : format(expiryDate, 'dd/MM/yyyy');
+    const formattedDate = !expiryDate || (typeof expiryDate === 'string' && expiryDate.startsWith('1899'))
+        ? "TBD"
+        : typeof expiryDate === 'string'
+            ? format(new Date(expiryDate), 'dd/MM/yyyy')
+            : format(expiryDate, 'dd/MM/yyyy');
+
+    const isTbd = formattedDate === "TBD" || daysExpired > 20000;
 
     return (
         <AlertDialog open={open} onOpenChange={onClose}>
@@ -40,7 +44,7 @@ export function ExpiredDocumentModal({
                             <AlertCircle className="h-6 w-6 text-red-600" />
                         </div>
                         <AlertDialogTitle className="text-xl font-bold text-red-600">
-                            Cannot Upload Expired Document
+                            {isTbd ? "Document Expiry TBD" : "Cannot Upload Expired Document"}
                         </AlertDialogTitle>
                     </div>
                     <AlertDialogDescription className="space-y-4 pt-4">
@@ -60,16 +64,17 @@ export function ExpiredDocumentModal({
                                 <div className="text-gray-900">{formattedDate}</div>
 
                                 <div className="font-semibold text-gray-700">Status:</div>
-                                <div className="text-red-600 font-bold">
-                                    Expired {daysExpired} days ago
+                                <div className={isTbd ? "text-blue-600 font-bold" : "text-red-600 font-bold"}>
+                                    {isTbd ? "To Be Decided" : `Expired ${daysExpired} days ago`}
                                 </div>
                             </div>
                         </div>
 
                         <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                             <p className="text-sm text-gray-700 leading-relaxed">
-                                This document has expired and cannot be uploaded to the system.
-                                Expired documents could lead to:
+                                {isTbd
+                                    ? "This document has a TBD expiry date. Please update it with a valid date when available."
+                                    : "This document has expired and cannot be uploaded to the system. Expired documents could lead to:"}
                             </p>
                             <ul className="mt-2 text-sm text-gray-600 space-y-1 list-disc list-inside">
                                 <li>Non-compliant crew assignments</li>

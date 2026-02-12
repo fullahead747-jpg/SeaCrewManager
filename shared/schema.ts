@@ -70,7 +70,7 @@ export const documents = pgTable("documents", {
   type: text("type").notNull(), // 'passport', 'cdc', 'coc', 'medical', 'visa', 'aoa'
   documentNumber: text("document_number").notNull(),
   issueDate: timestamp("issue_date").notNull(),
-  expiryDate: timestamp("expiry_date").notNull(),
+  expiryDate: timestamp("expiry_date"), // Nullable for TBD
   issuingAuthority: text("issuing_authority").notNull(),
   status: text("status").notNull().default('valid'), // 'valid', 'expiring', 'expired'
   filePath: text("file_path"), // For file storage reference
@@ -273,7 +273,7 @@ export const insertDocumentSchema = createInsertSchema(documents).omit({
   updatedAt: true,
 }).extend({
   issueDate: z.union([z.date(), z.string().transform((str) => new Date(str))]),
-  expiryDate: z.union([z.date(), z.string().transform((str) => new Date(str))]),
+  expiryDate: z.union([z.date(), z.string().transform((str) => new Date(str)), z.null()]).optional(),
 });
 
 export const insertCrewRotationSchema = createInsertSchema(crewRotations).omit({

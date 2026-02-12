@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { ContractStatusBadges } from './contract-status-badges';
-import ContractStatusDonutContainer from './contract-status-donut';
+import ContractStatusDonut from './contract-status-donut';
+import HealthDrillDownModal from '../dashboard/health-drill-down-modal';
 import CrewStatsBadges from './crew-stats-badges';
 import { Ship, Users, Calendar, Flag, Hash, Plus, Download, Search, GripVertical, FileText } from 'lucide-react';
 import { format } from 'date-fns';
@@ -58,6 +59,18 @@ function SortableVesselCard({ vessel, onViewDetails, onManageCrew, onUploadDocum
   isAdmin: boolean;
   showUploadButton?: boolean;
 }) {
+  const [drillDownOpen, setDrillDownOpen] = useState(false);
+  const [drillDownCategory, setDrillDownCategory] = useState({ key: '', name: '' });
+  const [drillDownType, setDrillDownType] = useState<'contract' | 'document'>('contract');
+  const [drillDownVesselId, setDrillDownVesselId] = useState<string | undefined>(undefined);
+
+  const handleSegmentClick = (vesselId: string, key: string, name: string) => {
+    setDrillDownType('contract'); // Vessel card pie chart is contract-based
+    setDrillDownCategory({ key, name });
+    setDrillDownVesselId(vesselId);
+    setDrillDownOpen(true);
+  };
+
   const {
     attributes,
     listeners,
@@ -276,10 +289,23 @@ function SortableVesselCard({ vessel, onViewDetails, onManageCrew, onUploadDocum
               <div className="relative flex justify-end pr-1">
                 {/* Graph Container - Adjusted Size to prevent clipping */}
                 <div className="relative w-[110px] h-[110px]">
-                  <ContractStatusDonutContainer vesselId={vessel.id} />
+                  <ContractStatusDonut
+                    vesselId={vessel.id}
+                    onSegmentClick={(key, name) => handleSegmentClick(vessel.id, key, name)}
+                  />
                 </div>
               </div>
             </div>
+
+            {/* Health Drilldown Modal */}
+            <HealthDrillDownModal
+              isOpen={drillDownOpen}
+              onClose={() => setDrillDownOpen(false)}
+              categoryKey={drillDownCategory.key}
+              categoryName={drillDownCategory.name}
+              type={drillDownType}
+              vesselId={drillDownVesselId}
+            />
 
             {/* Legend / Status Text Bottom Strip */}
             <div className="flex items-center justify-center gap-3 mb-5 text-[10px] font-medium text-slate-500">
@@ -302,8 +328,8 @@ function SortableVesselCard({ vessel, onViewDetails, onManageCrew, onUploadDocum
                 className="h-10 text-[10px] font-black uppercase tracking-widest rounded-xl bg-slate-100/50 dark:bg-slate-900/50 text-slate-600 dark:text-slate-400 hover:bg-slate-200/50 dark:hover:bg-slate-800/50 transition-all duration-300"
                 onClick={() => onViewDetails(vessel)}
               >
-                <FileText className="h-3 w-3 mr-2 opacity-60" />
-                Dossier
+                <Ship className="h-3 w-3 mr-2 opacity-60" />
+                INFO
               </Button>
               <Button
                 variant="default"

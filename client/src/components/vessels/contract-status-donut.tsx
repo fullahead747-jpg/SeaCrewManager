@@ -12,13 +12,15 @@ const SimpleDonutSegment = ({
     endAngle,
     color,
     radius,
-    strokeWidth
+    strokeWidth,
+    onClick
 }: {
     startAngle: number;
     endAngle: number;
     color: string;
     radius: number;
     strokeWidth: number;
+    onClick?: () => void;
 }) => {
     const getPath = (start: number, end: number) => {
         const padding = 4; // Larger relative padding for smaller charts
@@ -48,11 +50,20 @@ const SimpleDonutSegment = ({
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 1 }}
             transition={{ duration: 1, ease: "easeInOut" }}
+            onClick={onClick}
+            className={onClick ? "cursor-pointer hover:brightness-110 transition-all" : ""}
+            whileHover={onClick ? { strokeWidth: strokeWidth + 2 } : {}}
         />
     );
 };
 
-const ContractStatusDonut = memo(function ContractStatusDonut({ vesselId }: { vesselId: string }) {
+const ContractStatusDonut = memo(function ContractStatusDonut({
+    vesselId,
+    onSegmentClick
+}: {
+    vesselId: string;
+    onSegmentClick?: (key: string, name: string) => void;
+}) {
     const isFirstRender = useRef(true);
 
     useEffect(() => {
@@ -85,13 +96,13 @@ const ContractStatusDonut = memo(function ContractStatusDonut({ vesselId }: { ve
     const normalizedTotal = total > 0 ? total : 1;
 
     const data = [
-        { name: 'Valid', value: safeStats.active || 0, color: '#10b981' },
-        { name: 'Due Soon', value: safeStats.expiringSoon || 0, color: '#f59e0b' },
-        { name: 'Expired', value: safeStats.expired || 0, color: '#ef4444' },
+        { key: 'stable', name: 'Valid', value: safeStats.active || 0, color: '#10b981' },
+        { key: 'upcoming', name: 'Due Soon', value: safeStats.expiringSoon || 0, color: '#f59e0b' },
+        { key: 'overdue', name: 'Expired', value: safeStats.expired || 0, color: '#ef4444' },
     ].filter(d => d.value > 0);
 
     if (data.length === 0) {
-        data.push({ name: 'No Crew', value: 1, color: '#e2e8f0' });
+        data.push({ key: 'none', name: 'No Crew', value: 1, color: '#e2e8f0' });
     }
 
     let currentAngle = 0;
@@ -120,6 +131,7 @@ const ContractStatusDonut = memo(function ContractStatusDonut({ vesselId }: { ve
                         color={segment.color}
                         radius={48}
                         strokeWidth={8}
+                        onClick={() => onSegmentClick?.(segment.key, segment.name)}
                     />
                 ))}
             </svg>

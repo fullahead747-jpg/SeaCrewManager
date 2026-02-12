@@ -55,6 +55,11 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
   const [medicalIssueDate, setMedicalIssueDate] = useState('');
   const [medicalExpiryDate, setMedicalExpiryDate] = useState('');
 
+  const [cdcTbd, setCdcTbd] = useState(false);
+  const [passportTbd, setPassportTbd] = useState(false);
+  const [cocTbd, setCocTbd] = useState(false);
+  const [medicalTbd, setMedicalTbd] = useState(false);
+
   const [selectedVesselId, setSelectedVesselId] = useState('');
   const [scannedShipName, setScannedShipName] = useState('');
 
@@ -104,7 +109,7 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
     }
   }, [contractStartDate, contractDays]);
 
-  const [cocSkipped, setCocSkipped] = useState(false);
+
 
   const resetForm = () => {
     setSeafarerName('');
@@ -149,7 +154,11 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
     setAppliedRecordId(null);
     setAppliedRecordId(null);
     setAppliedRecordName(null);
-    setCocSkipped(false);
+    setAppliedRecordName(null);
+    setCdcTbd(false);
+    setPassportTbd(false);
+    setCocTbd(false);
+    setMedicalTbd(false);
   };
 
   const handleOCRDataExtracted = (extractedData: any) => {
@@ -301,7 +310,7 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
     }
 
     // Validate Mandatory Documents (Passport, CDC, Medical)
-    if (!passportNumber || !passportIssueDate || !passportExpiryDate) {
+    if (!passportNumber || !passportIssueDate || (!passportExpiryDate && !passportTbd)) {
       toast({
         title: 'Missing Passport Details',
         description: 'Passport Number, Issue Date, and Expiry Date are required.',
@@ -310,7 +319,7 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       return;
     }
 
-    if (!cdcNumber || !cdcIssueDate || !cdcExpiryDate) {
+    if (!cdcNumber || !cdcIssueDate || (!cdcExpiryDate && !cdcTbd)) {
       toast({
         title: 'Missing CDC Details',
         description: 'CDC Number, Issue Date, and Expiry Date are required.',
@@ -319,7 +328,7 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       return;
     }
 
-    if (!medicalApprovalNo || !medicalIssueDate || !medicalExpiryDate) {
+    if (!medicalApprovalNo || !medicalIssueDate || (!medicalExpiryDate && !medicalTbd)) {
       toast({
         title: 'Missing Medical Certificate',
         description: 'Medical Certificate No, Issue Date, and Expiry Date are required.',
@@ -422,8 +431,8 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       }
 
       // Create documents (passport, CDC, COC, medical) if data is available
-      const createDocument = async (type: string, docNumber: string, placeOfIssue: string, issueDate: string, expiryDate: string) => {
-        if (docNumber && issueDate && expiryDate) {
+      const createDocument = async (type: string, docNumber: string, placeOfIssue: string, issueDate: string, expiryDate: string | null) => {
+        if (docNumber && issueDate && (expiryDate || expiryDate === null)) {
           try {
             await apiRequest('POST', '/api/documents', {
               crewMemberId: crewMember.id,
@@ -431,7 +440,7 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
               documentNumber: docNumber,
               issuingAuthority: placeOfIssue || '',
               issueDate: parseDateToUTC(issueDate),
-              expiryDate: parseDateToUTC(expiryDate),
+              expiryDate: expiryDate ? parseDateToUTC(expiryDate) : null,
             });
           } catch (docError) {
             console.error(`Failed to create ${type} document:`, docError);
@@ -440,14 +449,12 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       };
 
       // Create all documents BEFORE contract to pass sign-on validation
-      await createDocument('passport', passportNumber, passportPlaceOfIssue, passportIssueDate, passportExpiryDate);
-      await createDocument('cdc', cdcNumber, cdcPlaceOfIssue, cdcIssueDate, cdcExpiryDate);
+      await createDocument('passport', passportNumber, passportPlaceOfIssue, passportIssueDate, passportTbd ? null : passportExpiryDate);
+      await createDocument('cdc', cdcNumber, cdcPlaceOfIssue, cdcIssueDate, cdcTbd ? null : cdcExpiryDate);
 
-      if (!cocSkipped) {
-        await createDocument('coc', cocGradeNo, cocPlaceOfIssue, cocIssueDate, cocExpiryDate);
-      }
+      await createDocument('coc', cocGradeNo, cocPlaceOfIssue, cocIssueDate, cocTbd ? null : cocExpiryDate);
 
-      await createDocument('medical', medicalApprovalNo, medicalIssuingAuthority, medicalIssueDate, medicalExpiryDate);
+      await createDocument('medical', medicalApprovalNo, medicalIssuingAuthority, medicalIssueDate, medicalTbd ? null : medicalExpiryDate);
 
       // Create contract for the crew member
       let contractFilePath = null;
@@ -682,12 +689,26 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
                   <Label htmlFor="cdc-expiry-date">Expiry Date</Label>
                   <Input
                     id="cdc-expiry-date"
+                    disabled={cdcTbd}
                     placeholder="e.g., 27-MAR-2035"
                     value={cdcExpiryDate}
                     onChange={(e) => setCdcExpiryDate(e.target.value)}
                     data-testid="cdc-expiry-date-input"
                   />
                 </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="cdc-tbd"
+                  checked={cdcTbd}
+                  onCheckedChange={(checked) => {
+                    setCdcTbd(checked as boolean);
+                    if (checked) setCdcExpiryDate('');
+                  }}
+                />
+                <Label htmlFor="cdc-tbd" className="text-sm font-medium leading-none">
+                  TBD (To Be Determined)
+                </Label>
               </div>
             </div>
           </div>
@@ -733,12 +754,26 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
                   <Label htmlFor="passport-expiry-date">Expiry Date</Label>
                   <Input
                     id="passport-expiry-date"
+                    disabled={passportTbd}
                     placeholder="e.g., 03-JUL-2027"
                     value={passportExpiryDate}
                     onChange={(e) => setPassportExpiryDate(e.target.value)}
                     data-testid="passport-expiry-date-input"
                   />
                 </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="passport-tbd"
+                  checked={passportTbd}
+                  onCheckedChange={(checked) => {
+                    setPassportTbd(checked as boolean);
+                    if (checked) setPassportExpiryDate('');
+                  }}
+                />
+                <Label htmlFor="passport-tbd" className="text-sm font-medium leading-none">
+                  TBD (To Be Determined)
+                </Label>
               </div>
             </div>
           </div>
@@ -808,60 +843,61 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
               Details of Competency Certificates
             </h4>
             <div className="space-y-3">
-              <div className="flex items-center space-x-2 pb-2">
-                <Checkbox
-                  id="coc-skipped"
-                  checked={cocSkipped}
-                  onCheckedChange={(checked) => setCocSkipped(checked === true)}
+              <div className="space-y-2">
+                <Label htmlFor="coc-grade-no">COC Grade / No</Label>
+                <Input
+                  id="coc-grade-no"
+                  placeholder="e.g., MASTER (F.G.) / 23-MUM-2024"
+                  value={cocGradeNo}
+                  onChange={(e) => setCocGradeNo(e.target.value)}
+                  data-testid="coc-grade-no-input"
                 />
-                <Label htmlFor="coc-skipped" className="cursor-pointer font-normal text-indigo-900 dark:text-indigo-100">
-                  NILL / Not Applicable (Crew member does not hold a COC)
-                </Label>
               </div>
-
-              <div className={cocSkipped ? "opacity-50 pointer-events-none transition-opacity" : "transition-opacity"}>
+              <div className="space-y-2">
+                <Label htmlFor="coc-place-of-issue">Place of Issue</Label>
+                <Input
+                  id="coc-place-of-issue"
+                  placeholder="e.g., MUMBAI"
+                  value={cocPlaceOfIssue}
+                  onChange={(e) => setCocPlaceOfIssue(e.target.value)}
+                  data-testid="coc-place-of-issue-input"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label htmlFor="coc-grade-no">COC Grade / No</Label>
+                  <Label htmlFor="coc-issue-date">Date of Issue</Label>
                   <Input
-                    id="coc-grade-no"
-                    placeholder="e.g., MASTER (F.G.) / 23-MUM-2024"
-                    value={cocGradeNo}
-                    onChange={(e) => setCocGradeNo(e.target.value)}
-                    data-testid="coc-grade-no-input"
+                    id="coc-issue-date"
+                    placeholder="e.g., 15-JAN-2024"
+                    value={cocIssueDate}
+                    onChange={(e) => setCocIssueDate(e.target.value)}
+                    data-testid="coc-issue-date-input"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="coc-place-of-issue">Place of Issue</Label>
+                  <Label htmlFor="coc-expiry-date">Date of Expiry</Label>
                   <Input
-                    id="coc-place-of-issue"
-                    placeholder="e.g., MUMBAI"
-                    value={cocPlaceOfIssue}
-                    onChange={(e) => setCocPlaceOfIssue(e.target.value)}
-                    data-testid="coc-place-of-issue-input"
+                    id="coc-expiry-date"
+                    disabled={cocTbd}
+                    placeholder="e.g., 14-JAN-2029"
+                    value={cocExpiryDate}
+                    onChange={(e) => setCocExpiryDate(e.target.value)}
+                    data-testid="coc-expiry-date-input"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="coc-issue-date">Date of Issue</Label>
-                    <Input
-                      id="coc-issue-date"
-                      placeholder="e.g., 15-JAN-2024"
-                      value={cocIssueDate}
-                      onChange={(e) => setCocIssueDate(e.target.value)}
-                      data-testid="coc-issue-date-input"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="coc-expiry-date">Date of Expiry</Label>
-                    <Input
-                      id="coc-expiry-date"
-                      placeholder="e.g., 14-JAN-2029"
-                      value={cocExpiryDate}
-                      onChange={(e) => setCocExpiryDate(e.target.value)}
-                      data-testid="coc-expiry-date-input"
-                    />
-                  </div>
-                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="coc-tbd"
+                  checked={cocTbd}
+                  onCheckedChange={(checked) => {
+                    setCocTbd(checked as boolean);
+                    if (checked) setCocExpiryDate('');
+                  }}
+                />
+                <Label htmlFor="coc-tbd" className="text-sm font-medium leading-none">
+                  TBD (To Be Determined)
+                </Label>
               </div>
             </div>
           </div>
@@ -907,12 +943,26 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
                   <Label htmlFor="medical-expiry-date">Expiry Date</Label>
                   <Input
                     id="medical-expiry-date"
+                    disabled={medicalTbd}
                     placeholder="e.g., 14-JAN-2027"
                     value={medicalExpiryDate}
                     onChange={(e) => setMedicalExpiryDate(e.target.value)}
                     data-testid="medical-expiry-date-input"
                   />
                 </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="medical-tbd"
+                  checked={medicalTbd}
+                  onCheckedChange={(checked) => {
+                    setMedicalTbd(checked as boolean);
+                    if (checked) setMedicalExpiryDate('');
+                  }}
+                />
+                <Label htmlFor="medical-tbd" className="text-sm font-medium leading-none">
+                  TBD (To Be Determined)
+                </Label>
               </div>
             </div>
           </div>
