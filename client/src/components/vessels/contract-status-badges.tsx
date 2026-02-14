@@ -294,7 +294,7 @@ function ContractStatusDialogs({
                         <div className="text-right">
                           <p className="text-sm font-medium text-foreground">
                             {isExpired
-                              ? `Expired ${Math.abs(remainingDays)} days ago`
+                              ? `Expired`
                               : isExpiring
                                 ? `${remainingDays} days remaining`
                                 : `${remainingDays} days remaining`

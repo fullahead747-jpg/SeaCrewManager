@@ -267,7 +267,7 @@ export default function ContractTimeline({ contracts, crewMembers, vessels, curr
                                                     <div className="flex items-center gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                                                         <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
                                                         <span className="text-xs font-medium text-red-700 dark:text-red-300">
-                                                            Contract expired {Math.abs(contract.daysRemaining)} days ago
+                                                            Contract expired
                                                         </span>
                                                     </div>
                                                 )}

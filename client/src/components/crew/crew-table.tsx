@@ -43,6 +43,8 @@ import SignOnWizardDialog from './sign-on-wizard-dialog';
 import { ContractProgress } from './contract-progress';
 import { AOAViewDialog } from './aoa-view-dialog';
 import { formatDate } from '@/lib/utils';
+import { CrewDetailCard } from './crew-detail-card';
+import DocumentUpload from '../documents/document-upload';
 
 // Helper function for calculating contract days remaining
 export const getContractDaysRemaining = (member: any) => {
@@ -95,6 +97,9 @@ export default function CrewTable() {
   const [additionalEmail, setAdditionalEmail] = useState('');
   const [showAOADialog, setShowAOADialog] = useState(false);
   const [selectedCrewForAOA, setSelectedCrewForAOA] = useState<CrewMemberWithDetails | null>(null);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [selectedCrewForUpload, setSelectedCrewForUpload] = useState<any>(null);
+  const [selectedUploadType, setSelectedUploadType] = useState<string | undefined>(undefined);
 
   const { data: crewMembers = [], isLoading, refetch } = useQuery<CrewMemberWithDetails[]>({
     queryKey: ['/api/crew'],
@@ -345,6 +350,12 @@ export default function CrewTable() {
     getStatusDisplayText,
     getStatusDisplayTextMobile,
     getInitials
+  };
+
+  const handleUpload = (member: any, type: string) => {
+    setSelectedCrewForUpload(member);
+    setSelectedUploadType(type);
+    setIsUploadModalOpen(true);
   };
 
   // Calculate contract end date based on start date and duration
@@ -1233,224 +1244,22 @@ export default function CrewTable() {
                 };
 
                 return (
-                  <div
+                  <CrewDetailCard
                     key={member.id}
-                    className="group relative overflow-hidden rounded-xl border-2 border-slate-200/60 dark:border-slate-700/50 bg-white/60 dark:bg-gray-900/60 backdrop-blur-xl hover:shadow-2xl hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300"
-                    data-testid={`crew-card-${member.id}`}
-                  >
-                    {/* Gradient Background Layer */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-slate-500/10 via-slate-500/5 to-slate-600/10 opacity-50" />
-
-                    {/* Glass Effect Overlay */}
-                    <div className="absolute inset-0 backdrop-blur-3xl bg-white/40 dark:bg-gray-900/40" />
-
-                    {/* Content Layer */}
-                    <div className="relative p-5">
-                      {/* Header: Avatar, Name, Status */}
-                      <div className="flex items-start gap-4 mb-4">
-                        <Avatar className="h-14 w-14 bg-gradient-to-br from-blue-500 to-cyan-600 shadow-lg shadow-blue-500/50 ring-2 ring-white/50">
-                          <AvatarFallback className="text-white text-lg font-semibold bg-transparent">
-                            {getInitials(member.firstName, member.lastName)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-100 leading-tight truncate tracking-wide" data-testid="crew-name">
-                            {member.firstName} {member.lastName}
-                          </h3>
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mt-0.5">{member.nationality}</p>
-                        </div>
-                        <Badge
-                          className={`${getStatusColor(member.status, member.activeContract?.status)} text-xs px-3 py-1 shadow-sm`}
-                          data-testid="crew-status"
-                        >
-                          {getStatusDisplayText(member.status)}
-                        </Badge>
-                      </div>
-
-                      {/* Rank and Vessel Info */}
-                      <div className="grid grid-cols-2 gap-3 mb-4 p-3 rounded-lg bg-slate-50/80 dark:bg-slate-900/20 border border-slate-200/60 dark:border-slate-700/50">
-                        <div>
-                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Rank</span>
-                          <p className="text-sm font-medium text-slate-700 dark:text-slate-100 truncate tracking-wide" data-testid="crew-rank">{member.rank}</p>
-                        </div>
-                        <div>
-                          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-1">Vessel</span>
-                          <p className="text-sm font-medium text-slate-700 dark:text-slate-100 truncate tracking-wide" data-testid="crew-vessel">
-                            {member.currentVessel?.name || 'Not assigned'}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Contract Progress Bar */}
-                      {member.status !== 'onShore' && startDate && endDate && (
-                        <div className="mb-4">
-                          <div className="flex justify-between text-[10px] text-slate-500 dark:text-slate-400 mb-1.5 font-medium">
-                            <span>{formatShortDate(startDate)}</span>
-                            <span className="font-semibold text-blue-600 dark:text-blue-400">{remainingDays > 0 ? `${remainingDays} days` : ''}</span>
-                            <span>{formatShortDate(endDate)}</span>
-                          </div>
-                          <div className="relative h-2 bg-slate-200/60 dark:bg-slate-700/50 rounded-full overflow-hidden">
-                            <div
-                              className="absolute inset-y-0 left-0 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-full transition-all duration-1000 ease-out"
-                              style={{ width: `${progressPercent}%` }}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Document Status */}
-                      <div className="mb-4">
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block mb-2">Document Status</span>
-                        <div className="flex flex-wrap gap-2" data-testid={`doc-status-${member.id}`}>
-                          {getCrewDocumentExpiry(member).map((doc) => (
-                            <button
-                              key={doc.type}
-                              className={`px-2.5 py-1 rounded-md text-xs font-semibold ${getDocStatusColor(doc.status)} shadow-sm hover:opacity-80 transition-all cursor-pointer border-0 flex items-center`}
-                              title={doc.filePath ? `Click to view document\n${doc.expiryDate ? `Expires: ${formatDate(doc.expiryDate)}${doc.daysUntil !== null ? ` (${doc.daysUntil} days)` : ''}` : ''}` : 'No file uploaded'}
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (!doc.filePath || !doc.docId) {
-                                  toast({
-                                    title: 'Not Available',
-                                    description: 'No document file has been uploaded for this type.',
-                                  });
-                                  return;
-                                }
-
-                                try {
-                                  const endpoint = (doc as any).isContract ? `/api/contracts/${doc.docId}/view` : `/api/documents/${doc.docId}/view`;
-                                  const response = await fetch(endpoint, {
-                                    headers: getAuthHeaders(),
-                                  });
-                                  if (!response.ok) {
-                                    throw new Error('Failed to fetch document');
-                                  }
-                                  const blob = await response.blob();
-                                  const url = window.URL.createObjectURL(blob);
-                                  window.open(url, '_blank');
-                                  setTimeout(() => window.URL.revokeObjectURL(url), 100);
-                                } catch (error) {
-                                  toast({
-                                    title: 'Error',
-                                    description: 'Failed to open document',
-                                    variant: 'destructive',
-                                  });
-                                }
-                              }}
-                            >
-                              {getDocTypeLabel(doc.type)}
-                              {doc.status === 'expiring' && doc.daysUntil !== null && (
-                                <span className="ml-1">({doc.daysUntil}d)</span>
-                              )}
-                              {doc.status === 'expired' && <span className="ml-1">!</span>}
-                              {doc.status === 'missing' && <span className="ml-1">-</span>}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Action Buttons - All 7 in One Row */}
-                      <div className="pt-4 mt-4 border-t border-slate-200/60 dark:border-slate-700/50">
-                        <div className="grid grid-cols-7 gap-1.5">
-                          <button
-                            className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 hover:border-slate-400 rounded-lg transition-all shadow-sm"
-                            data-testid={`view-crew-${member.id}`}
-                            onClick={() => {
-                              setSelectedCrewMember(member);
-                              setShowViewDialog(true);
-                            }}
-                          >
-                            <Eye className="h-3 w-3" />
-                            <span>View</span>
-                          </button>
-                          <button
-                            className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 hover:border-slate-400 rounded-lg transition-all shadow-sm"
-                            data-testid={`edit-crew-${member.id}`}
-                            onClick={() => {
-                              setSelectedCrewMember(member);
-                              setShowEditDialog(true);
-                            }}
-                          >
-                            <Edit className="h-3 w-3" />
-                            <span>Edit</span>
-                          </button>
-                          <button
-                            className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 rounded-lg transition-all shadow-sm"
-                            data-testid={`vessel-history-${member.id}`}
-                            onClick={() => {
-                              setSelectedCrewForHistory(member);
-                              setShowVesselHistoryDialog(true);
-                            }}
-                          >
-                            <Ship className="h-3 w-3" />
-                            <span>History</span>
-                          </button>
-
-                          <button
-                            className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 rounded-lg transition-all shadow-sm"
-                            data-testid={`send-mail-${member.id}`}
-                            onClick={() => handleSendEmailClick(member)}
-                            disabled={sendCrewEmailMutation.isPending}
-                          >
-                            <Mail className="h-3 w-3" />
-                            <span>{sendCrewEmailMutation.isPending ? 'Sending' : 'Mail'}</span>
-                          </button>
-                          <button
-                            className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium text-purple-700 bg-purple-50 border border-purple-200 hover:bg-purple-100 hover:border-purple-300 rounded-lg transition-all shadow-sm"
-                            data-testid={`download-docs-${member.id}`}
-                            onClick={() => handleDownloadCrewDocuments(member.id, `${member.firstName} ${member.lastName}`)}
-                          >
-                            <Archive className="h-3 w-3" />
-                            <span>Download</span>
-                          </button>
-                          {member.activeContract && (
-                            <button
-                              className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium text-cyan-700 bg-cyan-50 border border-cyan-200 hover:bg-cyan-100 hover:border-cyan-300 rounded-lg transition-all shadow-sm"
-                              data-testid={`view-aoa-${member.id}`}
-                              onClick={() => handleViewAOAClick(member)}
-                            >
-                              <FileText className="h-3 w-3" />
-                              <span>AOA</span>
-                            </button>
-                          )}
-                          {member.status === 'onShore' ? (
-                            <React.Fragment>
-                              <button
-                                className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-medium text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 hover:border-red-300 rounded-lg transition-all shadow-sm"
-                                data-testid={`delete-crew-${member.id}`}
-                                onClick={() => handleDeleteClick(member)}
-                              >
-                                <Trash2 className="h-3 w-3" />
-                                <span>Delete</span>
-                              </button>
-                              <button
-                                className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-semibold text-white bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 rounded-lg shadow-md hover:shadow-lg transition-all"
-                                data-testid={`signon-crew-${member.id}`}
-                                onClick={() => handleSignOnClick(member)}
-                              >
-                                <LogIn className="h-3 w-3" />
-                                <span>Sign On</span>
-                              </button>
-                            </React.Fragment>
-                          ) : (
-                            <button
-                              className="flex items-center justify-center gap-1 px-2 py-2 text-[10px] font-semibold text-white bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800 rounded-lg shadow-md hover:shadow-lg transition-all"
-                              data-testid={`signoff-crew-${member.id}`}
-                              onClick={() => handleSignOffClick(member)}
-                            >
-                              <LogOut className="h-3 w-3" />
-                              <span>Sign Off</span>
-                            </button>
-                          )}
-                        </div>
-
-
-                      </div>
-                    </div>
-
-                    {/* Decorative Corner Accent */}
-                    <div className="absolute -bottom-4 -right-4 w-16 h-16 rounded-full blur-2xl opacity-20 bg-gradient-to-br from-blue-500 to-cyan-600" />
-                  </div>
+                    member={member}
+                    documents={documents}
+                    onView={(m) => { setSelectedCrewMember(m); setShowViewDialog(true); }}
+                    onEdit={(m) => { setSelectedCrewMember(m); setShowEditDialog(true); }}
+                    onVesselHistory={(m) => { setSelectedCrewForHistory(m); setShowVesselHistoryDialog(true); }}
+                    onSendMail={handleSendEmailClick}
+                    onDownload={handleDownloadCrewDocuments}
+                    onViewAOA={handleViewAOAClick}
+                    onDelete={handleDeleteClick}
+                    onSignOn={handleSignOnClick}
+                    onSignOff={handleSignOffClick}
+                    onUpload={handleUpload}
+                    isMailPending={sendCrewEmailMutation.isPending}
+                  />
                 );
               })}
             </div>
@@ -2509,6 +2318,21 @@ export default function CrewTable() {
         crewMember={selectedCrewForAOA}
         vessels={vessels || []}
       />
+
+      {/* Document Upload Dialog */}
+      <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">
+          <DocumentUpload
+            crewMemberId={selectedCrewForUpload?.id}
+            preselectedType={selectedUploadType}
+            onSuccess={() => {
+              setIsUploadModalOpen(false);
+              queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

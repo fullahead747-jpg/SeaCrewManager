@@ -65,7 +65,7 @@ export function ExpiredDocumentModal({
 
                                 <div className="font-semibold text-gray-700">Status:</div>
                                 <div className={isTbd ? "text-blue-600 font-bold" : "text-red-600 font-bold"}>
-                                    {isTbd ? "To Be Decided" : `Expired ${daysExpired} days ago`}
+                                    {isTbd ? "To Be Decided" : `Expired`}
                                 </div>
                             </div>
                         </div>

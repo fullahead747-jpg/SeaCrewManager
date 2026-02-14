@@ -1,8 +1,5 @@
-
 import { useMemo, memo, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useQuery } from '@tanstack/react-query';
-import { getAuthHeaders } from '@/lib/auth';
 
 /**
  * High-performance Donut Segment for Vessel Cards with rounded ends and gaps
@@ -59,9 +56,11 @@ const SimpleDonutSegment = ({
 
 const ContractStatusDonut = memo(function ContractStatusDonut({
     vesselId,
+    stats,
     onSegmentClick
 }: {
     vesselId: string;
+    stats?: { active: number, expiringSoon: number, expired: number };
     onSegmentClick?: (key: string, name: string) => void;
 }) {
     const isFirstRender = useRef(true);
@@ -69,27 +68,6 @@ const ContractStatusDonut = memo(function ContractStatusDonut({
     useEffect(() => {
         isFirstRender.current = false;
     }, []);
-
-    const { data: stats, isLoading } = useQuery({
-        queryKey: ['/api/vessels', vesselId, 'contract-stats'],
-        queryFn: async () => {
-            const response = await fetch(`/api/vessels/${vesselId}/contract-stats`, {
-                headers: getAuthHeaders(),
-            });
-            if (!response.ok) return { active: 0, expiringSoon: 0, expired: 0 };
-            return response.json();
-        },
-        refetchInterval: 15000,
-        retry: 1
-    });
-
-    if (isLoading) {
-        return (
-            <div className="h-full w-full flex items-center justify-center">
-                <div className="animate-pulse h-20 w-20 rounded-full bg-slate-100 dark:bg-slate-800" />
-            </div>
-        );
-    }
 
     const safeStats = stats || { active: 0, expiringSoon: 0, expired: 0 };
     const total = (safeStats.active || 0) + (safeStats.expiringSoon || 0) + (safeStats.expired || 0);

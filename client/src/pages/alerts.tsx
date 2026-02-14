@@ -209,7 +209,7 @@ Maritime Operations Team`);
 
   const handleSendMessage = () => {
     if (!selectedAlert) return;
-    
+
     contactCrewMutation.mutate({
       crewMemberId: selectedAlert.crewMember.id,
       subject: emailSubject,
@@ -266,10 +266,10 @@ Maritime Operations Team`);
             Monitor document expiry dates and configure notification settings
           </p>
         </div>
-        
+
         <div className="flex space-x-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={() => refreshAlertsMutation.mutate()}
             disabled={refreshAlertsMutation.isPending}
             data-testid="refresh-alerts-button"
@@ -277,7 +277,7 @@ Maritime Operations Team`);
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshAlertsMutation.isPending ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          
+
           <Dialog open={isEmailSettingsOpen} onOpenChange={setIsEmailSettingsOpen}>
             <DialogTrigger asChild>
               <Button className="bg-maritime-navy hover:bg-blue-800" data-testid="email-settings-button">
@@ -285,7 +285,7 @@ Maritime Operations Team`);
                 Email Settings
               </Button>
             </DialogTrigger>
-            <EmailSettingsModal 
+            <EmailSettingsModal
               settings={emailSettings}
               onClose={() => setIsEmailSettingsOpen(false)}
             />
@@ -300,7 +300,7 @@ Maritime Operations Team`);
           <AlertDescription className="text-gray-700 dark:text-gray-300">
             <span className="font-medium text-warning-amber dark:text-yellow-400">Active Alerts:</span>{' '}
             {expiringDocuments?.length || 0} document{(expiringDocuments?.length || 0) !== 1 ? 's' : ''} and {expiringContracts.length} contract{expiringContracts.length !== 1 ? 's' : ''} require attention.
-            {(criticalAlerts.length > 0 || expiredContracts.length > 0 || criticalContracts.length > 0) && 
+            {(criticalAlerts.length > 0 || expiredContracts.length > 0 || criticalContracts.length > 0) &&
               ` ${criticalAlerts.length + expiredContracts.length + criticalContracts.length} critical/expired alerts need immediate action.`}
           </AlertDescription>
         </Alert>
@@ -321,7 +321,7 @@ Maritime Operations Team`);
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">Critical (≤7 days)</CardTitle>
@@ -335,7 +335,7 @@ Maritime Operations Team`);
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">Warning (≤15 days)</CardTitle>
@@ -349,7 +349,7 @@ Maritime Operations Team`);
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-gray-500 dark:text-gray-400">Info (≤30 days)</CardTitle>
@@ -384,7 +384,7 @@ Maritime Operations Team`);
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-maritime-navy dark:text-white">Document Expiry Alerts</CardTitle>
-                
+
                 <div className="flex items-center space-x-4">
                   <Select value={severityFilter} onValueChange={setSeverityFilter}>
                     <SelectTrigger className="w-32" data-testid="severity-filter">
@@ -412,7 +412,7 @@ Maritime Operations Team`);
                   {filteredAlerts.map((alert) => {
                     const config = getSeverityConfig(alert.severity);
                     const Icon = config.icon;
-                    
+
                     return (
                       <div
                         key={alert.document.id}
@@ -426,7 +426,7 @@ Maritime Operations Team`);
                                 {getInitials(alert.crewMember.firstName, alert.crewMember.lastName)}
                               </AvatarFallback>
                             </Avatar>
-                            
+
                             <div className="flex-1">
                               <div className="flex items-center space-x-3 mb-2">
                                 <h4 className={`font-semibold ${config.textColor}`} data-testid="alert-crew-name">
@@ -436,13 +436,13 @@ Maritime Operations Team`);
                                   {alert.severity.toUpperCase()}
                                 </Badge>
                               </div>
-                              
+
                               <div className="space-y-1">
                                 <p className="text-gray-900 dark:text-gray-100 font-medium" data-testid="alert-document-info">
                                   {alert.document.type.toUpperCase()} Certificate - {alert.document.documentNumber}
                                 </p>
                                 <p className="text-sm text-gray-600 dark:text-gray-300" data-testid="alert-expiry-info">
-                                  Expires: {formatDate(alert.document.expiryDate)} 
+                                  Expires: {formatDate(alert.document.expiryDate)}
                                   ({alert.daysUntilExpiry} days remaining)
                                 </p>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -451,13 +451,13 @@ Maritime Operations Team`);
                               </div>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center space-x-2">
                             <Icon className={`h-5 w-5 ${config.iconColor}`} />
                             <div className="flex space-x-2">
                               <Link href={`/documents?highlight=${alert.crewMember.id}`}>
-                                <Button 
-                                  variant="outline" 
+                                <Button
+                                  variant="outline"
                                   size="sm"
                                   className="hover:bg-primary hover:text-primary-foreground"
                                   data-testid={`renew-document-${alert.document.id}`}
@@ -466,8 +466,8 @@ Maritime Operations Team`);
                                   Renew
                                 </Button>
                               </Link>
-                              <Button 
-                                variant="outline" 
+                              <Button
+                                variant="outline"
                                 size="sm"
                                 onClick={() => handleContactCrew(alert)}
                                 data-testid={`contact-crew-${alert.document.id}`}
@@ -493,7 +493,7 @@ Maritime Operations Team`);
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-maritime-navy dark:text-white">Contract Expiry Alerts</CardTitle>
-                
+
                 <div className="flex items-center space-x-4">
                   <Select value={contractSeverityFilter} onValueChange={setContractSeverityFilter}>
                     <SelectTrigger className="w-32" data-testid="contract-severity-filter">
@@ -522,7 +522,7 @@ Maritime Operations Team`);
                   {filteredContractAlerts.map((alert) => {
                     const config = getSeverityConfig(alert.severity);
                     const Icon = config.icon;
-                    
+
                     return (
                       <div
                         key={alert.contract.id}
@@ -536,7 +536,7 @@ Maritime Operations Team`);
                                 {getInitials(alert.crewMember.firstName, alert.crewMember.lastName)}
                               </AvatarFallback>
                             </Avatar>
-                            
+
                             <div className="flex-1">
                               <div className="flex items-center space-x-3 mb-2">
                                 <h4 className={`font-semibold ${config.textColor}`} data-testid="contract-alert-crew-name">
@@ -546,14 +546,14 @@ Maritime Operations Team`);
                                   {alert.severity.toUpperCase()}
                                 </Badge>
                               </div>
-                              
+
                               <div className="space-y-1">
                                 <p className="text-gray-900 dark:text-gray-100 font-medium" data-testid="contract-alert-info">
                                   {alert.crewMember.rank} on {alert.vessel.name}
                                 </p>
                                 <p className="text-sm text-gray-600 dark:text-gray-300" data-testid="contract-alert-expiry-info">
-                                  {alert.severity === 'expired' ? 'Expired' : 'Expires'}: {formatDate(alert.contract.endDate)} 
-                                  ({alert.daysUntilExpiry <= 0 ? `${Math.abs(alert.daysUntilExpiry)} days ago` : `${alert.daysUntilExpiry} days remaining`})
+                                  {alert.severity === 'expired' ? 'Expired' : 'Expires'}: {formatDate(alert.contract.endDate)}
+                                  ({alert.daysUntilExpiry <= 0 ? `Expired` : `${alert.daysUntilExpiry} days remaining`})
                                 </p>
                                 <p className="text-sm text-gray-500 dark:text-gray-400">
                                   Contract started: {formatDate(alert.contract.startDate)}
@@ -561,13 +561,13 @@ Maritime Operations Team`);
                               </div>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center space-x-2">
                             <Icon className={`h-5 w-5 ${config.iconColor}`} />
                             <div className="flex space-x-2">
                               <Link href={`/crew?highlight=${alert.crewMember.id}`}>
-                                <Button 
-                                  variant="outline" 
+                                <Button
+                                  variant="outline"
                                   size="sm"
                                   className="hover:bg-primary hover:text-primary-foreground"
                                   data-testid={`view-crew-${alert.contract.id}`}
@@ -606,14 +606,14 @@ Maritime Operations Team`);
                   {emailSettings.enabled ? 'Enabled' : 'Disabled'}
                 </Badge>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Reminder Schedule</span>
                 <span className="text-sm text-gray-600 dark:text-gray-300">
                   {emailSettings.reminderDays?.join(', ')} days before expiry
                 </span>
               </div>
-              
+
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-900 dark:text-gray-100">Recipients</span>
                 <span className="text-sm text-gray-600 dark:text-gray-300">
@@ -634,7 +634,7 @@ Maritime Operations Team`);
               <span>Contact Crew Member</span>
             </DialogTitle>
           </DialogHeader>
-          
+
           {selectedAlert && (
             <div className="space-y-4">
               <div className="p-3 bg-gray-50 rounded">
@@ -650,7 +650,7 @@ Maritime Operations Team`);
                   </div>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="email-subject">Subject</Label>
                 <Input
@@ -661,7 +661,7 @@ Maritime Operations Team`);
                   data-testid="contact-subject-input"
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="email-message">Message</Label>
                 <Textarea
@@ -673,15 +673,15 @@ Maritime Operations Team`);
                   data-testid="contact-message-input"
                 />
               </div>
-              
+
               <div className="flex justify-end space-x-2">
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   onClick={() => setIsContactModalOpen(false)}
                 >
                   Cancel
                 </Button>
-                <Button 
+                <Button
                   onClick={handleSendMessage}
                   disabled={contactCrewMutation.isPending || !emailSubject || !emailMessage}
                   data-testid="send-contact-message-button"

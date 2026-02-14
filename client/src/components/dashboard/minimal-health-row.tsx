@@ -1,7 +1,7 @@
 
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { Users, Ship, UserCheck, Clock } from "lucide-react";
+import { Users, Ship, UserCheck, Clock, AlertTriangle, FileWarning } from "lucide-react";
 
 interface StatItemProps {
     label: string;
@@ -51,13 +51,7 @@ export default function MinimalHealthRow({ stats, className }: MinimalHealthRowP
                 color="text-blue-500"
                 description="Active personnel"
             />
-            <StatItem
-                label="Available"
-                value={stats.crewOnShore}
-                icon={UserCheck}
-                color="text-emerald-500"
-                description="Shore standby"
-            />
+
             <StatItem
                 label="Vessels"
                 value={stats.activeVessels}
@@ -66,12 +60,20 @@ export default function MinimalHealthRow({ stats, className }: MinimalHealthRowP
                 description="Fleet operational"
             />
             <StatItem
-                label="Sign Off Due"
-                value={stats.signOffDue}
-                icon={Clock}
-                color="text-amber-500"
-                description={`${stats.signOffDue30Days || 0} critical cases`}
+                label="Critical"
+                value={stats.signOffDue30Days || 0}
+                icon={AlertTriangle}
+                color="text-red-500"
+                description="Action required"
             />
+            <StatItem
+                label="Overdue"
+                value={stats.contractHealth?.overdue || 0}
+                icon={FileWarning}
+                color="text-rose-600"
+                description="Expired contracts"
+            />
+
         </motion.div>
     );
 }

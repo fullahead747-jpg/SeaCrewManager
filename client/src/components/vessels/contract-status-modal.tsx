@@ -181,7 +181,7 @@ export default function ContractStatusModal({
                                   {!member.activeContract
                                     ? 'No Active Contract'
                                     : daysRemaining <= 0
-                                      ? `Expired ${Math.abs(daysRemaining)} days ago`
+                                      ? 'Expired'
                                       : `${daysRemaining} days remaining`
                                   }
                                 </Badge>

@@ -136,7 +136,7 @@ export class DocumentVerificationService {
                     isExpiring: false,
                     daysUntilExpiry,
                     expiryDate,
-                    message: `Document expired ${Math.abs(daysUntilExpiry)} days ago`
+                    message: `Document expired`
                 };
             } else if (daysUntilExpiry <= 90) {
                 // Document expires within 90 days

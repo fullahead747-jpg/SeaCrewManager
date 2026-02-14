@@ -90,7 +90,7 @@ export class CrewAssignmentValidator {
                 );
             } else if (statusResult.status === DocumentStatus.EXPIRED && statusResult.isInGracePeriod) {
                 warnings.push(
-                    `${doc.type.toUpperCase()} expired ${Math.abs(statusResult.daysUntilExpiry)} days ago (grace period active)`
+                    `${doc.type.toUpperCase()} expired (grace period active)`
                 );
             }
         }

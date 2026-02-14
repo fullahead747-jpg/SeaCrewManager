@@ -51,8 +51,9 @@ export interface VesselWithDetails extends Vessel {
 }
 
 // Sortable Vessel Card Component - Innovative Horizontal Split Design
-function SortableVesselCard({ vessel, onViewDetails, onManageCrew, onUploadDocument, isAdmin, showUploadButton = true }: {
+function SortableVesselCard({ vessel, stats, onViewDetails, onManageCrew, onUploadDocument, isAdmin, showUploadButton = true }: {
   vessel: VesselWithDetails;
+  stats?: { active: number, expiringSoon: number, expired: number };
   onViewDetails: (vessel: VesselWithDetails) => void;
   onManageCrew: (vessel: VesselWithDetails) => void;
   onUploadDocument: (vessel: VesselWithDetails) => void;
@@ -276,13 +277,7 @@ function SortableVesselCard({ vessel, onViewDetails, onManageCrew, onUploadDocum
                 </div>
 
                 {/* DOC Status - Cleaner Integration */}
-                <div className="pt-1">
-                  <div className="inline-flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 px-2 py-1 rounded-md border border-slate-100 dark:border-slate-800">
-                    <span className="text-[10px] font-bold text-slate-400">DOC</span>
-                    <div className="w-0.5 h-0.5 rounded-full bg-slate-300 dark:bg-slate-700" />
-                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">Active</span>
-                  </div>
-                </div>
+
               </div>
 
               {/* Right Column: The Graph */}
@@ -291,6 +286,7 @@ function SortableVesselCard({ vessel, onViewDetails, onManageCrew, onUploadDocum
                 <div className="relative w-[110px] h-[110px]">
                   <ContractStatusDonut
                     vesselId={vessel.id}
+                    stats={stats}
                     onSegmentClick={(key, name) => handleSegmentClick(vessel.id, key, name)}
                   />
                 </div>
@@ -307,16 +303,25 @@ function SortableVesselCard({ vessel, onViewDetails, onManageCrew, onUploadDocum
               vesselId={drillDownVesselId}
             />
 
-            {/* Legend / Status Text Bottom Strip */}
+            {/* Legend / Status Text Bottom Strip - Clickable */}
             <div className="flex items-center justify-center gap-3 mb-5 text-[10px] font-medium text-slate-500">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-emerald-500" /> Valid
+              <div
+                className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => handleSegmentClick(vessel.id, 'stable', 'Valid')}
+              >
+                <div className="w-2 h-2 rounded-full bg-emerald-500" /> Valid <span className="text-slate-400">({stats?.active || 0})</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-amber-500" /> Due
+              <div
+                className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => handleSegmentClick(vessel.id, 'upcoming', 'Due Soon')}
+              >
+                <div className="w-2 h-2 rounded-full bg-amber-500" /> Due <span className="text-slate-400">({stats?.expiringSoon || 0})</span>
               </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-red-500" /> Expired
+              <div
+                className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => handleSegmentClick(vessel.id, 'overdue', 'Expired')}
+              >
+                <div className="w-2 h-2 rounded-full bg-red-500" /> Expired <span className="text-slate-400">({stats?.expired || 0})</span>
               </div>
             </div>
 
@@ -478,6 +483,41 @@ export default function VesselCards({ showUploadButton = true }: { showUploadBut
       }
     }
   };
+
+  // Calculate vessel stats from contracts
+  const vesselStats = useMemo(() => {
+    const stats: Record<string, { active: number, expiringSoon: number, expired: number }> = {};
+    if (!vessels) return stats;
+
+    // Initialize all vessels with 0
+    vessels.forEach(v => {
+      stats[v.id] = { active: 0, expiringSoon: 0, expired: 0 };
+    });
+
+    if (!contracts || !Array.isArray(contracts)) return stats;
+
+    const now = new Date();
+    const fortyFiveDays = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
+
+    contracts.forEach((c: any) => {
+      // Only consider active contracts
+      if (c.status !== 'active') return;
+
+      // If contract belongs to a known vessel
+      if (stats[c.vesselId]) {
+        const endDate = new Date(c.endDate);
+        if (endDate < now) {
+          stats[c.vesselId].expired++;
+        } else if (endDate <= fortyFiveDays) {
+          stats[c.vesselId].expiringSoon++;
+        } else {
+          stats[c.vesselId].active++;
+        }
+      }
+    });
+
+    return stats;
+  }, [vessels, contracts]);
 
   // Initialize and maintain vessel order
   const orderedVessels = useMemo(() => {
@@ -797,6 +837,7 @@ export default function VesselCards({ showUploadButton = true }: { showUploadBut
               <SortableVesselCard
                 key={vessel.id}
                 vessel={vessel}
+                stats={vesselStats[vessel.id]}
                 onViewDetails={setSelectedVesselForDetails}
                 onManageCrew={setSelectedVesselForCrew}
                 onUploadDocument={setSelectedVesselForUpload}

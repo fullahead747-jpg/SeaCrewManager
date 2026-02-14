@@ -1349,8 +1349,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (existingDocument.type.toLowerCase() === 'aoa') {
         const issueDateChanged = updates.issueDate &&
           new Date(updates.issueDate).toISOString().split('T')[0] !== existingDocument.issueDate.toISOString().split('T')[0];
-        const expiryDateChanged = updates.expiryDate &&
-          new Date(updates.expiryDate).toISOString().split('T')[0] !== existingDocument.expiryDate.toISOString().split('T')[0];
+        const expiryDateChanged = updates.expiryDate !== undefined &&
+          (updates.expiryDate === null || existingDocument.expiryDate === null ||
+            new Date(updates.expiryDate).toISOString().split('T')[0] !== existingDocument.expiryDate.toISOString().split('T')[0]);
 
         if ((issueDateChanged || expiryDateChanged) && !updates.filePath) {
           console.warn(`[AOA-LOCK] Blocked manual date change for AOA document: ${existingDocument.id}`);
@@ -1362,7 +1363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // STRICT VALIDATION FOR EDITS
       // Run validation if ANY critical field is changed OR if a new file is uploaded
-      const isCriticalUpdate = updates.filePath || updates.documentNumber || updates.expiryDate || updates.issueDate;
+      const isCriticalUpdate = updates.filePath || updates.documentNumber || updates.expiryDate !== undefined || updates.issueDate !== undefined;
       const fileToCheck = updates.filePath || existingDocument.filePath;
 
       if (isCriticalUpdate && fileToCheck) {
@@ -1415,8 +1416,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const verifyData = {
             documentNumber: updates.documentNumber || existingDocument.documentNumber,
             issuingAuthority: updates.issuingAuthority || existingDocument.issuingAuthority,
-            issueDate: updates.issueDate ? new Date(updates.issueDate).toISOString() : (existingDocument.issueDate ? new Date(existingDocument.issueDate).toISOString() : null),
-            expiryDate: updates.expiryDate ? new Date(updates.expiryDate).toISOString() : (existingDocument.expiryDate ? new Date(existingDocument.expiryDate).toISOString() : null),
+            issueDate: updates.issueDate !== undefined ? (updates.issueDate ? new Date(updates.issueDate).toISOString() : null) : (existingDocument.issueDate ? new Date(existingDocument.issueDate).toISOString() : null),
+            expiryDate: updates.expiryDate !== undefined ? (updates.expiryDate ? new Date(updates.expiryDate).toISOString() : null) : (existingDocument.expiryDate ? new Date(existingDocument.expiryDate).toISOString() : null),
             type: updates.type || existingDocument.type,
             holderName: `${crewMember.firstName} ${crewMember.lastName}`
           };
@@ -2912,7 +2913,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         return filteredDocs.map(doc => {
           const crew = crewMembers.find(m => m.id === doc.crewMemberId);
-          const isTbd = doc.expiryDate && new Date(doc.expiryDate).getFullYear() < 1900;
+          const isTbd = doc.expiryDate === null || (doc.expiryDate && new Date(doc.expiryDate).getFullYear() < 1900);
 
           const daysRemaining = doc.expiryDate && !isTbd
             ? Math.ceil((new Date(doc.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
@@ -2923,7 +2924,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             systemComment = `🔵 ${doc.type.toUpperCase()} expiry is marked as TBD.`;
           } else if (daysRemaining !== undefined) {
             if (daysRemaining < 0) {
-              systemComment = `⚠️ ${doc.type.toUpperCase()} expired ${Math.abs(daysRemaining)} DAYS AGO (on ${formatDateForDisplay(doc.expiryDate)}). Renewal required.`;
+              systemComment = `⚠️ ${doc.type.toUpperCase()} expired (on ${formatDateForDisplay(doc.expiryDate)}). Renewal required.`;
             } else if (daysRemaining <= 30) {
               systemComment = `🟠 ${doc.type.toUpperCase()} expires in ${daysRemaining} days (${formatDateForDisplay(doc.expiryDate)}). Renewal advised.`;
             } else {
@@ -2969,40 +2970,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .map(m => {
               const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
               const vessel = vessels.find(v => v.id === m.currentVesselId);
-              const daysRemaining = activeContract
-                ? Math.ceil((new Date(activeContract.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-                : -1;
 
-              const crewDocs = allDocuments.filter(d => d.crewMemberId === m.id);
-              const expiredDocs = crewDocs.filter(d => d.expiryDate && new Date(d.expiryDate) < now);
-              const missingMandatory = ['passport', 'cdc', 'medical'].filter(type => !crewDocs.some(d => d.type === type));
-
-              let systemComment = '';
-              if (!activeContract) {
-                systemComment = `⚠️ No active contract found for this crew member on board. Documentation required immediately.`;
-              } else {
-                systemComment = `⚠️ Contract expired ${Math.abs(daysRemaining)} DAYS AGO (on ${formatDateForDisplay(activeContract.endDate)}). Renewal required.`;
-              }
-
-              // Add document compliance context
-              if (expiredDocs.length > 0) {
-                systemComment += ` ❌ ${expiredDocs.length} document(s) expired (${expiredDocs.map(d => d.type.toUpperCase()).join(', ')}).`;
-              } else if (missingMandatory.length > 0) {
-                systemComment += ` ❌ Missing mandatory documents: ${missingMandatory.map(m => m.toUpperCase()).join(', ')}.`;
-              } else {
-                systemComment += ` ✅ All mandatory crew documents are valid.`;
-              }
-
+              // Return full CrewMemberWithDetails structure
               return {
-                id: m.id,
-                crewName: `${m.firstName} ${m.lastName}`,
-                vesselName: vessel ? vessel.name : 'Unknown',
-                expiryDate: activeContract ? activeContract.endDate : null,
-                daysRemaining,
-                crewMemberId: m.id,
-                rank: m.rank,
-                docType: activeContract ? 'Expired Contract' : 'Missing Contract',
-                systemComment
+                ...m,
+                currentVessel: vessel,
+                activeContract: activeContract,
+                documents: allDocuments.filter(d => d.crewMemberId === m.id)
               };
             });
         } else {
@@ -3019,40 +2993,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return filteredContracts.map(c => {
             const crew = crewMembers.find(m => m.id === c.crewMemberId);
             const vessel = vessels.find(v => v.id === c.vesselId);
-            const daysRemaining = Math.ceil((new Date(c.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-            const crewDocs = allDocuments.filter(d => d.crewMemberId === c.crewMemberId);
-            const expiredDocs = crewDocs.filter(d => d.expiryDate && new Date(d.expiryDate) < now);
-            const missingMandatory = ['passport', 'cdc', 'medical'].filter(type => !crewDocs.some(d => d.type === type));
-
-            let systemComment = '';
-            if (daysRemaining <= 15) {
-              systemComment = `🟠 Contract expires in ${daysRemaining} days (${formatDateForDisplay(c.endDate)}). Starting renewal process advised.`;
-            } else if (daysRemaining <= 30) {
-              systemComment = `🔵 Contract expiry approaching in ${daysRemaining} days. Monitor for renewal.`;
-            } else {
-              systemComment = `✅ Contract is active and stable until ${formatDateForDisplay(c.endDate)}.`;
-            }
-
-            if (expiredDocs.length > 0) {
-              systemComment += ` ❌ ${expiredDocs.length} document(s) expired.`;
-            } else if (missingMandatory.length > 0) {
-              systemComment += ` ❌ Missing mandatory documents.`;
-            } else {
-              systemComment += ` ✅ All mandatory crew documents are valid.`;
-            }
+            if (!crew) return null;
 
             return {
-              id: c.id,
-              crewName: crew ? `${crew.firstName} ${crew.lastName}` : 'Unknown',
-              vesselName: vessel ? vessel.name : 'Unknown',
-              expiryDate: c.endDate,
-              crewMemberId: c.crewMemberId,
-              rank: crew ? crew.rank : 'Unknown',
-              daysRemaining,
-              systemComment
+              ...crew,
+              currentVessel: vessel,
+              activeContract: c,
+              documents: allDocuments.filter(d => d.crewMemberId === crew.id)
             };
-          });
+          }).filter(Boolean);
         }
       })());
 

@@ -28,6 +28,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -69,6 +70,10 @@ const addCrewSchema = z.object({
   medicalIssueDate: z.string().optional(),
   medicalExpiryDate: z.string().optional(),
   cocNotApplicable: z.boolean().optional().default(false),
+  passportTbd: z.boolean().optional().default(false),
+  cdcTbd: z.boolean().optional().default(false),
+  cocTbd: z.boolean().optional().default(false),
+  medicalTbd: z.boolean().optional().default(false),
 });
 
 type AddCrewFormData = z.infer<typeof addCrewSchema>;
@@ -138,6 +143,10 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       medicalIssueDate: '',
       medicalExpiryDate: '',
       cocNotApplicable: false,
+      passportTbd: false,
+      cdcTbd: false,
+      cocTbd: false,
+      medicalTbd: false,
     },
   });
 
@@ -174,6 +183,10 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       medicalIssueDate: '',
       medicalExpiryDate: '',
       cocNotApplicable: false,
+      passportTbd: false,
+      cdcTbd: false,
+      cocTbd: false,
+      medicalTbd: false,
     },
   });
 
@@ -614,47 +627,47 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       // Create documents for the new crew member
       const documentsToCreate = [];
 
-      if (data.passportNumber || data.passportExpiryDate) {
+      if (data.passportNumber || data.passportExpiryDate || data.passportTbd) {
         documentsToCreate.push({
           crewMemberId: newCrewMember.id,
           type: 'passport',
           documentNumber: data.passportNumber || 'N/A',
           issuingAuthority: data.passportPlaceOfIssue || 'Unknown',
           issueDate: data.passportIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.passportExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          expiryDate: data.passportTbd ? null : (data.passportExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
         });
       }
 
-      if (data.cdcNumber || data.cdcExpiryDate) {
+      if (data.cdcNumber || data.cdcExpiryDate || data.cdcTbd) {
         documentsToCreate.push({
           crewMemberId: newCrewMember.id,
           type: 'cdc',
           documentNumber: data.cdcNumber || 'N/A',
           issuingAuthority: data.cdcPlaceOfIssue || 'Unknown',
           issueDate: data.cdcIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.cdcExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          expiryDate: data.cdcTbd ? null : (data.cdcExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
         });
       }
 
-      if (!data.cocNotApplicable && (data.cocGradeNo || data.cocExpiryDate)) {
+      if (!data.cocNotApplicable && (data.cocGradeNo || data.cocExpiryDate || data.cocTbd)) {
         documentsToCreate.push({
           crewMemberId: newCrewMember.id,
           type: 'coc',
           documentNumber: data.cocGradeNo || 'N/A',
           issuingAuthority: data.cocPlaceOfIssue || 'Unknown',
           issueDate: data.cocIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.cocExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          expiryDate: data.cocTbd ? null : (data.cocExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
         });
       }
 
-      if (data.medicalApprovalNo || data.medicalExpiryDate) {
+      if (data.medicalApprovalNo || data.medicalExpiryDate || data.medicalTbd) {
         documentsToCreate.push({
           crewMemberId: newCrewMember.id,
           type: 'medical',
           documentNumber: data.medicalApprovalNo || 'N/A',
           issuingAuthority: data.medicalIssuingAuthority || 'Unknown',
           issueDate: data.medicalIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.medicalExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          expiryDate: data.medicalTbd ? null : (data.medicalExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
         });
       }
 
@@ -1022,22 +1035,22 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       };
 
       // Save passport document
-      if (data.passportNumber || data.passportExpiryDate || existingDocs.find(d => d.type === 'passport')) {
+      if (data.passportNumber || data.passportExpiryDate || data.passportTbd || existingDocs.find(d => d.type === 'passport')) {
         await saveDocument('passport', {
           documentNumber: data.passportNumber || 'N/A',
           issuingAuthority: data.passportPlaceOfIssue || 'Unknown',
           issueDate: data.passportIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.passportExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          expiryDate: data.passportTbd ? null : (data.passportExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
         });
       }
 
       // Save CDC document
-      if (data.cdcNumber || data.cdcExpiryDate || existingDocs.find(d => d.type === 'cdc')) {
+      if (data.cdcNumber || data.cdcExpiryDate || data.cdcTbd || existingDocs.find(d => d.type === 'cdc')) {
         await saveDocument('cdc', {
           documentNumber: data.cdcNumber || 'N/A',
           issuingAuthority: data.cdcPlaceOfIssue || 'Unknown',
           issueDate: data.cdcIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.cdcExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          expiryDate: data.cdcTbd ? null : (data.cdcExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
         });
       }
 
@@ -1049,22 +1062,22 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           console.log('Deleting COC document because it is now N/A');
           await fetch(`/api/documents/${cocDoc.id}`, { method: 'DELETE', headers: getAuthHeaders() });
         }
-      } else if (data.cocGradeNo || data.cocExpiryDate || cocDoc) {
+      } else if (data.cocGradeNo || data.cocExpiryDate || data.cocTbd || cocDoc) {
         await saveDocument('coc', {
           documentNumber: data.cocGradeNo || 'N/A',
           issuingAuthority: data.cocPlaceOfIssue || 'Unknown',
           issueDate: data.cocIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.cocExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          expiryDate: data.cocTbd ? null : (data.cocExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
         });
       }
 
       // Save Medical document
-      if (data.medicalApprovalNo || data.medicalExpiryDate || existingDocs.find(d => d.type === 'medical')) {
+      if (data.medicalApprovalNo || data.medicalExpiryDate || data.medicalTbd || existingDocs.find(d => d.type === 'medical')) {
         await saveDocument('medical', {
           documentNumber: data.medicalApprovalNo || 'N/A',
           issuingAuthority: data.medicalIssuingAuthority || 'Unknown',
           issueDate: data.medicalIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.medicalExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          expiryDate: data.medicalTbd ? null : (data.medicalExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
         });
       }
 
@@ -1215,6 +1228,13 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                                 onClick={() => {
                                   console.log('Editing crew member:', member.firstName, member.lastName);
                                   setSelectedCrewForEdit(member);
+
+                                  // Find documents
+                                  const passport = member.documents?.find(d => d.type === 'passport');
+                                  const cdc = member.documents?.find(d => d.type === 'cdc');
+                                  const coc = member.documents?.find(d => d.type === 'coc');
+                                  const medical = member.documents?.find(d => d.type === 'medical');
+
                                   // Pre-populate the edit form with current crew data
                                   editCrewForm.reset({
                                     firstName: member.firstName,
@@ -1228,6 +1248,33 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                                     emergencyContactRelationship: (member.emergencyContact as any)?.relationship || '',
                                     emergencyContactPhone: (member.emergencyContact as any)?.phone || '',
                                     emergencyContactEmail: (member.emergencyContact as any)?.email || '',
+                                    emergencyContactPostalAddress: (member.emergencyContact as any)?.postalAddress || '',
+
+                                    // Documents
+                                    passportNumber: passport?.documentNumber || '',
+                                    passportPlaceOfIssue: passport?.issuingAuthority || '',
+                                    passportIssueDate: passport?.issueDate ? new Date(passport.issueDate).toISOString().split('T')[0] : '',
+                                    passportExpiryDate: passport?.expiryDate ? new Date(passport.expiryDate).toISOString().split('T')[0] : '',
+                                    passportTbd: !!passport && !passport.expiryDate,
+
+                                    cdcNumber: cdc?.documentNumber || '',
+                                    cdcPlaceOfIssue: cdc?.issuingAuthority || '',
+                                    cdcIssueDate: cdc?.issueDate ? new Date(cdc.issueDate).toISOString().split('T')[0] : '',
+                                    cdcExpiryDate: cdc?.expiryDate ? new Date(cdc.expiryDate).toISOString().split('T')[0] : '',
+                                    cdcTbd: !!cdc && !cdc.expiryDate,
+
+                                    cocGradeNo: coc?.documentNumber || '',
+                                    cocPlaceOfIssue: coc?.issuingAuthority || '',
+                                    cocIssueDate: coc?.issueDate ? new Date(coc.issueDate).toISOString().split('T')[0] : '',
+                                    cocExpiryDate: coc?.expiryDate ? new Date(coc.expiryDate).toISOString().split('T')[0] : '',
+                                    cocNotApplicable: member.cocNotApplicable || false,
+                                    cocTbd: !!coc && !coc.expiryDate,
+
+                                    medicalApprovalNo: medical?.documentNumber || '',
+                                    medicalIssuingAuthority: medical?.issuingAuthority || '',
+                                    medicalIssueDate: medical?.issueDate ? new Date(medical.issueDate).toISOString().split('T')[0] : '',
+                                    medicalExpiryDate: medical?.expiryDate ? new Date(medical.expiryDate).toISOString().split('T')[0] : '',
+                                    medicalTbd: !!medical && !medical.expiryDate,
                                   });
                                   setOriginalStatus(member.status);
                                   setStatusChangeReason('');
@@ -1348,7 +1395,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                       <p><span className="font-medium">CDC Number:</span> {cdc?.documentNumber || 'Not provided'}</p>
                       <p><span className="font-medium">Place of Issue:</span> {cdc?.issuingAuthority || 'Not provided'}</p>
                       <p><span className="font-medium">Issue Date:</span> {cdc?.issueDate ? formatDate(cdc.issueDate) : 'Not provided'}</p>
-                      <p><span className="font-medium">Expiry Date:</span> {cdc?.expiryDate ? formatDate(cdc.expiryDate) : 'Not provided'}</p>
+                      <p><span className="font-medium">Expiry Date:</span> {cdc?.expiryDate ? formatDate(cdc.expiryDate) : 'TBD'}</p>
                     </div>
                   </div>
                 );
@@ -1367,7 +1414,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                       <p><span className="font-medium">Passport Number:</span> {passport?.documentNumber || 'Not provided'}</p>
                       <p><span className="font-medium">Place of Issue:</span> {passport?.issuingAuthority || 'Not provided'}</p>
                       <p><span className="font-medium">Issue Date:</span> {passport?.issueDate ? formatDate(passport.issueDate) : 'Not provided'}</p>
-                      <p><span className="font-medium">Expiry Date:</span> {passport?.expiryDate ? formatDate(passport.expiryDate) : 'Not provided'}</p>
+                      <p><span className="font-medium">Expiry Date:</span> {passport?.expiryDate ? formatDate(passport.expiryDate) : 'TBD'}</p>
                     </div>
                   </div>
                 );
@@ -1416,7 +1463,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                       <p><span className="font-medium">COC Grade/Number:</span> {coc?.documentNumber || 'Not provided'}</p>
                       <p><span className="font-medium">Place of Issue:</span> {coc?.issuingAuthority || 'Not provided'}</p>
                       <p><span className="font-medium">Issue Date:</span> {coc?.issueDate ? formatDate(coc.issueDate) : 'Not provided'}</p>
-                      <p><span className="font-medium">Expiry Date:</span> {coc?.expiryDate ? formatDate(coc.expiryDate) : 'Not provided'}</p>
+                      <p><span className="font-medium">Expiry Date:</span> {coc?.expiryDate ? formatDate(coc.expiryDate) : 'TBD'}</p>
                     </div>
                   </div>
                 );
@@ -1435,7 +1482,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                       <p><span className="font-medium">Issuing Authority:</span> {medical?.issuingAuthority || 'Not provided'}</p>
                       <p><span className="font-medium">Approval Number:</span> {medical?.documentNumber || 'Not provided'}</p>
                       <p><span className="font-medium">Issue Date:</span> {medical?.issueDate ? formatDate(medical.issueDate) : 'Not provided'}</p>
-                      <p><span className="font-medium">Expiry Date:</span> {medical?.expiryDate ? formatDate(medical.expiryDate) : 'Not provided'}</p>
+                      <p><span className="font-medium">Expiry Date:</span> {medical?.expiryDate ? formatDate(medical.expiryDate) : 'TBD'}</p>
                     </div>
                   </div>
                 );
@@ -1878,9 +1925,38 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                           <FormItem>
                             <FormLabel>Expiry Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="input-passportExpiryDate" />
+                              <Input
+                                type="date"
+                                {...field}
+                                disabled={addCrewForm.watch('passportTbd')}
+                                data-testid="input-passportExpiryDate"
+                              />
                             </FormControl>
                             <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={addCrewForm.control}
+                        name="passportTbd"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  if (checked) {
+                                    addCrewForm.setValue('passportExpiryDate', '');
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
+                                TBD (To Be Determined)
+                              </FormLabel>
+                            </div>
                           </FormItem>
                         )}
                       />
@@ -1940,9 +2016,38 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                           <FormItem>
                             <FormLabel>Expiry Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="input-cdcExpiryDate" />
+                              <Input
+                                type="date"
+                                {...field}
+                                disabled={addCrewForm.watch('cdcTbd')}
+                                data-testid="input-cdcExpiryDate"
+                              />
                             </FormControl>
                             <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={addCrewForm.control}
+                        name="cdcTbd"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  if (checked) {
+                                    addCrewForm.setValue('cdcExpiryDate', '');
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
+                                TBD (To Be Determined)
+                              </FormLabel>
+                            </div>
                           </FormItem>
                         )}
                       />
@@ -2018,9 +2123,39 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                           <FormItem>
                             <FormLabel className={addCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Expiry Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} disabled={addCrewForm.watch('cocNotApplicable')} data-testid="input-cocExpiryDate" />
+                              <Input
+                                type="date"
+                                {...field}
+                                disabled={addCrewForm.watch('cocNotApplicable') || addCrewForm.watch('cocTbd')}
+                                data-testid="input-cocExpiryDate"
+                              />
                             </FormControl>
                             <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={addCrewForm.control}
+                        name="cocTbd"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  if (checked) {
+                                    addCrewForm.setValue('cocExpiryDate', '');
+                                  }
+                                }}
+                                disabled={addCrewForm.watch('cocNotApplicable')}
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className={`font-normal cursor-pointer ${addCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
+                                TBD (To Be Determined)
+                              </FormLabel>
+                            </div>
                           </FormItem>
                         )}
                       />
@@ -2080,9 +2215,38 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                           <FormItem>
                             <FormLabel>Expiry Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="input-medicalExpiryDate" />
+                              <Input
+                                type="date"
+                                {...field}
+                                disabled={addCrewForm.watch('medicalTbd')}
+                                data-testid="input-medicalExpiryDate"
+                              />
                             </FormControl>
                             <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={addCrewForm.control}
+                        name="medicalTbd"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  if (checked) {
+                                    addCrewForm.setValue('medicalExpiryDate', '');
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
+                                TBD (To Be Determined)
+                              </FormLabel>
+                            </div>
                           </FormItem>
                         )}
                       />
@@ -2564,9 +2728,38 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                           <FormItem>
                             <FormLabel>Expiry Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="edit-input-passportExpiryDate" />
+                              <Input
+                                type="date"
+                                {...field}
+                                disabled={editCrewForm.watch('passportTbd')}
+                                data-testid="edit-input-passportExpiryDate"
+                              />
                             </FormControl>
                             <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editCrewForm.control}
+                        name="passportTbd"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  if (checked) {
+                                    editCrewForm.setValue('passportExpiryDate', '');
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
+                                TBD (To Be Determined)
+                              </FormLabel>
+                            </div>
                           </FormItem>
                         )}
                       />
@@ -2626,9 +2819,38 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                           <FormItem>
                             <FormLabel>Expiry Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="edit-input-cdcExpiryDate" />
+                              <Input
+                                type="date"
+                                {...field}
+                                disabled={editCrewForm.watch('cdcTbd')}
+                                data-testid="edit-input-cdcExpiryDate"
+                              />
                             </FormControl>
                             <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editCrewForm.control}
+                        name="cdcTbd"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  if (checked) {
+                                    editCrewForm.setValue('cdcExpiryDate', '');
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
+                                TBD (To Be Determined)
+                              </FormLabel>
+                            </div>
                           </FormItem>
                         )}
                       />
@@ -2704,9 +2926,39 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                           <FormItem>
                             <FormLabel className={editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Expiry Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} disabled={editCrewForm.watch('cocNotApplicable')} data-testid="edit-input-cocExpiryDate" />
+                              <Input
+                                type="date"
+                                {...field}
+                                disabled={editCrewForm.watch('cocNotApplicable') || editCrewForm.watch('cocTbd')}
+                                data-testid="edit-input-cocExpiryDate"
+                              />
                             </FormControl>
                             <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editCrewForm.control}
+                        name="cocTbd"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  if (checked) {
+                                    editCrewForm.setValue('cocExpiryDate', '');
+                                  }
+                                }}
+                                disabled={editCrewForm.watch('cocNotApplicable')}
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className={`font-normal cursor-pointer ${editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
+                                TBD (To Be Determined)
+                              </FormLabel>
+                            </div>
                           </FormItem>
                         )}
                       />
@@ -2766,9 +3018,38 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                           <FormItem>
                             <FormLabel>Expiry Date</FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="edit-input-medicalExpiryDate" />
+                              <Input
+                                type="date"
+                                {...field}
+                                disabled={editCrewForm.watch('medicalTbd')}
+                                data-testid="edit-input-medicalExpiryDate"
+                              />
                             </FormControl>
                             <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editCrewForm.control}
+                        name="medicalTbd"
+                        render={({ field }) => (
+                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
+                            <FormControl>
+                              <Checkbox
+                                checked={field.value}
+                                onCheckedChange={(checked) => {
+                                  field.onChange(checked);
+                                  if (checked) {
+                                    editCrewForm.setValue('medicalExpiryDate', '');
+                                  }
+                                }}
+                              />
+                            </FormControl>
+                            <div className="space-y-1 leading-none">
+                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
+                                TBD (To Be Determined)
+                              </FormLabel>
+                            </div>
                           </FormItem>
                         )}
                       />

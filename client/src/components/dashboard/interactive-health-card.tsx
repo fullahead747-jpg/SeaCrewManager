@@ -3,7 +3,7 @@ import { useMemo, useRef, useEffect, memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from "@/lib/utils";
-import { AlertCircle, AlertTriangle, Clock, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Clock, CheckCircle2, ShieldAlert, ChevronRight } from 'lucide-react';
 
 export interface HealthDataPoint {
     name: string;
@@ -189,7 +189,7 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
                                     initial={isFirstRender.current ? { opacity: 0, x: -20 } : false}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ duration: 0.4, delay: isFirstRender.current ? index * 0.05 : 0 }}
-                                    className="space-y-1.5 cursor-pointer group/item relative"
+                                    className="space-y-1.5 cursor-pointer group/item relative p-2 -mx-2 rounded-lg hover:bg-accent/50 hover:shadow-sm transition-all active:scale-[0.99]"
                                     onClick={() => onSegmentClick(item.key, item.name)}
                                 >
                                     <div className="flex justify-between text-[12px] font-medium items-center">
@@ -202,23 +202,26 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-1.5">
-                                                <span className="text-muted-foreground/40 group-hover/item:text-foreground transition-colors">
+                                                <span className="text-muted-foreground/40 group-hover/item:text-foreground transition-colors duration-300">
                                                     {getIcon(item.key)}
                                                 </span>
-                                                <span className="text-muted-foreground group-hover/item:text-foreground transition-colors translate-y-[0.5px]">{item.name}</span>
+                                                <span className="text-muted-foreground group-hover/item:text-foreground transition-colors duration-300 translate-y-[0.5px]">{item.name}</span>
                                             </div>
                                         </div>
-                                        <span className="text-foreground flex items-baseline gap-1 bg-secondary/30 px-1.5 py-0.5 rounded-md group-hover/item:bg-secondary/60 transition-colors">
-                                            {item.value}
-                                            <span className="text-muted-foreground/50 text-[9px] font-normal uppercase tracking-wider">({percentage}%)</span>
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-foreground flex items-baseline gap-1 bg-secondary/30 px-1.5 py-0.5 rounded-md group-hover/item:bg-background/80 transition-colors shadow-sm">
+                                                {item.value}
+                                                <span className="text-muted-foreground/50 text-[9px] font-normal uppercase tracking-wider">({percentage}%)</span>
+                                            </span>
+                                            <ChevronRight className="w-3 h-3 text-muted-foreground/0 -translate-x-2 group-hover/item:text-muted-foreground/70 group-hover/item:translate-x-0 transition-all duration-300" />
+                                        </div>
                                     </div>
-                                    <div className="h-2 w-full bg-secondary/50 rounded-full overflow-hidden border border-border/5 dark:border-white/5">
+                                    <div className="h-1.5 w-full bg-secondary/50 rounded-full overflow-hidden border border-border/5 dark:border-white/5">
                                         <motion.div
                                             className="h-full rounded-full shadow-[0_0_10px_rgba(0,0,0,0.1)]"
                                             style={{
                                                 backgroundColor: item.color,
-                                                boxShadow: `0 0 12px ${item.color}40`
+                                                boxShadow: `0 0 8px ${item.color}30`
                                             }}
                                             initial={isFirstRender.current ? { width: 0 } : false}
                                             animate={{ width: `${percentage}%` }}
