@@ -1,8 +1,10 @@
+import React, { useState, useEffect } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { getAuthHeaders } from '@/lib/auth';
 import { DocumentStatusGrid } from './document-status-grid';
 import type { CrewMember, Document } from '@shared/schema';
 import type { CrewDocumentStatus } from '@/lib/crew-status-calculator';
@@ -23,6 +25,35 @@ export function CrewKanbanCard({ crew, documents, statusInfo, onClick }: CrewKan
         transition,
         isDragging,
     } = useSortable({ id: crew.id });
+
+    const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+
+    useEffect(() => {
+        const photoDoc = documents.find(d => d.crewMemberId === crew.id && d.type === 'photo' && d.filePath);
+        if (photoDoc) {
+            const fetchAvatar = async () => {
+                try {
+                    const response = await fetch(`/api/documents/${photoDoc.id}/view`, {
+                        headers: getAuthHeaders()
+                    });
+                    if (response.ok) {
+                        const blob = await response.blob();
+                        const url = URL.createObjectURL(blob);
+                        setAvatarUrl(url);
+                    }
+                } catch (error) {
+                    console.error('Failed to fetch avatar:', error);
+                }
+            };
+            fetchAvatar();
+        }
+
+        return () => {
+            if (avatarUrl) {
+                URL.revokeObjectURL(avatarUrl);
+            }
+        };
+    }, [crew.id, documents]);
 
     const style = {
         transform: CSS.Transform.toString(transform),
@@ -45,13 +76,13 @@ export function CrewKanbanCard({ crew, documents, statusInfo, onClick }: CrewKan
             {/* Header with Avatar and Name */}
             <div className="flex items-center gap-3 mb-3">
                 <Avatar className="w-10 h-10 bg-blue-500 rounded-full flex-shrink-0">
-                    {documents.find(d => d.crewMemberId === crew.id && d.type === 'photo' && d.filePath) && (
+                    {avatarUrl ? (
                         <AvatarImage
-                            src={`/${documents.find(d => d.crewMemberId === crew.id && d.type === 'photo' && d.filePath)?.filePath}`}
+                            src={avatarUrl}
                             alt={`${crew.firstName} ${crew.lastName}`}
                             className="object-cover"
                         />
-                    )}
+                    ) : null}
                     <AvatarFallback className="text-white font-semibold flex items-center justify-center">
                         {initials}
                     </AvatarFallback>
