@@ -151,31 +151,31 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
     };
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row min-h-[400px]">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row min-h-[260px]">
             {/* Left Pane - Profile Information */}
-            <div className="flex-1 p-6 border-r border-slate-100 bg-[#FAFAFA]">
-                <div className="flex items-start justify-between mb-6">
+            <div className="flex-1 p-3 border-r border-slate-100 bg-[#FAFAFA]">
+                <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-4">
                         <CrewAvatar
                             memberId={member.id}
                             documents={documents}
                             firstName={member.firstName}
                             lastName={member.lastName}
-                            className="h-14 w-14 border-2 border-white shadow-md"
+                            className="h-11 w-11 border-2 border-white shadow-md"
                         />
                         <div>
-                            <h3 className="text-lg font-bold text-slate-800 tracking-tight leading-none mb-1">
+                            <h3 className="text-base font-bold text-slate-800 tracking-tight leading-none mb-1">
                                 {member.firstName} {member.lastName}
                             </h3>
-                            <p className="text-slate-400 font-medium text-xs">{member.nationality || 'Nationality'}</p>
+                            <p className="text-slate-400 font-medium text-[10px]">{member.nationality || 'Nationality'}</p>
                         </div>
                     </div>
-                    <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 px-4 py-1.5 rounded-full text-xs font-semibold shadow-sm">
+                    <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 px-3 py-1 rounded-full text-[10px] font-semibold shadow-sm">
                         {member.status === 'onBoard' ? 'On Board' : 'On Shore'}
                     </Badge>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4 mb-6">
+                <div className="grid grid-cols-2 gap-2 mb-3">
                     <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm">
                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Rank</span>
                         <p className="text-[13px] font-semibold text-slate-700">{member.rank}</p>
@@ -186,7 +186,7 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
                     </div>
                 </div>
 
-                <div className="mb-6">
+                <div className="mb-3">
                     <div className="flex justify-between items-center text-[11px] font-semibold mb-2">
                         <span className="text-slate-500">{formatShortDate(startDate)} – {formatShortDate(endDate)}</span>
                         <span className="text-slate-400">{formatShortDate(endDate)}</span>
@@ -206,7 +206,7 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5 pt-4 border-t border-slate-100">
+                <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-slate-100">
                     <Button
                         variant="outline"
                         size="sm"
@@ -254,8 +254,8 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
             </div>
 
             {/* Right Pane - Document Intelligence */}
-            <div className="flex-1 p-6 bg-white">
-                <div className="mb-4">
+            <div className="flex-1 p-3 bg-white">
+                <div className="mb-2">
                     <h4 className="text-base font-bold text-slate-800 mb-0.5">Document Intelligence</h4>
                     <div className="flex items-center gap-1.5 text-[11px] font-semibold">
                         <span className="text-slate-400">{docStatuses.length} Docs</span>
@@ -268,7 +268,7 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
                     </div>
                 </div>
 
-                <div className="space-y-2.5">
+                <div className="space-y-1">
                     {docStatuses.map((doc) => (
                         <div key={doc.type} className="flex items-center justify-between group">
                             <div className="flex items-center gap-3">

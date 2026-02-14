@@ -7,9 +7,19 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { CrewAvatar } from '../crew/crew-avatar';
+import { CrewDetailCard } from '../crew/crew-detail-card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Users, Search, Plus, Eye, UserMinus, Edit, LogOut, LogIn, Trash2, FileText } from 'lucide-react';
+import {
+  Users, Search, Plus, Eye, UserMinus, Edit, LogOut, LogIn, Trash2, FileText, FileSpreadsheet,
+  History, Mail, Download, Phone, MapPin, Calendar, Ship, Info, AlertCircle, Loader2
+} from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1110,28 +1120,232 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
 
 
 
+  // Additional handlers for CrewDetailCard support
+  const handleDownloadCrewDocuments = async (crewId: string, crewName: string) => {
+    try {
+      const response = await fetch(`/api/crew/${crewId}/documents/download`, {
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = `Documents_${crewName.replace(/\s+/g, '_')}.zip`;
+      window.document.body.appendChild(link);
+      link.click();
+      window.document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({
+        title: 'Download Failed',
+        description: 'Could not download documents zip.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const sendCrewEmailMutation = useMutation({
+    mutationFn: async (member: CrewMemberWithDetails) => {
+      const response = await fetch('/api/email/send-crew-details', {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ crewMemberId: member.id }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to send email' }));
+        throw new Error(errorData.message || 'Failed to send email');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Email Sent',
+        description: 'Crew update email has been sent successfully.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Email Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleViewAOAClick = async (m: CrewMemberWithDetails) => {
+    if (m.activeContract?.filePath) {
+      try {
+        const response = await fetch(`/api/contracts/${m.activeContract.id}/view`, {
+          headers: getAuthHeaders(),
+        });
+        if (!response.ok) throw new Error('Failed to fetch document');
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Failed to open AOA document',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      toast({
+        title: 'Not Available',
+        description: 'No AOA document file found for this contract.',
+      });
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      const response = await fetch(`/api/vessels/${vessel.id}/export-excel`, {
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) throw new Error('Failed to generate Excel export');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${vessel.name.replace(/\s+/g, '_')}_CrewReport_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Report Generated',
+        description: 'The professional vessel crew report has been downloaded successfully.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Export Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const [isExporting, setIsExporting] = useState(false);
+  const [isEmailing, setIsEmailing] = useState(false);
+
+  const handleEmailExcel = async () => {
+    try {
+      setIsEmailing(true);
+      const response = await fetch(`/api/vessels/${vessel.id}/email-excel`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to send email' }));
+        throw new Error(errorData.message || 'Failed to send email');
+      }
+      toast({
+        title: 'Email Sent',
+        description: 'The professional Excel report has been emailed successfully.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Email Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsEmailing(false);
+    }
+  };
+
+  const handleEditClick = (member: CrewMemberWithDetails) => {
+    console.log('Editing crew member:', member.firstName, member.lastName);
+    setSelectedCrewForEdit(member);
+
+    // Find documents
+    const passport = member.documents?.find(d => d.type === 'passport');
+    const cdc = member.documents?.find(d => d.type === 'cdc');
+    const coc = member.documents?.find(d => d.type === 'coc');
+    const medical = member.documents?.find(d => d.type === 'medical');
+
+    // Pre-populate the edit form with current crew data
+    editCrewForm.reset({
+      firstName: member.firstName,
+      lastName: member.lastName,
+      nationality: member.nationality,
+      dateOfBirth: typeof member.dateOfBirth === 'string' ? member.dateOfBirth : new Date(member.dateOfBirth).toISOString().split('T')[0],
+      rank: member.rank,
+      phoneNumber: member.phoneNumber || '',
+      status: member.status as 'onBoard' | 'onShore',
+      emergencyContactName: (member.emergencyContact as any)?.name || '',
+      emergencyContactRelationship: (member.emergencyContact as any)?.relationship || '',
+      emergencyContactPhone: (member.emergencyContact as any)?.phone || '',
+      emergencyContactEmail: (member.emergencyContact as any)?.email || '',
+      emergencyContactPostalAddress: (member.emergencyContact as any)?.postalAddress || '',
+
+      // Documents
+      passportNumber: passport?.documentNumber || '',
+      passportPlaceOfIssue: passport?.issuingAuthority || '',
+      passportIssueDate: passport?.issueDate ? new Date(passport.issueDate).toISOString().split('T')[0] : '',
+      passportExpiryDate: passport?.expiryDate ? new Date(passport.expiryDate).toISOString().split('T')[0] : '',
+      passportTbd: !!passport && !passport.expiryDate,
+
+      cdcNumber: cdc?.documentNumber || '',
+      cdcPlaceOfIssue: cdc?.issuingAuthority || '',
+      cdcIssueDate: cdc?.issueDate ? new Date(cdc.issueDate).toISOString().split('T')[0] : '',
+      cdcExpiryDate: cdc?.expiryDate ? new Date(cdc.expiryDate).toISOString().split('T')[0] : '',
+      cdcTbd: !!cdc && !cdc.expiryDate,
+
+      cocGradeNo: coc?.documentNumber || '',
+      cocPlaceOfIssue: coc?.issuingAuthority || '',
+      cocIssueDate: coc?.issueDate ? new Date(coc.issueDate).toISOString().split('T')[0] : '',
+      cocExpiryDate: coc?.expiryDate ? new Date(coc.expiryDate).toISOString().split('T')[0] : '',
+      cocNotApplicable: member.cocNotApplicable || false,
+      cocTbd: !!coc && !coc.expiryDate,
+
+      medicalApprovalNo: medical?.documentNumber || '',
+      medicalIssuingAuthority: medical?.issuingAuthority || '',
+      medicalIssueDate: medical?.issueDate ? new Date(medical.issueDate).toISOString().split('T')[0] : '',
+      medicalExpiryDate: medical?.expiryDate ? new Date(medical.expiryDate).toISOString().split('T')[0] : '',
+      medicalTbd: !!medical && !medical.expiryDate,
+    });
+    setOriginalStatus(member.status);
+    setStatusChangeReason('');
+    setShowEditCrewDialog(true);
+  };
+
+  const handleVesselHistoryClick = (member: CrewMemberWithDetails) => {
+    setSelectedCrewForHistory(member);
+    setShowVesselHistoryDialog(true);
+  };
+
   if (!vessel) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl h-[80vh] max-h-[80vh] flex flex-col p-0">
+      <DialogContent className="sm:max-w-5xl h-[90vh] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-white/20 shadow-2xl">
         {/* Clean Header */}
-        <div className="flex-shrink-0 p-6 border-b bg-white dark:bg-gray-900">
+        <div className="flex-shrink-0 p-3 pb-0 border-b bg-white dark:bg-gray-900">
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
               <Users className="h-5 w-5" />
               View Crew - {vessel.name}
             </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground mt-2">
+            <DialogDescription className="text-xs text-muted-foreground mt-0">
               Manage crew members assigned to this vessel, view their contracts, and assign new crew members.
             </DialogDescription>
           </DialogHeader>
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-6 min-h-0">
+        <div className="flex-1 overflow-y-auto px-6 py-2 min-h-0">
           {/* Search and Action Buttons */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-2">
             <div className="flex-1 max-w-md relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -1142,196 +1356,79 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                 data-testid="crew-search-input"
               />
             </div>
-            <div className="flex gap-3">
+            <div className="flex gap-2">
               <Button
                 variant="outline"
-                className="border-blue-600 text-blue-600 hover:bg-blue-50 px-4 py-2"
+                size="sm"
+                className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 h-8 px-3 text-xs"
+                onClick={handleEmailExcel}
+                disabled={isEmailing}
+              >
+                {isEmailing ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Mail className="h-3.5 w-3.5 mr-1" />}
+                Email (Excel Sheet)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-blue-600 text-blue-600 hover:bg-blue-50 h-8 px-3 text-xs"
+                onClick={handleExportExcel}
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />
+                Export (Excel Sheet)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-blue-600 text-blue-600 hover:bg-blue-50 h-8 px-3 text-xs"
                 onClick={() => {
                   console.log('Add New Crew button clicked');
                   setShowAddCrewDialog(true);
                 }}
                 data-testid="add-new-crew-button"
               >
-                <Plus className="h-4 w-4 mr-2" />
+                <Plus className="h-3.5 w-3.5 mr-1" />
                 Add New Crew
               </Button>
             </div>
           </div>
 
           {/* Current Crew Section */}
-          <div className="mb-4">
-            <h3 className="text-lg font-semibold text-foreground mb-4">
-              Current Crew ({crewMembers.length})
+          <div className="mb-1">
+            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-1.5 flex items-center justify-between">
+              <span>Current Crew Members ({crewMembers.length})</span>
             </h3>
 
             {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Loading crew...</div>
+              <div className="h-64 flex flex-col items-center justify-center gap-4">
+                <Loader2 className="h-10 w-10 animate-spin text-primary opacity-50" />
+                <p className="text-slate-600 dark:text-slate-400 animate-pulse text-sm font-medium tracking-tight">Retrieving real-time data...</p>
+              </div>
             ) : (
-              <div className="rounded-lg border border-gray-200">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50 border-b">
-                      <TableHead className="text-gray-700 font-medium">Crew Member</TableHead>
-                      <TableHead className="text-gray-700 font-medium">Rank</TableHead>
-                      <TableHead className="text-gray-700 font-medium">Contract Status</TableHead>
-                      <TableHead className="text-gray-700 font-medium">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredCrew.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                          {searchTerm ? 'No crew members match your search' : 'No crew assigned to this vessel'}
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredCrew.map((member) => (
-                        <TableRow key={member.id} className="hover:bg-gray-50 border-b border-gray-100" data-testid={`crew-row-${member.id}`}>
-                          <TableCell className="py-4">
-                            <div className="flex items-center space-x-3">
-                              <CrewAvatar
-                                memberId={member.id}
-                                documents={member.documents}
-                                firstName={member.firstName}
-                                lastName={member.lastName}
-                                className="w-10 h-10 bg-gray-200"
-                              />
-                              <div>
-                                <p className="font-medium text-gray-900 text-sm">
-                                  {member.firstName.toUpperCase()} {member.lastName.toUpperCase()}
-                                </p>
-                                <p className="text-xs text-gray-500">{member.nationality}</p>
-                              </div>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-gray-700 text-sm">{member.rank}</TableCell>
-                          <TableCell>
-                            <Badge className="bg-green-100 text-green-800 border-green-200 text-xs px-2 py-1">
-                              Active Contract
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 hover:bg-gray-100"
-                                onClick={() => {
-                                  console.log('Viewing crew member:', member.firstName, member.lastName);
-                                  setSelectedCrewForView(member);
-                                }}
-                                data-testid={`view-crew-${member.id}`}
-                              >
-                                <Eye className="h-4 w-4 text-gray-500" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-8 w-8 p-0 hover:bg-gray-100"
-                                onClick={() => {
-                                  console.log('Editing crew member:', member.firstName, member.lastName);
-                                  setSelectedCrewForEdit(member);
-
-                                  // Find documents
-                                  const passport = member.documents?.find(d => d.type === 'passport');
-                                  const cdc = member.documents?.find(d => d.type === 'cdc');
-                                  const coc = member.documents?.find(d => d.type === 'coc');
-                                  const medical = member.documents?.find(d => d.type === 'medical');
-
-                                  // Pre-populate the edit form with current crew data
-                                  editCrewForm.reset({
-                                    firstName: member.firstName,
-                                    lastName: member.lastName,
-                                    nationality: member.nationality,
-                                    dateOfBirth: typeof member.dateOfBirth === 'string' ? member.dateOfBirth : new Date(member.dateOfBirth).toISOString().split('T')[0],
-                                    rank: member.rank,
-                                    phoneNumber: member.phoneNumber || '',
-                                    status: member.status as 'onBoard' | 'onShore',
-                                    emergencyContactName: (member.emergencyContact as any)?.name || '',
-                                    emergencyContactRelationship: (member.emergencyContact as any)?.relationship || '',
-                                    emergencyContactPhone: (member.emergencyContact as any)?.phone || '',
-                                    emergencyContactEmail: (member.emergencyContact as any)?.email || '',
-                                    emergencyContactPostalAddress: (member.emergencyContact as any)?.postalAddress || '',
-
-                                    // Documents
-                                    passportNumber: passport?.documentNumber || '',
-                                    passportPlaceOfIssue: passport?.issuingAuthority || '',
-                                    passportIssueDate: passport?.issueDate ? new Date(passport.issueDate).toISOString().split('T')[0] : '',
-                                    passportExpiryDate: passport?.expiryDate ? new Date(passport.expiryDate).toISOString().split('T')[0] : '',
-                                    passportTbd: !!passport && !passport.expiryDate,
-
-                                    cdcNumber: cdc?.documentNumber || '',
-                                    cdcPlaceOfIssue: cdc?.issuingAuthority || '',
-                                    cdcIssueDate: cdc?.issueDate ? new Date(cdc.issueDate).toISOString().split('T')[0] : '',
-                                    cdcExpiryDate: cdc?.expiryDate ? new Date(cdc.expiryDate).toISOString().split('T')[0] : '',
-                                    cdcTbd: !!cdc && !cdc.expiryDate,
-
-                                    cocGradeNo: coc?.documentNumber || '',
-                                    cocPlaceOfIssue: coc?.issuingAuthority || '',
-                                    cocIssueDate: coc?.issueDate ? new Date(coc.issueDate).toISOString().split('T')[0] : '',
-                                    cocExpiryDate: coc?.expiryDate ? new Date(coc.expiryDate).toISOString().split('T')[0] : '',
-                                    cocNotApplicable: member.cocNotApplicable || false,
-                                    cocTbd: !!coc && !coc.expiryDate,
-
-                                    medicalApprovalNo: medical?.documentNumber || '',
-                                    medicalIssuingAuthority: medical?.issuingAuthority || '',
-                                    medicalIssueDate: medical?.issueDate ? new Date(medical.issueDate).toISOString().split('T')[0] : '',
-                                    medicalExpiryDate: medical?.expiryDate ? new Date(medical.expiryDate).toISOString().split('T')[0] : '',
-                                    medicalTbd: !!medical && !medical.expiryDate,
-                                  });
-                                  setOriginalStatus(member.status);
-                                  setStatusChangeReason('');
-                                  setShowEditCrewDialog(true);
-                                }}
-                                data-testid={`edit-crew-${member.id}`}
-                              >
-                                <Edit className="h-4 w-4 text-gray-500" />
-                              </Button>
-                              {member.status === 'onShore' ? (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-green-100"
-                                    onClick={() => handleSignOnClick(member)}
-                                    disabled={signOnCrewMutation.isPending}
-                                    data-testid={`signon-crew-${member.id}`}
-                                    title="Sign On"
-                                  >
-                                    <LogIn className="h-4 w-4 text-green-600" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 w-8 p-0 hover:bg-red-100"
-                                    onClick={() => handleDeleteClick(member)}
-                                    disabled={deleteCrewMutation.isPending}
-                                    data-testid={`delete-crew-${member.id}`}
-                                    title="Delete"
-                                  >
-                                    <Trash2 className="h-4 w-4 text-red-500" />
-                                  </Button>
-                                </>
-                              ) : (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="h-8 w-8 p-0 hover:bg-orange-100"
-                                  onClick={() => handleSignOffClick(member)}
-                                  disabled={signOffCrewMutation.isPending}
-                                  data-testid={`signoff-crew-${member.id}`}
-                                  title="Sign Off"
-                                >
-                                  <LogOut className="h-4 w-4 text-orange-600" />
-                                </Button>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+              <div className="space-y-3">
+                {filteredCrew.length === 0 ? (
+                  <div className="h-48 flex items-center justify-center text-slate-500 dark:text-slate-400 italic font-medium bg-white/50 dark:bg-white/5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
+                    {searchTerm ? 'No crew members match your search' : 'No crew assigned to this vessel'}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredCrew.map((member) => (
+                      <CrewDetailCard
+                        key={member.id}
+                        member={member}
+                        documents={member.documents || []}
+                        onView={(m) => setSelectedCrewForView(m)}
+                        onEdit={(m) => handleEditClick(m)}
+                        onVesselHistory={(m) => handleVesselHistoryClick(m)}
+                        onSendMail={(m) => sendCrewEmailMutation.mutate(m)}
+                        onDownload={(id, name) => handleDownloadCrewDocuments(id, name)}
+                        onViewAOA={handleViewAOAClick}
+                        onSignOff={handleSignOffClick}
+                        onSignOn={handleSignOnClick}
+                        isMailPending={sendCrewEmailMutation.isPending}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1340,7 +1437,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
         </div>
 
         {/* Clean Footer */}
-        <div className="flex-shrink-0 border-t p-6 bg-white dark:bg-gray-900">
+        <div className="flex-shrink-0 border-t py-2 px-4 bg-white dark:bg-gray-900">
           <div className="flex justify-end">
             <Button
               variant="outline"
