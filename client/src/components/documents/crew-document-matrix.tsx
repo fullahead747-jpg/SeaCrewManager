@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { CrewAvatar } from '../crew/crew-avatar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -407,22 +408,13 @@ export default function CrewDocumentMatrix() {
                         {/* Crew Member Column */}
                         <TableCell>
                           <div className="flex items-center space-x-3">
-                            <Avatar className="bg-maritime-navy">
-                              {(() => {
-                                const member = crewMembers.find(m => m.id === crewMemberId);
-                                const photoDoc = member?.documents?.find(d => d.type === 'photo' && d.filePath);
-                                return photoDoc ? (
-                                  <AvatarImage
-                                    src={`/${photoDoc.filePath}`}
-                                    alt={getCrewMemberName(crewMemberId)}
-                                    className="object-cover"
-                                  />
-                                ) : null;
-                              })()}
-                              <AvatarFallback className="text-white font-medium">
-                                {getCrewMemberInitials(crewMemberId)}
-                              </AvatarFallback>
-                            </Avatar>
+                            <CrewAvatar
+                              memberId={crewMemberId}
+                              documents={crewMembers.find(m => m.id === crewMemberId)?.documents}
+                              firstName={crewMembers.find(m => m.id === crewMemberId)?.firstName}
+                              lastName={crewMembers.find(m => m.id === crewMemberId)?.lastName}
+                              className="bg-maritime-navy"
+                            />
                             <div>
                               <span className="font-medium" data-testid={`crew-name-${crewMemberId}`}>
                                 {getCrewMemberName(crewMemberId)}

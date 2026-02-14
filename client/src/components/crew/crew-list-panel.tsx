@@ -3,6 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Search } from 'lucide-react';
+import { CrewAvatar } from './crew-avatar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { CrewMember, Document } from '@shared/schema';
 import { calculateCrewStatus } from '@/lib/crew-status-calculator';
@@ -162,18 +163,13 @@ export function CrewListPanel({ crewMembers, documents, selectedCrewId, onSelect
                             }`}
                     >
                         {/* Avatar */}
-                        <Avatar className="w-12 h-12 bg-blue-500 rounded-full flex-shrink-0">
-                            {documents.find(d => d.crewMemberId === crew.id && d.type === 'photo' && d.filePath) && (
-                                <AvatarImage
-                                    src={`/${documents.find(d => d.crewMemberId === crew.id && d.type === 'photo' && d.filePath)?.filePath}`}
-                                    alt={`${crew.firstName} ${crew.lastName}`}
-                                    className="object-cover"
-                                />
-                            )}
-                            <AvatarFallback className="text-white font-semibold flex items-center justify-center">
-                                {getInitials(crew)}
-                            </AvatarFallback>
-                        </Avatar>
+                        <CrewAvatar
+                            memberId={crew.id}
+                            documents={documents}
+                            firstName={crew.firstName}
+                            lastName={crew.lastName}
+                            className="w-12 h-12 bg-blue-500 rounded-full flex-shrink-0"
+                        />
 
                         {/* Info */}
                         <div className="flex-1 min-w-0">

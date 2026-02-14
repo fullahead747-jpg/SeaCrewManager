@@ -1,5 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import { CrewAvatar } from './crew-avatar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -53,35 +54,8 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
     isMailPending
 }) => {
     const { toast } = useToast();
-    const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
     const startDate = member.activeContract?.startDate ? new Date(member.activeContract.startDate) : null;
 
-    useEffect(() => {
-        const photoDoc = documents?.find(d => d.type === 'photo' && d.filePath);
-        if (photoDoc && photoDoc.id) {
-            const fetchAvatar = async () => {
-                try {
-                    const response = await fetch(`/api/documents/${photoDoc.id}/view`, {
-                        headers: getAuthHeaders()
-                    });
-                    if (response.ok) {
-                        const blob = await response.blob();
-                        const url = URL.createObjectURL(blob);
-                        setAvatarUrl(url);
-                    }
-                } catch (error) {
-                    console.error('Failed to fetch avatar:', error);
-                }
-            };
-            fetchAvatar();
-        }
-
-        return () => {
-            if (avatarUrl) {
-                URL.revokeObjectURL(avatarUrl);
-            }
-        };
-    }, [member.id, documents]);
     const endDate = member.activeContract?.endDate ? new Date(member.activeContract.endDate) : null;
     const now = new Date();
 
@@ -182,14 +156,13 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
             <div className="flex-1 p-6 border-r border-slate-100 bg-[#FAFAFA]">
                 <div className="flex items-start justify-between mb-6">
                     <div className="flex items-center gap-4">
-                        <Avatar className="h-14 w-14 border-2 border-white shadow-md">
-                            {avatarUrl ? (
-                                <AvatarImage src={avatarUrl} alt={`${member.firstName} ${member.lastName}`} className="object-cover" />
-                            ) : null}
-                            <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white text-lg font-bold">
-                                {getInitials(member.firstName, member.lastName)}
-                            </AvatarFallback>
-                        </Avatar>
+                        <CrewAvatar
+                            memberId={member.id}
+                            documents={documents}
+                            firstName={member.firstName}
+                            lastName={member.lastName}
+                            className="h-14 w-14 border-2 border-white shadow-md"
+                        />
                         <div>
                             <h3 className="text-lg font-bold text-slate-800 tracking-tight leading-none mb-1">
                                 {member.firstName} {member.lastName}

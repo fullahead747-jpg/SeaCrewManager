@@ -1,4 +1,5 @@
 import { format, differenceInDays, startOfMonth, endOfMonth, addDays, isSameMonth } from 'date-fns';
+import { CrewAvatar } from '../crew/crew-avatar';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Ship, Calendar, AlertTriangle, Clock, TrendingUp, User } from 'lucide-react';
@@ -219,24 +220,13 @@ export default function ContractTimeline({ contracts, crewMembers, vessels, curr
                                             <div className="relative space-y-3">
                                                 {/* Crew Info */}
                                                 <div className="flex items-center gap-3">
-                                                    <Avatar className={cn('h-12 w-12 bg-gradient-to-br shadow-lg ring-2 ring-white/50 dark:ring-slate-700/50', config.gradient)}>
-                                                        {(() => {
-                                                            // Note: In real world, we'd need to pre-fetch photo docs for all crew members
-                                                            // For now, we assume the photo doc might be in the crew object or contracts if joined
-                                                            const member = crewMembers.find(m => m.id === contract.crewMemberId);
-                                                            const photoDoc = member?.documents?.find((d: any) => d.type === 'photo' && d.filePath);
-                                                            return photoDoc ? (
-                                                                <AvatarImage
-                                                                    src={`/${photoDoc.filePath}`}
-                                                                    alt={contract.crewName}
-                                                                    className="object-cover"
-                                                                />
-                                                            ) : null;
-                                                        })()}
-                                                        <AvatarFallback className="text-white text-sm font-bold bg-transparent">
-                                                            {getCrewInitials(contract.crewMemberId)}
-                                                        </AvatarFallback>
-                                                    </Avatar>
+                                                    <CrewAvatar
+                                                        memberId={contract.crewMemberId}
+                                                        documents={crewMembers.find(m => m.id === contract.crewMemberId)?.documents}
+                                                        firstName={contract.crewName.split(' ')[0]}
+                                                        lastName={contract.crewName.split(' ').slice(1).join(' ')}
+                                                        className={cn('h-12 w-12 bg-gradient-to-br shadow-lg ring-2 ring-white/50 dark:ring-slate-700/50', config.gradient)}
+                                                    />
                                                     <div className="flex-1 min-w-0">
                                                         <h5 className="font-semibold text-slate-900 dark:text-slate-100 truncate">
                                                             {contract.crewName}

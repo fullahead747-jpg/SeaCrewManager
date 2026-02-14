@@ -44,6 +44,7 @@ import { ContractProgress } from './contract-progress';
 import { AOAViewDialog } from './aoa-view-dialog';
 import { formatDate } from '@/lib/utils';
 import { CrewDetailCard } from './crew-detail-card';
+import { CrewAvatar } from './crew-avatar';
 import DocumentUpload from '../documents/document-upload';
 
 // Helper function for calculating contract days remaining
@@ -1123,18 +1124,13 @@ export default function CrewTable() {
       <div className="space-y-4">
         <div className="bg-muted rounded-lg p-6">
           <div className="flex items-center space-x-4">
-            <Avatar className="h-16 w-16 bg-maritime-navy">
-              {currentMember.documents?.find(d => d.type === 'photo' && d.filePath) && (
-                <AvatarImage
-                  src={`/${currentMember.documents.find(d => d.type === 'photo' && d.filePath)?.filePath}`}
-                  alt={`${currentMember.firstName} ${currentMember.lastName}`}
-                  className="object-cover"
-                />
-              )}
-              <AvatarFallback className="text-white text-lg font-semibold">
-                {getInitials(currentMember.firstName, currentMember.lastName)}
-              </AvatarFallback>
-            </Avatar>
+            <CrewAvatar
+              memberId={currentMember.id}
+              documents={documents}
+              firstName={currentMember.firstName}
+              lastName={currentMember.lastName}
+              className="h-16 w-16 bg-maritime-navy"
+            />
             <div>
               <h3 className="text-xl font-semibold text-foreground">
                 {currentMember.firstName} {currentMember.lastName}
@@ -1506,18 +1502,13 @@ export default function CrewTable() {
           {selectedCrewMember && (
             <div className="space-y-4">
               <div className="flex items-center space-x-4">
-                <Avatar className="h-16 w-16 bg-maritime-navy">
-                  {selectedCrewMember.documents?.find(d => d.type === 'photo' && d.filePath) && (
-                    <AvatarImage
-                      src={`/${selectedCrewMember.documents.find(d => d.type === 'photo' && d.filePath)?.filePath}`}
-                      alt={`${selectedCrewMember.firstName} ${selectedCrewMember.lastName}`}
-                      className="object-cover"
-                    />
-                  )}
-                  <AvatarFallback className="text-white text-lg font-medium">
-                    {getInitials(selectedCrewMember.firstName, selectedCrewMember.lastName)}
-                  </AvatarFallback>
-                </Avatar>
+                <CrewAvatar
+                  memberId={selectedCrewMember.id}
+                  documents={documents}
+                  firstName={selectedCrewMember.firstName}
+                  lastName={selectedCrewMember.lastName}
+                  className="h-16 w-16 bg-maritime-navy"
+                />
                 <div>
                   <h3 className="text-xl font-semibold text-foreground">
                     {selectedCrewMember.firstName} {selectedCrewMember.lastName}
@@ -1839,18 +1830,13 @@ export default function CrewTable() {
           {selectedCrewForHistory && (
             <div className="space-y-4">
               <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-lg">
-                <Avatar className="h-12 w-12 bg-maritime-navy">
-                  {selectedCrewForHistory.documents?.find(d => d.type === 'photo' && d.filePath) && (
-                    <AvatarImage
-                      src={`/${selectedCrewForHistory.documents.find(d => d.type === 'photo' && d.filePath)?.filePath}`}
-                      alt={`${selectedCrewForHistory.firstName} ${selectedCrewForHistory.lastName}`}
-                      className="object-cover"
-                    />
-                  )}
-                  <AvatarFallback className="text-white text-sm font-medium">
-                    {selectedCrewForHistory.firstName.charAt(0)}{selectedCrewForHistory.lastName.charAt(0)}
-                  </AvatarFallback>
-                </Avatar>
+                <CrewAvatar
+                  memberId={selectedCrewForHistory.id}
+                  documents={selectedCrewForHistory.documents}
+                  firstName={selectedCrewForHistory.firstName}
+                  lastName={selectedCrewForHistory.lastName}
+                  className="h-12 w-12 bg-maritime-navy"
+                />
                 <div>
                   <h3 className="font-medium text-foreground">
                     {selectedCrewForHistory.firstName} {selectedCrewForHistory.lastName}

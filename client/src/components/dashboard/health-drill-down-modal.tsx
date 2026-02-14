@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import DocumentUpload from "@/components/documents/document-upload";
 import EditCrewForm from "@/components/crew/edit-crew-form";
 import SignOnWizardDialog from "@/components/crew/sign-on-wizard-dialog";
+import { CrewAvatar } from "@/components/crew/crew-avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, LogIn, Trash2, Mail, Archive, Users } from "lucide-react";
 import { formatDate } from "@/lib/utils";
@@ -516,18 +517,13 @@ export default function HealthDrillDownModal({
                         <div className="space-y-6">
                             {/* Profile Header */}
                             <div className="flex items-center space-x-4 p-4 bg-muted/50 rounded-lg">
-                                <Avatar className="h-20 w-20 border-2 border-white shadow-sm">
-                                    {selectedCrewMember.documents?.find(d => d.type === 'photo' && d.filePath) && (
-                                        <AvatarImage
-                                            src={`/${selectedCrewMember.documents.find(d => d.type === 'photo' && d.filePath)?.filePath}`}
-                                            alt={`${selectedCrewMember.firstName} ${selectedCrewMember.lastName}`}
-                                            className="object-cover"
-                                        />
-                                    )}
-                                    <AvatarFallback className="text-xl bg-maritime-navy text-white font-semibold">
-                                        {getInitials(selectedCrewMember.firstName, selectedCrewMember.lastName)}
-                                    </AvatarFallback>
-                                </Avatar>
+                                <CrewAvatar
+                                    memberId={selectedCrewMember.id}
+                                    documents={(selectedCrewMember as any).documents}
+                                    firstName={selectedCrewMember.firstName}
+                                    lastName={selectedCrewMember.lastName}
+                                    className="h-20 w-20 border-2 border-white shadow-sm"
+                                />
                                 <div>
                                     <h2 className="text-2xl font-bold text-foreground">
                                         {selectedCrewMember.firstName} {selectedCrewMember.lastName}
@@ -677,18 +673,13 @@ export default function HealthDrillDownModal({
                     {selectedCrewForHistory && (
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-lg">
-                                <Avatar className="h-12 w-12 bg-maritime-navy">
-                                    {selectedCrewForHistory.documents?.find(d => d.type === 'photo' && d.filePath) && (
-                                        <AvatarImage
-                                            src={`/${selectedCrewForHistory.documents.find(d => d.type === 'photo' && d.filePath)?.filePath}`}
-                                            alt={`${selectedCrewForHistory.firstName} ${selectedCrewForHistory.lastName}`}
-                                            className="object-cover"
-                                        />
-                                    )}
-                                    <AvatarFallback className="text-white text-sm font-medium">
-                                        {getInitials(selectedCrewForHistory.firstName, selectedCrewForHistory.lastName)}
-                                    </AvatarFallback>
-                                </Avatar>
+                                <CrewAvatar
+                                    memberId={selectedCrewForHistory.id}
+                                    documents={(selectedCrewForHistory as any).documents}
+                                    firstName={selectedCrewForHistory.firstName}
+                                    lastName={selectedCrewForHistory.lastName}
+                                    className="h-12 w-12 bg-maritime-navy"
+                                />
                                 <div>
                                     <h3 className="font-medium text-foreground">
                                         {selectedCrewForHistory.firstName} {selectedCrewForHistory.lastName}
