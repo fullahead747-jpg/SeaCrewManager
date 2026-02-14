@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Search, Eye, Edit, LogOut, LogIn, X, Ship, Trash2, Mail, Loader2, Archive, FileText, Users } from 'lucide-react';
 import React, { useState } from 'react';
 import { CrewMemberWithDetails, Document } from '@shared/schema';
@@ -229,6 +229,32 @@ export default function CrewTable() {
 
       return { type, status, expiryDate, daysUntil, docId: doc.id, filePath: doc.filePath };
     });
+  };
+
+  const deleteDocumentMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      const response = await fetch(`/api/documents/${documentId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) throw new Error('Failed to delete document');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      toast({ title: 'Success', description: 'Document deleted successfully' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error.message || 'Failed to delete document', variant: 'destructive' });
+    },
+  });
+
+  const handleDeleteDocument = (docId: string, type: string) => {
+    if (window.confirm(`Are you sure you want to delete this ${type.toUpperCase()} document?`)) {
+      deleteDocumentMutation.mutate(docId);
+    }
   };
 
   // Get document type label
@@ -1098,6 +1124,13 @@ export default function CrewTable() {
         <div className="bg-muted rounded-lg p-6">
           <div className="flex items-center space-x-4">
             <Avatar className="h-16 w-16 bg-maritime-navy">
+              {currentMember.documents?.find(d => d.type === 'photo' && d.filePath) && (
+                <AvatarImage
+                  src={`/${currentMember.documents.find(d => d.type === 'photo' && d.filePath)?.filePath}`}
+                  alt={`${currentMember.firstName} ${currentMember.lastName}`}
+                  className="object-cover"
+                />
+              )}
               <AvatarFallback className="text-white text-lg font-semibold">
                 {getInitials(currentMember.firstName, currentMember.lastName)}
               </AvatarFallback>
@@ -1258,6 +1291,7 @@ export default function CrewTable() {
                     onSignOn={handleSignOnClick}
                     onSignOff={handleSignOffClick}
                     onUpload={handleUpload}
+                    onDeleteDocument={handleDeleteDocument}
                     isMailPending={sendCrewEmailMutation.isPending}
                   />
                 );
@@ -1473,6 +1507,13 @@ export default function CrewTable() {
             <div className="space-y-4">
               <div className="flex items-center space-x-4">
                 <Avatar className="h-16 w-16 bg-maritime-navy">
+                  {selectedCrewMember.documents?.find(d => d.type === 'photo' && d.filePath) && (
+                    <AvatarImage
+                      src={`/${selectedCrewMember.documents.find(d => d.type === 'photo' && d.filePath)?.filePath}`}
+                      alt={`${selectedCrewMember.firstName} ${selectedCrewMember.lastName}`}
+                      className="object-cover"
+                    />
+                  )}
                   <AvatarFallback className="text-white text-lg font-medium">
                     {getInitials(selectedCrewMember.firstName, selectedCrewMember.lastName)}
                   </AvatarFallback>
@@ -1799,6 +1840,13 @@ export default function CrewTable() {
             <div className="space-y-4">
               <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-lg">
                 <Avatar className="h-12 w-12 bg-maritime-navy">
+                  {selectedCrewForHistory.documents?.find(d => d.type === 'photo' && d.filePath) && (
+                    <AvatarImage
+                      src={`/${selectedCrewForHistory.documents.find(d => d.type === 'photo' && d.filePath)?.filePath}`}
+                      alt={`${selectedCrewForHistory.firstName} ${selectedCrewForHistory.lastName}`}
+                      className="object-cover"
+                    />
+                  )}
                   <AvatarFallback className="text-white text-sm font-medium">
                     {selectedCrewForHistory.firstName.charAt(0)}{selectedCrewForHistory.lastName.charAt(0)}
                   </AvatarFallback>

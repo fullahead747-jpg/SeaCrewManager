@@ -239,16 +239,21 @@ export default function Dashboard() {
       const workbook = XLSX.utils.book_new();
 
       // Helper function to get document number by type for a crew member
-      const getDocumentNumber = (crewMemberId: string, docType: string) => {
-        if (!documents) return '---';
+      const getDocumentDetails = (crewMemberId: string, docType: string) => {
+        if (!documents) return { no: '---', expiry: '---' };
         const doc = documents.find((d: any) => d.crewMemberId === crewMemberId && d.type?.toLowerCase() === docType.toLowerCase());
-        return doc?.documentNumber || '---';
+        return {
+          no: doc?.documentNumber || '---',
+          expiry: doc?.expiryDate ? format(new Date(doc.expiryDate), 'yyyy-MM-dd') : '---'
+        };
       };
 
       // Helper function to process crew member data
       const processCrewMember = (member: any) => {
         // Get active contract for this crew member
         const activeContract = member.activeContract;
+        let contractNo = activeContract?.contractNumber || '---';
+        let contractType = activeContract?.contractType || '---';
         let contractEndDate = '---';
         let daysToContractEnd = '---';
 
@@ -261,12 +266,10 @@ export default function Dashboard() {
           daysToContractEnd = diffDays.toString();
         }
 
-        // Handle phone number with multiple possible field names and clean formatting
+        // Handle phone number formatting
         let phoneNumber = '---';
         if (member.phoneNumber) {
           phoneNumber = String(member.phoneNumber).replace(/^=/, '').trim();
-        } else if (member.phone) {
-          phoneNumber = String(member.phone).replace(/^=/, '').trim();
         }
 
         // Format Next of Kin (emergency contact)
@@ -277,11 +280,11 @@ export default function Dashboard() {
           nextOfKin = `${member.emergencyContact.name}${relationship}${phone}`;
         }
 
-        // Get document numbers
-        const passportNo = getDocumentNumber(member.id, 'passport');
-        const cdcNo = getDocumentNumber(member.id, 'cdc');
-        const cocNo = getDocumentNumber(member.id, 'coc');
-        const medicalCertNo = getDocumentNumber(member.id, 'medical');
+        // Get document details
+        const passport = getDocumentDetails(member.id, 'passport');
+        const cdc = getDocumentDetails(member.id, 'cdc');
+        const coc = getDocumentDetails(member.id, 'coc');
+        const medical = getDocumentDetails(member.id, 'medical');
 
         return {
           'Full Name': `${member.firstName} ${member.lastName}`,
@@ -290,15 +293,20 @@ export default function Dashboard() {
           'Date of Birth': member.dateOfBirth ? format(new Date(member.dateOfBirth), 'yyyy-MM-dd') : '---',
           'Phone Number': phoneNumber,
           'Email': member.email || '---',
-          'Passport No': passportNo,
-          'CDC No': cdcNo,
-          'COC No': cocNo,
-          'Medical Cert No': medicalCertNo,
+          'Passport No': passport.no,
+          'Passport Expiry': passport.expiry,
+          'CDC No': cdc.no,
+          'CDC Expiry': cdc.expiry,
+          'COC No': coc.no,
+          'COC Expiry': coc.expiry,
+          'Medical Cert No': medical.no,
+          'Medical Expiry': medical.expiry,
           'Next of Kin': nextOfKin,
-          'Employment Status': member.status || '---',
-          'Join Date': member.createdAt ? format(new Date(member.createdAt), 'yyyy-MM-dd') : '---',
+          'Employment Status': member.status === 'onBoard' ? 'ON BOARD' : 'ON SHORE',
+          'Contract No': contractNo,
+          'Contract Type': contractType,
           'Contract End Date': contractEndDate,
-          'Days to Contract End': daysToContractEnd
+          'Days Remaining': daysToContractEnd
         };
       };
 
@@ -309,37 +317,13 @@ export default function Dashboard() {
         // Prepare worksheet data
         const worksheetData: any[] = [];
 
-        // Create empty row template with all columns
-        const emptyRow = {
-          'Full Name': '', 'Rank/Position': '', 'Nationality': '', 'Date of Birth': '',
-          'Phone Number': '', 'Email': '', 'Passport No': '', 'CDC No': '', 'COC No': '',
-          'Medical Cert No': '', 'Next of Kin': '', 'Employment Status': '', 'Join Date': '',
-          'Contract End Date': '', 'Days to Contract End': ''
-        };
-
-        // Add vessel information header
-        worksheetData.push({
-          ...emptyRow,
-          'Full Name': `VESSEL: ${vessel.name}`,
-        });
-
-        worksheetData.push({
-          ...emptyRow,
-          'Full Name': `Type: ${vessel.type || '---'}`,
-          'Rank/Position': `IMO: ${vessel.imoNumber || '---'}`,
-          'Nationality': `Flag: ${vessel.flag || '---'}`,
-          'Date of Birth': `Status: ${vessel.status || '---'}`,
-          'Phone Number': `Crew On Board: ${vesselCrew.filter((crew: any) => crew.status === 'onBoard').length}`,
-        });
-
-        // Add empty row
-        worksheetData.push({ ...emptyRow });
+        // Header info
+        worksheetData.push({ 'Full Name': 'SEA CREW MANAGER - FLEET EXPORT', 'Rank/Position': '', 'Nationality': '', 'Date of Birth': '' });
+        worksheetData.push({ 'Full Name': `VESSEL: ${vessel.name}`, 'Rank/Position': `IMO: ${vessel.imoNumber || '---'}`, 'Nationality': `Flag: ${vessel.flag || '---'}`, 'Date of Birth': `Type: ${vessel.type || '---'}` });
+        worksheetData.push({ 'Full Name': '', 'Rank/Position': '', 'Nationality': '', 'Date of Birth': '' }); // Empty row
 
         if (vesselCrew.length === 0) {
-          worksheetData.push({
-            ...emptyRow,
-            'Full Name': 'No crew members assigned to this vessel',
-          });
+          worksheetData.push({ 'Full Name': 'No crew members currently assigned to this vessel' });
         } else {
           // Add crew data
           vesselCrew.forEach((member: any) => {
@@ -347,37 +331,35 @@ export default function Dashboard() {
           });
 
           // Add vessel summary
-          worksheetData.push({ ...emptyRow });
-
+          worksheetData.push({ 'Full Name': '' });
           worksheetData.push({
-            ...emptyRow,
-            'Full Name': `VESSEL SUMMARY`,
-            'Rank/Position': `Total: ${vesselCrew.length}`,
+            'Full Name': `SUMMARY FOR ${vessel.name}`,
+            'Rank/Position': `Total Crew: ${vesselCrew.length}`,
             'Nationality': `On Board: ${vesselCrew.filter((crew: any) => crew.status === 'onBoard').length}`,
             'Date of Birth': `On Shore: ${vesselCrew.filter((crew: any) => crew.status === 'onShore').length}`,
           });
         }
 
         // Create worksheet for this vessel
-        const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+        const worksheet = XLSX.utils.json_to_sheet(worksheetData, {
+          header: [
+            'Full Name', 'Rank/Position', 'Nationality', 'Date of Birth',
+            'Phone Number', 'Email', 'Passport No', 'Passport Expiry',
+            'CDC No', 'CDC Expiry', 'COC No', 'COC Expiry',
+            'Medical Cert No', 'Medical Expiry', 'Next of Kin',
+            'Employment Status', 'Contract No', 'Contract Type',
+            'Contract End Date', 'Days Remaining'
+          ]
+        });
 
-        // Set column widths for better readability (15 columns now)
+        // Set column widths
         const colWidths = [
-          { wch: 22 }, // Full Name
-          { wch: 18 }, // Rank/Position
-          { wch: 12 }, // Nationality
-          { wch: 12 }, // Date of Birth
-          { wch: 15 }, // Phone Number
-          { wch: 22 }, // Email
-          { wch: 15 }, // Passport No
-          { wch: 15 }, // CDC No
-          { wch: 15 }, // COC No
-          { wch: 15 }, // Medical Cert No
-          { wch: 30 }, // Next of Kin
-          { wch: 15 }, // Employment Status
-          { wch: 12 }, // Join Date
-          { wch: 15 }, // Contract End Date
-          { wch: 18 }  // Days to Contract End
+          { wch: 25 }, { wch: 20 }, { wch: 15 }, { wch: 12 },
+          { wch: 18 }, { wch: 25 }, { wch: 18 }, { wch: 15 },
+          { wch: 18 }, { wch: 15 }, { wch: 18 }, { wch: 15 },
+          { wch: 18 }, { wch: 15 }, { wch: 35 },
+          { wch: 18 }, { wch: 18 }, { wch: 15 },
+          { wch: 18 }, { wch: 15 }
         ];
         worksheet['!cols'] = colWidths;
 
@@ -388,46 +370,12 @@ export default function Dashboard() {
 
       // Add unassigned crew sheet if any
       if (unassignedCrew.length > 0) {
-        const unassignedData: any[] = [];
-
-        // Empty row template for unassigned sheet
-        const unassignedEmptyRow = {
-          'Full Name': '', 'Rank/Position': '', 'Nationality': '', 'Date of Birth': '',
-          'Phone Number': '', 'Email': '', 'Passport No': '', 'CDC No': '', 'COC No': '',
-          'Medical Cert No': '', 'Next of Kin': '', 'Employment Status': '', 'Join Date': '',
-          'Contract End Date': '', 'Days to Contract End': ''
-        };
-
-        // Add header
-        unassignedData.push({
-          ...unassignedEmptyRow,
-          'Full Name': 'UNASSIGNED CREW MEMBERS',
-        });
-
-        unassignedData.push({
-          ...unassignedEmptyRow,
-          'Full Name': `Total: ${unassignedCrew.length}`,
-        });
-
-        // Add empty row
-        unassignedData.push({ ...unassignedEmptyRow });
-
-        // Add unassigned crew data
-        unassignedCrew.forEach((member: any) => {
-          unassignedData.push(processCrewMember(member));
-        });
-
+        const unassignedData = unassignedCrew.map(m => processCrewMember(m));
         const unassignedWorksheet = XLSX.utils.json_to_sheet(unassignedData);
-        const unassignedColWidths = [
-          { wch: 22 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 15 },
-          { wch: 22 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 },
-          { wch: 30 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 18 }
-        ];
-        unassignedWorksheet['!cols'] = unassignedColWidths;
         XLSX.utils.book_append_sheet(workbook, unassignedWorksheet, 'Unassigned Crew');
       }
 
-      // Add Contracts Sheet
+      // Add All Contracts Sheet
       if (contracts && contracts.length > 0) {
         const contractsData = contracts.map((contract: any) => {
           const crewMember = crewMembers.find((c: any) => c.id === contract.crewMemberId);
@@ -435,152 +383,73 @@ export default function Dashboard() {
           return {
             'Crew Member': crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : '---',
             'Vessel': vessel?.name || '---',
+            'Contract No': contract.contractNumber || '---',
+            'Type': contract.contractType || '---',
             'Start Date': contract.startDate ? format(new Date(contract.startDate), 'yyyy-MM-dd') : '---',
             'End Date': contract.endDate ? format(new Date(contract.endDate), 'yyyy-MM-dd') : '---',
-            'Duration (Days)': contract.durationDays || '---',
-            'Salary': contract.salary || '---',
-            'Currency': contract.currency || 'USD',
-            'Status': contract.status || '---',
+            'Salary': `${contract.salary || '0'} ${contract.currency || 'USD'}`,
+            'Status': contract.status?.toUpperCase() || '---',
           };
         });
         const contractsWorksheet = XLSX.utils.json_to_sheet(contractsData);
-        contractsWorksheet['!cols'] = [
-          { wch: 25 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 12 }
-        ];
-        XLSX.utils.book_append_sheet(workbook, contractsWorksheet, 'All Contracts');
+        XLSX.utils.book_append_sheet(workbook, contractsWorksheet, 'All Contracts History');
       }
 
-      // Add Documents Sheet
-      if (documents && documents.length > 0) {
-        const documentsData = documents.map((doc: any) => {
-          const crewMember = crewMembers.find((c: any) => c.id === doc.crewMemberId);
-          return {
-            'Crew Member': crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : '---',
-            'Document Type': doc.type || '---',
-            'Document Number': doc.documentNumber || '---',
-            'Issue Date': doc.issueDate ? format(new Date(doc.issueDate), 'yyyy-MM-dd') : '---',
-            'Expiry Date': doc.expiryDate ? format(new Date(doc.expiryDate), 'yyyy-MM-dd') : '---',
-            'Issuing Authority': doc.issuingAuthority || '---',
-            'Status': doc.status || '---',
-          };
-        });
-        const documentsWorksheet = XLSX.utils.json_to_sheet(documentsData);
-        documentsWorksheet['!cols'] = [
-          { wch: 25 }, { wch: 15 }, { wch: 18 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 12 }
-        ];
-        XLSX.utils.book_append_sheet(workbook, documentsWorksheet, 'All Documents');
-      }
-
-      // Add Crew Rotations Sheet
-      if (rotations && rotations.length > 0) {
-        const rotationsData = rotations.map((rotation: any) => {
-          const crewMember = crewMembers.find((c: any) => c.id === rotation.crewMemberId);
-          const vessel = vessels.find((v: any) => v.id === rotation.vesselId);
-          return {
-            'Crew Member': crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : '---',
-            'Vessel': vessel?.name || '---',
-            'Join Date': rotation.joinDate ? format(new Date(rotation.joinDate), 'yyyy-MM-dd') : '---',
-            'Leave Date': rotation.leaveDate ? format(new Date(rotation.leaveDate), 'yyyy-MM-dd') : '---',
-            'Rotation Type': rotation.rotationType || '---',
-            'Status': rotation.status || '---',
-            'Notes': rotation.notes || '---',
-          };
-        });
-        const rotationsWorksheet = XLSX.utils.json_to_sheet(rotationsData);
-        rotationsWorksheet['!cols'] = [
-          { wch: 25 }, { wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 12 }, { wch: 30 }
-        ];
-        XLSX.utils.book_append_sheet(workbook, rotationsWorksheet, 'Crew Rotations');
-      }
-
-      // Add Vessels Details Sheet
-      if (vessels && vessels.length > 0) {
-        const vesselsData = vessels.map((vessel: any) => {
-          const vesselCrew = vesselGroups[vessel.id] || [];
-          return {
-            'Vessel Name': vessel.name || '---',
-            'Type': vessel.type || '---',
-            'IMO Number': vessel.imoNumber || '---',
-            'Flag': vessel.flag || '---',
-            'Status': vessel.status || '---',
-            'Total Crew': vesselCrew.length,
-            'Crew On Board': vesselCrew.filter((c: any) => c.status === 'onBoard').length,
-            'Crew On Shore': vesselCrew.filter((c: any) => c.status === 'onShore').length,
-          };
-        });
-        const vesselsWorksheet = XLSX.utils.json_to_sheet(vesselsData);
-        vesselsWorksheet['!cols'] = [
-          { wch: 25 }, { wch: 18 }, { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 12 }, { wch: 15 }, { wch: 15 }
-        ];
-        XLSX.utils.book_append_sheet(workbook, vesselsWorksheet, 'Vessel Details');
-      }
-
-      // Create summary sheet
+      // Add Summary sheet at the beginning
       const summaryData = [
-        { Field: 'COMPREHENSIVE DATA EXPORT REPORT', Value: '' },
-        { Field: 'Generated on', Value: format(new Date(), 'MMMM dd, yyyy at HH:mm') },
+        { Field: 'SEA CREW MANAGER - COMPLETE FLEET REPORT', Value: '' },
+        { Field: 'Date Generated', Value: format(new Date(), 'MMMM dd, yyyy HH:mm') },
         { Field: '', Value: '' },
-        { Field: 'FLEET SUMMARY STATISTICS', Value: '' },
-        { Field: 'Total Crew Members', Value: crewMembers.length },
-        { Field: 'Total Vessels', Value: vessels.length },
-        { Field: 'Total Contracts', Value: contracts?.length || 0 },
-        { Field: 'Total Documents', Value: documents?.length || 0 },
-        { Field: 'Total Rotations', Value: rotations?.length || 0 },
-        { Field: 'Crew On Board', Value: crewMembers.filter((member: any) => member.status === 'onBoard').length },
-        { Field: 'Crew On Shore', Value: crewMembers.filter((member: any) => member.status === 'onShore').length },
-        { Field: 'Unassigned Crew', Value: unassignedCrew.length },
+        { Field: 'FLEET STATISTICS', Value: '' },
+        { Field: 'Total Crew Records', Value: crewMembers.length },
+        { Field: 'Total Active Vessels', Value: vessels.length },
+        { Field: 'Total Contract Records', Value: contracts?.length || 0 },
+        { Field: 'Total Documents Uploaded', Value: documents?.length || 0 },
         { Field: '', Value: '' },
-        { Field: 'VESSEL BREAKDOWN', Value: '' }
+        { Field: 'CREW STATUS BREAKDOWN', Value: '' },
+        { Field: 'On Board', Value: crewMembers.filter((m: any) => m.status === 'onBoard').length },
+        { Field: 'On Shore', Value: crewMembers.filter((m: any) => m.status === 'onShore').length },
+        { Field: '', Value: '' },
+        { Field: 'VESSEL ASSIGNMENTS', Value: '' }
       ];
 
-      // Add vessel breakdown
-      vessels.forEach((vessel: any) => {
-        const vesselCrew = vesselGroups[vessel.id] || [];
-        summaryData.push({
-          Field: vessel.name,
-          Value: `${vesselCrew.length} crew (${vesselCrew.filter((crew: any) => crew.status === 'onBoard').length} on board)`
-        });
+      vessels.forEach((v: any) => {
+        const count = (vesselGroups[v.id] || []).length;
+        summaryData.push({ Field: v.name, Value: `${count} Crew Members` });
       });
 
       const summaryWorksheet = XLSX.utils.json_to_sheet(summaryData);
-      summaryWorksheet['!cols'] = [{ wch: 30 }, { wch: 40 }];
+      summaryWorksheet['!cols'] = [{ wch: 35 }, { wch: 45 }];
 
-      // Insert summary sheet at the beginning by appending it first
-      const tempWorkbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(tempWorkbook, summaryWorksheet, 'Summary');
+      const finalWorkbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(finalWorkbook, summaryWorksheet, 'Dashboard Summary');
 
-      // Copy all vessel sheets to the new workbook
-      workbook.SheetNames.forEach(sheetName => {
-        XLSX.utils.book_append_sheet(tempWorkbook, workbook.Sheets[sheetName], sheetName);
+      // Copy other sheets
+      workbook.SheetNames.forEach(name => {
+        XLSX.utils.book_append_sheet(finalWorkbook, workbook.Sheets[name], name);
       });
 
-      // Replace the workbook with the reordered one
-      Object.assign(workbook, tempWorkbook);
-
       // Generate Excel file
-      const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+      const excelBuffer = XLSX.write(finalWorkbook, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
       const link = document.createElement('a');
-      if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `Crew-Management-Complete-Export-${format(new Date(), 'yyyy-MM-dd-HHmm')}.xlsx`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `SeaCrewManager_FullExport_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
       toast({
-        title: 'Export Successful',
-        description: `Complete data exported: ${crewMembers.length} crew, ${vessels.length} vessels, ${contracts?.length || 0} contracts, ${documents?.length || 0} documents`,
+        title: 'Report Generated',
+        description: 'The professional fleet export has been downloaded successfully.',
       });
     } catch (error) {
       console.error('Export error:', error);
       toast({
         title: 'Export Failed',
-        description: 'Unable to export crew data. Please try again.',
+        description: 'Unable to generate the professional report. Please try again.',
         variant: 'destructive',
       });
     }
@@ -617,7 +486,12 @@ export default function Dashboard() {
 
       {/* Minimal Health Index Summary - Text Only */}
       {stats && (
-        <MinimalHealthRow stats={stats} className="mb-4" />
+        <MinimalHealthRow
+          stats={stats}
+          className="mb-4"
+          onSearchClick={() => handleDrillDown('contract', 'global-search', 'Global Crew Search')}
+          onDownloadClick={exportCrewByVessel}
+        />
       )}
 
       {/* Interactive Health Sections - Vertical Stack */}

@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { CheckCircle, Clock, AlertTriangle, Users, Ship } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatDate } from '@/lib/utils';
@@ -140,6 +140,13 @@ export default function ContractStatusModal({
                       <div className="flex items-start justify-between">
                         <div className="flex items-start space-x-3">
                           <Avatar className="bg-maritime-navy">
+                            {member.documents?.find((d: any) => d.type === 'photo' && d.filePath) && (
+                              <AvatarImage
+                                src={`/${member.documents.find((d: any) => d.type === 'photo' && d.filePath)?.filePath}`}
+                                alt={`${member.firstName} ${member.lastName}`}
+                                className="object-cover"
+                              />
+                            )}
                             <AvatarFallback className="text-white font-medium text-sm">
                               {getInitials(member.firstName, member.lastName)}
                             </AvatarFallback>

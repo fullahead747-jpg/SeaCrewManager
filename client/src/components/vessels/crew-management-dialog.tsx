@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Users, Search, Plus, Eye, UserMinus, Edit, LogOut, LogIn, Trash2, FileText } from 'lucide-react';
 import {
@@ -1189,6 +1189,13 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                           <TableCell className="py-4">
                             <div className="flex items-center space-x-3">
                               <Avatar className="w-10 h-10 bg-gray-200">
+                                {member.documents?.find(d => d.type === 'photo' && d.filePath) && (
+                                  <AvatarImage
+                                    src={`/${member.documents.find(d => d.type === 'photo' && d.filePath)?.filePath}`}
+                                    alt={`${member.firstName} ${member.lastName}`}
+                                    className="object-cover"
+                                  />
+                                )}
                                 <AvatarFallback className="text-gray-600 font-medium text-sm">
                                   {getInitials(member.firstName, member.lastName)}
                                 </AvatarFallback>

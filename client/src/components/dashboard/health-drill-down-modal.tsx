@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
-import { Loader2, AlertCircle, Anchor, Calendar, User, Ship, Clock, FileText, Eye } from "lucide-react";
+import { Loader2, AlertCircle, Anchor, Calendar, User, Ship, Clock, FileText, Eye, Search, X } from "lucide-react";
 import { CrewMemberWithDetails, Vessel, Document } from "@shared/schema";
 
 
@@ -18,10 +18,11 @@ import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { cn } from "@/lib/utils";
 import DocumentUpload from "@/components/documents/document-upload";
 import EditCrewForm from "@/components/crew/edit-crew-form";
 import SignOnWizardDialog from "@/components/crew/sign-on-wizard-dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, LogIn, Trash2, Mail, Archive, Users } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
@@ -69,6 +70,7 @@ export default function HealthDrillDownModal({
     const [signOffReason, setSignOffReason] = useState("");
     const [signOnDialogOpen, setSignOnDialogOpen] = useState(false);
     const [selectedCrewForSignOn, setSelectedCrewForSignOn] = useState<CrewMemberWithDetails | null>(null);
+    const [searchTerm, setSearchTerm] = useState("");
 
     // Fetch documents for the cards
     const { data: documents = [] } = useQuery<Document[]>({
@@ -220,6 +222,26 @@ export default function HealthDrillDownModal({
         },
     });
 
+    const deleteDocumentMutation = useMutation({
+        mutationFn: async (documentId: string) => {
+            const response = await fetch(`/api/documents/${documentId}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders(),
+            });
+            if (!response.ok) throw new Error('Failed to delete document');
+            return response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/dashboard/drilldown'] });
+            toast({ title: 'Success', description: 'Document deleted successfully' });
+        },
+        onError: (error: any) => {
+            toast({ title: 'Error', description: error.message || 'Failed to delete document', variant: 'destructive' });
+        },
+    });
+
     const { data: detailData, isLoading, error } = useQuery({
         queryKey: ['/api/dashboard/drilldown', type, categoryKey, vesselId],
         queryFn: async () => {
@@ -235,6 +257,19 @@ export default function HealthDrillDownModal({
         },
         enabled: isOpen && !!categoryKey,
     });
+
+    const filteredData = detailData?.filter((item: any) => {
+        if (!searchTerm) return true;
+        const search = searchTerm.toLowerCase();
+        const fullName = `${item.firstName || ""} ${item.lastName || ""}`.toLowerCase();
+        return (
+            item.firstName?.toLowerCase().includes(search) ||
+            item.lastName?.toLowerCase().includes(search) ||
+            item.rank?.toLowerCase().includes(search) ||
+            item.nationality?.toLowerCase().includes(search) ||
+            fullName.includes(search)
+        );
+    }) || [];
 
     const handleUpload = (member: any, type: string) => {
         setSelectedCrewForUpload(member);
@@ -346,6 +381,12 @@ export default function HealthDrillDownModal({
         setSignOnDialogOpen(true);
     };
 
+    const handleDeleteDocument = (docId: string, type: string) => {
+        if (window.confirm(`Are you sure you want to delete this ${type.toUpperCase()} document?`)) {
+            deleteDocumentMutation.mutate(docId);
+        }
+    };
+
     const handleViewAOAClick = async (m: CrewMemberWithDetails) => {
         if (m.activeContract?.filePath) {
             try {
@@ -375,17 +416,47 @@ export default function HealthDrillDownModal({
             <Dialog open={isOpen} onOpenChange={onClose}>
                 <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-white/20 shadow-2xl">
                     <DialogHeader className="p-6 pb-2 border-b border-border/10">
-                        <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
-                            {type === 'contract' ? 'Contract Details' : 'Document Details'}
-                            <Badge className="ml-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-bold">
-                                {categoryName}
-                            </Badge>
-                        </DialogTitle>
-                        <DialogDescription className="text-slate-600 dark:text-slate-400 font-medium">
-                            {type === 'contract'
-                                ? `List of crew members whose contracts are currently in the "${categoryName}" category.`
-                                : `List of documents currently in the "${categoryName}" category.`}
-                        </DialogDescription>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div>
+                                <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+                                    {categoryKey === 'global-search' ? 'Global Crew Search' : (type === 'contract' ? 'Contract Details' : 'Document Details')}
+                                    {categoryKey !== 'global-search' && (
+                                        <Badge className="ml-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-bold">
+                                            {categoryName}
+                                        </Badge>
+                                    )}
+                                </DialogTitle>
+                                <DialogDescription className="text-slate-600 dark:text-slate-400 font-medium mt-1">
+                                    {categoryKey === 'global-search'
+                                        ? 'Search across all crew members in the system by name, rank, or nationality.'
+                                        : (type === 'contract'
+                                            ? `List of crew members whose contracts are currently in the "${categoryName}" category.`
+                                            : `List of documents currently in the "${categoryName}" category.`)}
+                                </DialogDescription>
+                            </div>
+                            <div className="relative w-full md:w-72">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <Input
+                                    placeholder="Search crew members..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className={cn(
+                                        "pl-9 pr-9 bg-slate-50 border-slate-200 focus:bg-white transition-all h-9",
+                                        categoryKey === 'global-search' && "border-blue-400 ring-1 ring-blue-400/20"
+                                    )}
+                                    autoFocus={categoryKey === 'global-search'}
+                                    data-testid="drilldown-search-input"
+                                />
+                                {searchTerm && (
+                                    <button
+                                        onClick={() => setSearchTerm("")}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-slate-200 rounded-full transition-colors"
+                                    >
+                                        <X className="h-3 w-3 text-slate-500" />
+                                    </button>
+                                )}
+                            </div>
+                        </div>
                     </DialogHeader>
 
                     <div className="flex-1 min-h-[400px] max-h-[calc(85vh-180px)] overflow-y-auto custom-scrollbar bg-slate-50/30 dark:bg-black/20 p-4">
@@ -402,8 +473,8 @@ export default function HealthDrillDownModal({
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {detailData && detailData.length > 0 ? (
-                                    detailData.map((item: any) => (
+                                {filteredData && filteredData.length > 0 ? (
+                                    filteredData.map((item: any) => (
                                         <CrewDetailCard
                                             key={item.id}
                                             member={item}
@@ -446,6 +517,13 @@ export default function HealthDrillDownModal({
                             {/* Profile Header */}
                             <div className="flex items-center space-x-4 p-4 bg-muted/50 rounded-lg">
                                 <Avatar className="h-20 w-20 border-2 border-white shadow-sm">
+                                    {selectedCrewMember.documents?.find(d => d.type === 'photo' && d.filePath) && (
+                                        <AvatarImage
+                                            src={`/${selectedCrewMember.documents.find(d => d.type === 'photo' && d.filePath)?.filePath}`}
+                                            alt={`${selectedCrewMember.firstName} ${selectedCrewMember.lastName}`}
+                                            className="object-cover"
+                                        />
+                                    )}
                                     <AvatarFallback className="text-xl bg-maritime-navy text-white font-semibold">
                                         {getInitials(selectedCrewMember.firstName, selectedCrewMember.lastName)}
                                     </AvatarFallback>
@@ -600,6 +678,13 @@ export default function HealthDrillDownModal({
                         <div className="space-y-4">
                             <div className="flex items-center space-x-3 p-4 bg-muted/50 rounded-lg">
                                 <Avatar className="h-12 w-12 bg-maritime-navy">
+                                    {selectedCrewForHistory.documents?.find(d => d.type === 'photo' && d.filePath) && (
+                                        <AvatarImage
+                                            src={`/${selectedCrewForHistory.documents.find(d => d.type === 'photo' && d.filePath)?.filePath}`}
+                                            alt={`${selectedCrewForHistory.firstName} ${selectedCrewForHistory.lastName}`}
+                                            className="object-cover"
+                                        />
+                                    )}
                                     <AvatarFallback className="text-white text-sm font-medium">
                                         {getInitials(selectedCrewForHistory.firstName, selectedCrewForHistory.lastName)}
                                     </AvatarFallback>

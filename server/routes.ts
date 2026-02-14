@@ -2950,16 +2950,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (key === 'shored') {
           return crewMembers
             .filter(m => m.status === 'onShore')
-            .map(m => ({
-              id: m.id,
-              crewName: `${m.firstName} ${m.lastName}`,
-              vesselName: 'On Shore',
-              expiryDate: null,
-              crewMemberId: m.id,
-              rank: m.rank,
-              daysRemaining: undefined,
-              systemComment: `✅ Crew member is currently on shore standby and ready for assignment.`
-            }));
+            .map(m => {
+              const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
+              return {
+                ...m,
+                currentVessel: null,
+                activeContract: activeContract || null,
+                documents: allDocuments.filter(d => d.crewMemberId === m.id)
+              };
+            });
+        } else if (key === 'global-search') {
+          // Return all crew members for global search
+          return crewMembers.map(m => {
+            const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
+            const vessel = vessels.find(v => v.id === m.currentVesselId);
+            return {
+              ...m,
+              currentVessel: vessel || null,
+              activeContract: activeContract || null,
+              documents: allDocuments.filter(d => d.crewMemberId === m.id)
+            };
+          });
         } else if (key === 'overdue') {
           return crewMembers
             .filter(m => {

@@ -1,11 +1,11 @@
 
 import React from 'react';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
     Eye, Edit, History, LogOut, LogIn,
-    FileText, Download, Upload, Mail, ChevronDown,
-    CheckCircle2, AlertCircle, HelpCircle
+    FileText, Download, Upload, Mail, ChevronDown, Trash2,
+    CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { CrewMemberWithDetails, Document } from '@shared/schema';
 import { formatDate } from '@/lib/utils';
@@ -29,6 +29,7 @@ interface CrewDetailCardProps {
     onDownload: (id: string, name: string) => void;
     onViewAOA: (member: CrewMemberWithDetails) => void;
     onDelete?: (member: CrewMemberWithDetails) => void;
+    onDeleteDocument?: (docId: string, type: string) => void;
     onSignOn?: (member: CrewMemberWithDetails) => void;
     onSignOff?: (member: CrewMemberWithDetails) => void;
     onUpload?: (member: CrewMemberWithDetails, type: string) => void;
@@ -45,6 +46,7 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
     onDownload,
     onViewAOA,
     onDelete,
+    onDeleteDocument,
     onSignOn,
     onSignOff,
     onUpload,
@@ -153,6 +155,12 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
                 <div className="flex items-start justify-between mb-6">
                     <div className="flex items-center gap-4">
                         <Avatar className="h-14 w-14 border-2 border-white shadow-md">
+                            {(() => {
+                                const photoDoc = docStatuses.find(d => d.type === 'photo' && d.filePath);
+                                return photoDoc ? (
+                                    <AvatarImage src={`/${photoDoc.filePath}`} alt={`${member.firstName} ${member.lastName}`} className="object-cover" />
+                                ) : null;
+                            })()}
                             <AvatarFallback className="bg-gradient-to-br from-blue-500 to-blue-600 text-white text-lg font-bold">
                                 {getInitials(member.firstName, member.lastName)}
                             </AvatarFallback>
@@ -291,11 +299,11 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
                                         {doc.status === 'expiring' && (
                                             <span className="text-[10px] font-bold text-amber-500 px-2">Expiring</span>
                                         )}
-                                        <div className="flex items-center divide-x divide-slate-200">
+                                        <div className="flex items-center gap-0.5">
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="h-7 w-14 text-[10px] text-slate-600 hover:text-slate-900 border border-slate-200 bg-white shadow-sm rounded-l-md"
+                                                className="h-7 w-14 text-[10px] text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md"
                                                 onClick={() => handleDocClick(doc)}
                                             >
                                                 <Eye className="h-3 w-3 mr-0.5" /> View
@@ -303,7 +311,7 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
                                             <Button
                                                 variant="ghost"
                                                 size="sm"
-                                                className="h-7 px-1.5 text-slate-500 hover:text-slate-800 border-y border-slate-200 bg-white shadow-sm"
+                                                className="h-7 px-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md"
                                                 onClick={() => onDownload(doc.docId!, doc.type)}
                                             >
                                                 <Download className="h-3 w-3" />
@@ -314,7 +322,7 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            className="h-7 px-1.5 text-slate-500 hover:text-slate-800 border border-slate-200 bg-white shadow-sm rounded-r-md"
+                                                            className="h-7 px-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md"
                                                         >
                                                             <Mail className="h-3 w-3 mr-0.5" />
                                                             <ChevronDown className="h-2.5 w-2.5" />
@@ -333,13 +341,21 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="h-7 px-1.5 text-slate-500 hover:text-slate-800 border border-slate-200 bg-white shadow-sm rounded-r-md"
+                                                    className="h-7 px-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md"
                                                     onClick={() => onSendMail(member)}
                                                 >
                                                     <Mail className="h-3 w-3" />
                                                 </Button>
                                             )}
                                         </div>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 px-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md ml-0.5"
+                                            onClick={() => onDeleteDocument?.(doc.docId!, doc.type)}
+                                        >
+                                            <Trash2 className="h-3 w-3" />
+                                        </Button>
                                     </>
                                 )}
                             </div>

@@ -61,8 +61,8 @@ const DonutSegment = ({
         <motion.path
             d={getPath(startAngle, endAngle)}
             stroke={color}
-            strokeWidth={25}
-            strokeLinecap="round"
+            strokeWidth={22}
+            strokeLinecap="butt"
             fill="none"
             initial={{ pathLength: 0, opacity: 0 }}
             animate={{ pathLength: 1, opacity: 1 }}
@@ -112,7 +112,7 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
     const activeData = memoizedData.filter(d => d.value > 0);
 
     // Fixed Gap Logic (similar to Recharts paddingAngle)
-    const GAP_SIZE = 12; // Degrees
+    const GAP_SIZE = 0; // Degrees - Removed all gaps for a solid look
     const totalGaps = activeData.length * GAP_SIZE;
     const availableAngle = 360 - totalGaps;
 

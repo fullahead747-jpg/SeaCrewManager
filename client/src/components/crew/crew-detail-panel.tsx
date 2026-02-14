@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Download } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion } from 'framer-motion';
 import { DocumentCardDetailed } from './document-card-detailed';
 import type { CrewMember, Document } from '@shared/schema';
@@ -74,9 +75,18 @@ export function CrewDetailPanel({ crew, documents, onDownloadAll, onViewDocument
                 <div className="flex items-start justify-between">
                     <div className="flex items-center gap-6">
                         {/* Large Avatar */}
-                        <div className="w-24 h-24 rounded-full bg-blue-500 flex items-center justify-center text-white text-3xl font-semibold">
-                            {getInitials()}
-                        </div>
+                        <Avatar className="w-24 h-24 rounded-full bg-blue-500 flex-shrink-0">
+                            {documents.find(d => d.crewMemberId === crew.id && d.type === 'photo' && d.filePath) && (
+                                <AvatarImage
+                                    src={`/${documents.find(d => d.crewMemberId === crew.id && d.type === 'photo' && d.filePath)?.filePath}`}
+                                    alt={`${crew.firstName} ${crew.lastName}`}
+                                    className="object-cover"
+                                />
+                            )}
+                            <AvatarFallback className="text-white text-3xl font-semibold flex items-center justify-center">
+                                {getInitials()}
+                            </AvatarFallback>
+                        </Avatar>
 
                         {/* Info */}
                         <div>

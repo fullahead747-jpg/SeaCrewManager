@@ -2,6 +2,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DocumentStatusGrid } from './document-status-grid';
 import type { CrewMember, Document } from '@shared/schema';
 import type { CrewDocumentStatus } from '@/lib/crew-status-calculator';
@@ -43,9 +44,18 @@ export function CrewKanbanCard({ crew, documents, statusInfo, onClick }: CrewKan
         >
             {/* Header with Avatar and Name */}
             <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold">
-                    {initials}
-                </div>
+                <Avatar className="w-10 h-10 bg-blue-500 rounded-full flex-shrink-0">
+                    {documents.find(d => d.crewMemberId === crew.id && d.type === 'photo' && d.filePath) && (
+                        <AvatarImage
+                            src={`/${documents.find(d => d.crewMemberId === crew.id && d.type === 'photo' && d.filePath)?.filePath}`}
+                            alt={`${crew.firstName} ${crew.lastName}`}
+                            className="object-cover"
+                        />
+                    )}
+                    <AvatarFallback className="text-white font-semibold flex items-center justify-center">
+                        {initials}
+                    </AvatarFallback>
+                </Avatar>
                 <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-sm truncate">
                         {crew.firstName} {crew.lastName}

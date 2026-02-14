@@ -15,7 +15,6 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { format, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, addDays, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
-import ContractTimeline from '@/components/calendar/contract-timeline';
 
 interface ContractEvent {
   id: string;
@@ -39,7 +38,7 @@ export default function Scheduling() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [sendToAdditional, setSendToAdditional] = useState(false);
   const [additionalEmail, setAdditionalEmail] = useState('');
-  const [viewMode, setViewMode] = useState<'timeline' | 'grid'>('timeline');
+  const [viewMode, setViewMode] = useState<'timeline' | 'grid'>('grid');
 
   const sendCalendarEmailMutation = useMutation({
     mutationFn: async (data: { month: string; events: ContractEvent[]; additionalEmail?: string }) => {
@@ -86,6 +85,7 @@ export default function Scheduling() {
       if (!response.ok) throw new Error('Failed to fetch contracts');
       return response.json();
     },
+    refetchInterval: 15000, // Auto-update every 15 seconds
   });
 
   const { data: crewMembers } = useQuery({
@@ -97,6 +97,7 @@ export default function Scheduling() {
       if (!response.ok) throw new Error('Failed to fetch crew');
       return response.json();
     },
+    refetchInterval: 15000,
   });
 
   const { data: vessels } = useQuery({
@@ -108,6 +109,7 @@ export default function Scheduling() {
       if (!response.ok) throw new Error('Failed to fetch vessels');
       return response.json();
     },
+    refetchInterval: 15000,
   });
 
   if (user?.role === 'crew') {
@@ -225,46 +227,20 @@ export default function Scheduling() {
   const thisMonthCount = monthEvents.length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 pb-8">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-foreground mb-2" data-testid="scheduling-title">
+          <h2 className="text-2xl font-bold tracking-tight text-foreground mb-1" data-testid="scheduling-title">
             Contract Calendar
           </h2>
-          <p className="text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             View upcoming contract due dates and expirations
           </p>
         </div>
 
         <div className="flex gap-2 print:hidden">
-          {/* View Toggle */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1 mr-2">
-            <button
-              onClick={() => setViewMode('timeline')}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
-                viewMode === 'timeline'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
-              )}
-            >
-              <LayoutList className="h-4 w-4 inline mr-1.5" />
-              Timeline
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200',
-                viewMode === 'grid'
-                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'
-              )}
-            >
-              <LayoutGrid className="h-4 w-4 inline mr-1.5" />
-              Grid
-            </button>
-          </div>
+          {/* View Toggle removed: Only Grid view is used now */}
 
           <Button
             variant="outline"
@@ -289,63 +265,60 @@ export default function Scheduling() {
         </div>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Contracts Due Soon</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center space-x-2">
-              <Clock className="h-5 w-5 text-warning-amber" />
-              <span className="text-2xl font-bold text-foreground" data-testid="contracts-due-count">
-                {monthDueCount}
-              </span>
-              <span className="text-sm text-muted-foreground">this month</span>
+      {/* Quick Stats redesigned to match "neat and clear" screenshot */}
+      <div className="flex flex-wrap items-center gap-y-4 py-2">
+        {/* Due Soon */}
+        <div className="flex items-center gap-4 pr-4 md:pr-8 border-r border-slate-100 dark:border-slate-800 last:border-0 grow md:grow-0">
+          <div className="p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20">
+            <Clock className="h-5 w-5 text-amber-500" />
+          </div>
+          <div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl md:text-2xl font-bold text-foreground leading-none" data-testid="contracts-due-count">{monthDueCount}</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Due Soon</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">Action required this month</div>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Contract Expired</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
-              <span className="text-2xl font-bold text-foreground" data-testid="contracts-expired-count">
-                {monthExpiredCount}
-              </span>
-              <span className="text-sm text-muted-foreground">this month</span>
+        {/* Expired */}
+        <div className="flex items-center gap-4 px-4 md:px-8 border-r border-slate-100 dark:border-slate-800 last:border-0 grow md:grow-0">
+          <div className="p-3 rounded-2xl bg-red-500/10 dark:bg-red-500/20">
+            <AlertTriangle className="h-5 w-5 text-red-500" />
+          </div>
+          <div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl md:text-2xl font-bold text-foreground leading-none" data-testid="contracts-expired-count">{monthExpiredCount}</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Expired</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">Contracts currently overdue</div>
+          </div>
+        </div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Events</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center space-x-2">
-              <Calendar className="h-5 w-5 text-primary" />
-              <span className="text-2xl font-bold text-foreground" data-testid="month-events-count">
-                {thisMonthCount}
-              </span>
-              <span className="text-sm text-muted-foreground">this month</span>
+        {/* Total */}
+        <div className="flex items-center gap-4 px-4 md:px-8 border-r border-slate-100 dark:border-slate-800 last:border-0 grow md:grow-0">
+          <div className="p-3 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20">
+            <Calendar className="h-5 w-5 text-blue-500" />
+          </div>
+          <div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl md:text-2xl font-bold text-foreground leading-none" data-testid="month-events-count">{thisMonthCount}</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Events</span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">Scheduled for this month</div>
+          </div>
+        </div>
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 text-sm">
+      <div className="flex flex-wrap items-center gap-6 text-[11px]">
         <div className="flex items-center space-x-2">
-          <div className="w-3 h-3 bg-warning-amber rounded-full"></div>
-          <span className="text-muted-foreground">Sign Off Due (45 days before expiry)</span>
+          <div className="w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-amber-500/20"></div>
+          <span className="text-muted-foreground/80 font-medium">Sign Off Due (45 days before expiry)</span>
         </div>
         <div className="flex items-center space-x-2">
-          <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-          <span className="text-muted-foreground">Contract Expired</span>
+          <div className="w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-red-500/20"></div>
+          <span className="text-muted-foreground/80 font-medium">Contract Expired</span>
         </div>
       </div>
 
@@ -481,7 +454,7 @@ export default function Scheduling() {
                   <Button variant="outline" size="sm" onClick={previousMonth} data-testid="prev-month-button" className="print-hide-btn">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   </Button>
-                  <h3 className="text-xl font-semibold text-foreground" data-testid="current-month">
+                  <h3 className="text-base font-bold text-foreground" data-testid="current-month">
                     {format(currentDate, 'MMMM yyyy')}
                   </h3>
                   <Button variant="outline" size="sm" onClick={nextMonth} data-testid="next-month-button" className="print-hide-btn">
@@ -491,78 +464,64 @@ export default function Scheduling() {
               </div>
 
               {/* Conditional View Rendering */}
-              {viewMode === 'timeline' ? (
-                <ContractTimeline
-                  contracts={contracts || []}
-                  crewMembers={crewMembers || []}
-                  vessels={vessels || []}
-                  currentDate={currentDate}
-                />
-              ) : (
-                <div className="bg-card rounded-lg border border-border">
-                  {/* Week Headers */}
-                  <div className="grid grid-cols-7 border-b border-border">
-                    {weekDays.map((day) => (
-                      <div
-                        key={day}
-                        className="p-3 text-center text-sm font-medium text-muted-foreground bg-muted"
-                      >
-                        {day}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Calendar Days */}
-                  <div className="grid grid-cols-7">
-                    {calendarDays.map((day) => {
-                      const dayEvents = getEventsForDate(day);
-                      const isCurrentMonth = isSameMonth(day, currentDate);
-                      const isToday = isSameDay(day, new Date());
-
-                      return (
-                        <div
-                          key={day.toString()}
-                          className={cn(
-                            'min-h-24 p-2 border-r border-b border-border hover:bg-muted cursor-pointer transition-colors',
-                            !isCurrentMonth && 'bg-muted text-muted-foreground',
-                            isToday && 'bg-primary/10 text-primary'
-                          )}
-                          onClick={() => handleDateClick(day)}
-                          data-testid={`calendar-day-${format(day, 'yyyy-MM-dd')}`}
-                        >
-                          <div className={cn(
-                            'text-sm font-medium mb-1 text-foreground',
-                            isToday && 'font-bold',
-                            !isCurrentMonth && 'text-muted-foreground'
-                          )}>
-                            {format(day, 'd')}
-                          </div>
-
-                          {/* Event Indicators */}
-                          <div className="space-y-1">
-                            {dayEvents.slice(0, 3).map((event) => (
-                              <div
-                                key={event.id}
-                                className={cn(
-                                  'w-full h-1.5 rounded-full',
-                                  getEventColor(event.type)
-                                )}
-                                title={event.type === 'contract_due' ? 'Sign Off Due' : 'Contract Expired'}
-                                data-testid={`event-indicator-${event.id}`}
-                              />
-                            ))}
-                            {dayEvents.length > 3 && (
-                              <div className="text-xs text-muted-foreground">
-                                +{dayEvents.length - 3} more
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+              <div className="bg-card rounded-lg border border-border">
+                {/* Week Headers */}
+                <div className="grid grid-cols-7 border-b border-border">
+                  {weekDays.map((day) => (
+                    <div
+                      key={day}
+                      className="py-1.5 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60 bg-muted/30"
+                    >
+                      {day}
+                    </div>
+                  ))}
                 </div>
-              )}
+
+                {/* Calendar Days */}
+                <div className="grid grid-cols-7">
+                  {calendarDays.map((day) => {
+                    const dayEvents = getEventsForDate(day);
+                    const isCurrentMonth = isSameMonth(day, currentDate);
+                    const isToday = isSameDay(day, new Date());
+
+                    return (
+                      <div
+                        key={day.toString()}
+                        className={cn(
+                          'min-h-[80px] p-2 border-r border-b border-border hover:bg-muted/50 cursor-pointer transition-colors',
+                          !isCurrentMonth && 'bg-muted/10 text-muted-foreground/40',
+                          isToday && 'bg-primary/5 text-primary'
+                        )}
+                        onClick={() => handleDateClick(day)}
+                        data-testid={`calendar-day-${format(day, 'yyyy-MM-dd')}`}
+                      >
+                        <div className={cn(
+                          'text-[11px] font-semibold mb-1 text-muted-foreground/80',
+                          isToday && 'text-primary font-bold',
+                          !isCurrentMonth && 'text-muted-foreground/30'
+                        )}>
+                          {format(day, 'd')}
+                        </div>
+
+                        {/* Event Indicators */}
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {dayEvents.map((event) => (
+                            <div
+                              key={event.id}
+                              className={cn(
+                                'w-1.5 h-1.5 rounded-full shadow-sm',
+                                getEventColor(event.type)
+                              )}
+                              title={event.type === 'contract_due' ? 'Sign Off Due' : 'Contract Expired'}
+                              data-testid={`event-indicator-${event.id}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
 
               {/* Crew Details for Print - Only shows when there are events */}
               {monthEvents.length > 0 && (
