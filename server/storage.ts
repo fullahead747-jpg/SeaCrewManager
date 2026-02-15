@@ -891,6 +891,7 @@ export class DatabaseStorage implements IStorage {
       [totalCrewCount],
       [activeVesselsCount],
       [expiredDocsCount],
+      [tbdDocsCount],
       [criticalDocsCount],
       [warningDocsCount],
       [attentionDocsCount],
@@ -898,21 +899,21 @@ export class DatabaseStorage implements IStorage {
       [farFutureDocsCount],
       [totalDocsCount],
       [validStatusDocsCount],
-      [totalContractsCount],
-      [signOffDueCount],
-      [signOffDue30Count],
-      [signOffDue15Count],
+      [drilldownExpiredDocsCount],
+      [drilldownTbdDocsCount],
       [criticalContractsCount],
       [upcomingContractsCount],
       [soonContractsCount],
       [stableContractsCount],
-      [validContactCrewCount]
+      [validContactCrewCount],
+      [totalContractsCount]
     ] = await Promise.all([
       db.select({ count: count() }).from(crewMembers).where(eq(crewMembers.status, 'onBoard')),
       db.select({ count: count() }).from(crewMembers).where(eq(crewMembers.status, 'onShore')),
       db.select({ count: count() }).from(crewMembers),
       db.select({ count: count() }).from(vessels).where(inArray(vessels.status, ['harbour-mining', 'coastal-mining', 'world-wide', 'oil-field', 'line-up-mining', 'active'])),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now))),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) > 1900`)),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) <= 1900`)),
       db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gte(documents.expiryDate, now), lte(documents.expiryDate, thirtyDaysFromNow))),
       db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, thirtyDaysFromNow), lte(documents.expiryDate, ninetyDaysFromNow))),
       db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, ninetyDaysFromNow), lte(documents.expiryDate, oneEightyDaysFromNow))),
@@ -920,14 +921,12 @@ export class DatabaseStorage implements IStorage {
       db.select({ count: count() }).from(documents).where(gt(documents.expiryDate, oneEightyDaysFromNow)),
       db.select({ count: count() }).from(documents),
       db.select({ count: count() }).from(documents).where(eq(documents.status, 'valid')),
-      db.select({ count: count() }).from(contracts),
-      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, fortyFiveDaysFromNow))),
-      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, thirtyDaysFromNow))),
-      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, now), lte(contracts.endDate, fifteenDaysFromNow))),
-      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gte(contracts.endDate, now), lte(contracts.endDate, fifteenDaysFromNow))),
-      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, fifteenDaysFromNow), lte(contracts.endDate, thirtyDaysFromNow))),
-      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, thirtyDaysFromNow), lte(contracts.endDate, fortyFiveDaysFromNow))),
-      db.select({ count: count() }).from(contracts).where(and(eq(contracts.status, 'active'), gt(contracts.endDate, fortyFiveDaysFromNow))),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) > 1900`)),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) <= 1900`)),
+      db.select({ count: count() }).from(contracts).innerJoin(crewMembers, eq(contracts.crewMemberId, crewMembers.id)).where(and(eq(contracts.status, 'active'), eq(crewMembers.status, 'onBoard'), gte(contracts.endDate, now), lte(contracts.endDate, fifteenDaysFromNow))),
+      db.select({ count: count() }).from(contracts).innerJoin(crewMembers, eq(contracts.crewMemberId, crewMembers.id)).where(and(eq(contracts.status, 'active'), eq(crewMembers.status, 'onBoard'), gt(contracts.endDate, fifteenDaysFromNow), lte(contracts.endDate, thirtyDaysFromNow))),
+      db.select({ count: count() }).from(contracts).innerJoin(crewMembers, eq(contracts.crewMemberId, crewMembers.id)).where(and(eq(contracts.status, 'active'), eq(crewMembers.status, 'onBoard'), gt(contracts.endDate, thirtyDaysFromNow), lte(contracts.endDate, fortyFiveDaysFromNow))),
+      db.select({ count: count() }).from(contracts).innerJoin(crewMembers, eq(contracts.crewMemberId, crewMembers.id)).where(and(eq(contracts.status, 'active'), eq(crewMembers.status, 'onBoard'), gt(contracts.endDate, fortyFiveDaysFromNow))),
       db.select({ count: count() })
         .from(crewMembers)
         .innerJoin(contracts, eq(crewMembers.id, contracts.crewMemberId))
@@ -935,10 +934,11 @@ export class DatabaseStorage implements IStorage {
           eq(crewMembers.status, 'onBoard'),
           eq(contracts.status, 'active'),
           gte(contracts.endDate, now)
-        ))
+        )),
+      db.select({ count: count() }).from(contracts).where(eq(contracts.status, 'active'))
     ]);
 
-    const validDocsCount = permanentDocsCount.count + farFutureDocsCount.count;
+    const validDocsCount = permanentDocsCount.count + farFutureDocsCount.count + tbdDocsCount.count;
     const complianceRate = totalDocsCount.count > 0 ? (validStatusDocsCount.count / totalDocsCount.count) * 100 : 100;
     const pendingActions = criticalDocsCount.count; // Same as expires <= 30 days
     const overdueContractsCount = activeCrewCount.count - validContactCrewCount.count;
@@ -951,9 +951,9 @@ export class DatabaseStorage implements IStorage {
       complianceRate: Math.round(complianceRate * 10) / 10,
       totalContracts: totalContractsCount.count,
       totalDocuments: totalDocsCount.count,
-      signOffDue: signOffDueCount.count,
-      signOffDue30Days: signOffDue30Count.count,
-      signOffDue15Days: signOffDue15Count.count,
+      signOffDue: criticalContractsCount.count, // Default to critical
+      signOffDue30Days: (upcomingContractsCount.count + criticalContractsCount.count),
+      signOffDue15Days: criticalContractsCount.count,
       documentHealth: {
         expired: expiredDocsCount.count,
         critical: criticalDocsCount.count,

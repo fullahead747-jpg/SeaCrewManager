@@ -2973,41 +2973,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return false;
         });
 
-        return filteredDocs.map(doc => {
-          const crew = crewMembers.find(m => m.id === doc.crewMemberId);
-          const isTbd = doc.expiryDate === null || (doc.expiryDate && new Date(doc.expiryDate).getFullYear() < 1900);
+        // Get unique crew member IDs who have matching documents
+        const crewIds = [...new Set(filteredDocs.map(d => d.crewMemberId))];
 
-          const daysRemaining = doc.expiryDate && !isTbd
-            ? Math.ceil((new Date(doc.expiryDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-            : undefined;
+        // Return full CrewMemberWithDetails for these IDs
+        return crewIds.map(id => {
+          const crew = crewMembers.find(m => m.id === id);
+          if (!crew) return null;
 
-          let systemComment = '';
-          if (isTbd) {
-            systemComment = `🔵 ${doc.type.toUpperCase()} expiry is marked as TBD.`;
-          } else if (daysRemaining !== undefined) {
-            if (daysRemaining < 0) {
-              systemComment = `⚠️ ${doc.type.toUpperCase()} expired (on ${formatDateForDisplay(doc.expiryDate)}). Renewal required.`;
-            } else if (daysRemaining <= 30) {
-              systemComment = `🟠 ${doc.type.toUpperCase()} expires in ${daysRemaining} days (${formatDateForDisplay(doc.expiryDate)}). Renewal advised.`;
-            } else {
-              systemComment = `✅ ${doc.type.toUpperCase()} is valid until ${formatDateForDisplay(doc.expiryDate)}.`;
-            }
-          } else {
-            systemComment = `✅ ${doc.type.toUpperCase()} is valid (Permanent).`;
-          }
+          const vessel = vessels.find(v => v.id === crew.currentVesselId);
+          const activeContract = contracts.find(c => c.crewMemberId === crew.id && c.status === 'active');
 
           return {
-            id: doc.id,
-            crewName: crew ? `${crew.firstName} ${crew.lastName}` : 'Unknown',
-            docType: doc.type,
-            docNumber: doc.documentNumber,
-            expiryDate: doc.expiryDate,
-            crewMemberId: doc.crewMemberId,
-            rank: crew ? crew.rank : 'Unknown',
-            daysRemaining,
-            systemComment
+            ...crew,
+            currentVessel: vessel || null,
+            activeContract: activeContract || null,
+            documents: allDocuments.filter(d => d.crewMemberId === crew.id)
           };
-        });
+        }).filter(Boolean);
       })() : (async () => {
         if (key === 'shored') {
           return crewMembers
@@ -3055,6 +3038,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           const filteredContracts = contracts.filter(c => {
             if (c.status !== 'active') return false;
+            const crew = crewMembers.find(m => m.id === c.crewMemberId);
+            if (!crew || crew.status !== 'onBoard') return false;
+
             const endDate = new Date(c.endDate);
             if (key === 'critical') return endDate >= now && endDate <= fifteenDaysFromNow;
             if (key === 'upcoming') return endDate > fifteenDaysFromNow && endDate <= thirtyDaysFromNow;
