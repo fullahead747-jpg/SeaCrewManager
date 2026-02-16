@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo, memo } from 'react';
 import AddVesselForm from './add-vessel-form';
 import CrewManagementDialog from './crew-management-dialog';
 import VesselDetailsDialog from './vessel-details-dialog';
@@ -51,7 +51,7 @@ export interface VesselWithDetails extends Vessel {
 }
 
 // Sortable Vessel Card Component - Innovative Horizontal Split Design
-function SortableVesselCard({ vessel, stats, onViewDetails, onManageCrew, onUploadDocument, isAdmin, showUploadButton = true }: {
+const SortableVesselCard = React.memo(({ vessel, stats, onViewDetails, onManageCrew, onUploadDocument, isAdmin, showUploadButton = true }: {
   vessel: VesselWithDetails;
   stats?: { active: number, expiringSoon: number, expired: number };
   onViewDetails: (vessel: VesselWithDetails) => void;
@@ -59,7 +59,7 @@ function SortableVesselCard({ vessel, stats, onViewDetails, onManageCrew, onUplo
   onUploadDocument: (vessel: VesselWithDetails) => void;
   isAdmin: boolean;
   showUploadButton?: boolean;
-}) {
+}) => {
   const [drillDownOpen, setDrillDownOpen] = useState(false);
   const [drillDownCategory, setDrillDownCategory] = useState({ key: '', name: '' });
   const [drillDownType, setDrillDownType] = useState<'contract' | 'document'>('contract');
@@ -362,9 +362,9 @@ function SortableVesselCard({ vessel, stats, onViewDetails, onManageCrew, onUplo
       </Card>
     </motion.div>
   );
-}
+});
 
-export default function VesselCards({ showUploadButton = true }: { showUploadButton?: boolean }) {
+const VesselCards = React.memo(({ showUploadButton = true }: { showUploadButton?: boolean }) => {
   const { user } = useAuth();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -916,4 +916,6 @@ export default function VesselCards({ showUploadButton = true }: { showUploadBut
       )}
     </div>
   );
-}
+});
+
+export default VesselCards;

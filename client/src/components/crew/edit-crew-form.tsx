@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthHeaders } from '@/lib/auth';
 import { CrewMemberWithDetails, Vessel } from '@shared/schema';
@@ -64,6 +65,9 @@ const editCrewSchema = z.object({
   medicalApprovalNo: z.string().optional(),
   medicalIssueDate: z.string().optional(),
   medicalExpiryDate: z.string().optional(),
+  passportTbd: z.boolean().optional(),
+  cdcTbd: z.boolean().optional(),
+  medicalTbd: z.boolean().optional(),
 });
 
 type EditCrewFormData = z.infer<typeof editCrewSchema>;
@@ -154,6 +158,9 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       medicalApprovalNo: medical?.documentNumber || '',
       medicalIssueDate: formatDateForInput(medical?.issueDate),
       medicalExpiryDate: formatDateForInput(medical?.expiryDate),
+      passportTbd: passport?.expiryDate === null,
+      cdcTbd: cdc?.expiryDate === null,
+      medicalTbd: medical?.expiryDate === null,
     },
   });
 
@@ -202,6 +209,9 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       medicalApprovalNo: medical?.documentNumber || '',
       medicalIssueDate: formatDateForInput(medical?.issueDate),
       medicalExpiryDate: formatDateForInput(medical?.expiryDate),
+      passportTbd: passport?.expiryDate === null,
+      cdcTbd: cdc?.expiryDate === null,
+      medicalTbd: medical?.expiryDate === null,
     });
   }, [crewMember, form]);
 
@@ -270,9 +280,10 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
         issuingAuthority: string | undefined,
         issueDate: string | undefined,
         expiryDate: string | undefined,
-        existingDoc: any
+        existingDoc: any,
+        isTbd: boolean = false
       ) => {
-        const hasData = documentNumber || issueDate || expiryDate;
+        const hasData = documentNumber || issueDate || expiryDate || isTbd;
 
         // If no data and no existing doc, nothing to do
         if (!hasData && !existingDoc) return;
@@ -284,8 +295,8 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
             type,
             documentNumber: documentNumber || '',
             issuingAuthority: issuingAuthority || '',
-            issueDate: issueDate ? new Date(issueDate + 'T00:00:00.000Z') : null,
-            expiryDate: expiryDate ? new Date(expiryDate + 'T00:00:00.000Z') : null,
+            issueDate: issueDate ? new Date(issueDate + 'T00:00:00.000Z') : (existingDoc.issueDate ? new Date(existingDoc.issueDate) : null),
+            expiryDate: isTbd ? null : (expiryDate ? new Date(expiryDate + 'T00:00:00.000Z') : (existingDoc.expiryDate ? new Date(existingDoc.expiryDate) : null)),
           };
 
           const response = await fetch(`/api/documents/${existingDoc.id}`, {
@@ -306,7 +317,7 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
             documentNumber: documentNumber,
             issuingAuthority: issuingAuthority || '',
             issueDate: new Date(issueDate + 'T00:00:00.000Z'),
-            expiryDate: new Date(expiryDate + 'T00:00:00.000Z'),
+            expiryDate: isTbd ? null : new Date(expiryDate + 'T00:00:00.000Z'),
           };
 
           const response = await fetch('/api/documents', {
@@ -319,12 +330,12 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       };
 
       // Update documents
-      await updateOrCreateDocument('passport', data.passportNumber, data.passportPlaceOfIssue, data.passportIssueDate, data.passportExpiryDate, passport);
-      await updateOrCreateDocument('cdc', data.cdcNumber, data.cdcPlaceOfIssue, data.cdcIssueDate, data.cdcExpiryDate, cdc);
+      await updateOrCreateDocument('passport', data.passportNumber, data.passportPlaceOfIssue, data.passportIssueDate, data.passportExpiryDate, passport, data.passportTbd);
+      await updateOrCreateDocument('cdc', data.cdcNumber, data.cdcPlaceOfIssue, data.cdcIssueDate, data.cdcExpiryDate, cdc, data.cdcTbd);
 
       // Only update/create COC if not marked as Not Applicable
       if (!data.cocNotApplicable) {
-        await updateOrCreateDocument('coc', data.cocGradeNo, data.cocPlaceOfIssue, data.cocIssueDate, data.cocExpiryDate, coc);
+        await updateOrCreateDocument('coc', data.cocGradeNo, data.cocPlaceOfIssue, data.cocIssueDate, data.cocExpiryDate, coc, false);
       } else if (coc) {
         // If coc exists but now marked as N/A, we should probably delete it or mark it
         // For now, let's just not update it. 
@@ -332,7 +343,7 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
         await fetch(`/api/documents/${coc.id}`, { method: 'DELETE', headers: getAuthHeaders() });
       }
 
-      await updateOrCreateDocument('medical', data.medicalApprovalNo, data.medicalIssuingAuthority, data.medicalIssueDate, data.medicalExpiryDate, medical);
+      await updateOrCreateDocument('medical', data.medicalApprovalNo, data.medicalIssuingAuthority, data.medicalIssueDate, data.medicalExpiryDate, medical, data.medicalTbd);
 
       console.log('Sending update data:', updateData);
 
@@ -783,9 +794,30 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
               name="passportExpiryDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Expiry Date</FormLabel>
+                  <FormLabel className={form.watch('passportTbd') ? 'text-muted-foreground' : ''}>Expiry Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} data-testid="edit-passportExpiryDate" />
+                    <div className="space-y-2">
+                      <Input type="date" {...field} disabled={form.watch('passportTbd')} data-testid="edit-passportExpiryDate" />
+                      <FormField
+                        control={form.control}
+                        name="passportTbd"
+                        render={({ field: tbdField }) => (
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="edit-passport-tbd"
+                              checked={tbdField.value}
+                              onCheckedChange={(checked) => {
+                                tbdField.onChange(checked);
+                                if (checked) form.setValue('passportExpiryDate', '');
+                              }}
+                            />
+                            <Label htmlFor="edit-passport-tbd" className="text-xs font-medium leading-none cursor-pointer">
+                              TBD (To Be Determined)
+                            </Label>
+                          </div>
+                        )}
+                      />
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -849,9 +881,30 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
               name="cdcExpiryDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Expiry Date</FormLabel>
+                  <FormLabel className={form.watch('cdcTbd') ? 'text-muted-foreground' : ''}>Expiry Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} data-testid="edit-cdcExpiryDate" />
+                    <div className="space-y-2">
+                      <Input type="date" {...field} disabled={form.watch('cdcTbd')} data-testid="edit-cdcExpiryDate" />
+                      <FormField
+                        control={form.control}
+                        name="cdcTbd"
+                        render={({ field: tbdField }) => (
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="edit-cdc-tbd"
+                              checked={tbdField.value}
+                              onCheckedChange={(checked) => {
+                                tbdField.onChange(checked);
+                                if (checked) form.setValue('cdcExpiryDate', '');
+                              }}
+                            />
+                            <Label htmlFor="edit-cdc-tbd" className="text-xs font-medium leading-none cursor-pointer">
+                              TBD (To Be Determined)
+                            </Label>
+                          </div>
+                        )}
+                      />
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -1008,9 +1061,30 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
               name="medicalExpiryDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Expiry Date</FormLabel>
+                  <FormLabel className={form.watch('medicalTbd') ? 'text-muted-foreground' : ''}>Expiry Date</FormLabel>
                   <FormControl>
-                    <Input type="date" {...field} data-testid="edit-medicalExpiryDate" />
+                    <div className="space-y-2">
+                      <Input type="date" {...field} disabled={form.watch('medicalTbd')} data-testid="edit-medicalExpiryDate" />
+                      <FormField
+                        control={form.control}
+                        name="medicalTbd"
+                        render={({ field: tbdField }) => (
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id="edit-medical-tbd"
+                              checked={tbdField.value}
+                              onCheckedChange={(checked) => {
+                                tbdField.onChange(checked);
+                                if (checked) form.setValue('medicalExpiryDate', '');
+                              }}
+                            />
+                            <Label htmlFor="edit-medical-tbd" className="text-xs font-medium leading-none cursor-pointer">
+                              TBD (To Be Determined)
+                            </Label>
+                          </div>
+                        )}
+                      />
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -1,4 +1,6 @@
 
+
+import { motion, AnimatePresence } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -17,7 +19,7 @@ import { CrewDetailCard } from "@/components/crew/crew-detail-card";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useMemo, useCallback, useDeferredValue, useEffect, memo } from "react";
 import { cn } from "@/lib/utils";
 import DocumentUpload from "@/components/documents/document-upload";
 import EditCrewForm from "@/components/crew/edit-crew-form";
@@ -36,14 +38,14 @@ interface HealthDrillDownModalProps {
     vesselId?: string;
 }
 
-export default function HealthDrillDownModal({
+const HealthDrillDownModal = memo(({
     isOpen,
     onClose,
     categoryKey,
     categoryName,
     type,
     vesselId
-}: HealthDrillDownModalProps) {
+}: HealthDrillDownModalProps) => {
     const { user } = useAuth();
     const { toast } = useToast();
     const queryClient = useQueryClient();
@@ -72,6 +74,16 @@ export default function HealthDrillDownModal({
     const [signOnDialogOpen, setSignOnDialogOpen] = useState(false);
     const [selectedCrewForSignOn, setSelectedCrewForSignOn] = useState<CrewMemberWithDetails | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const deferredSearchTerm = useDeferredValue(searchTerm);
+
+    // Incremental rendering state
+    const [displayCount, setDisplayCount] = useState(20);
+    const BATCH_SIZE = 20;
+
+    // Reset display count when search or category changes
+    useEffect(() => {
+        setDisplayCount(BATCH_SIZE);
+    }, [deferredSearchTerm, categoryKey]);
 
     // Fetch documents for the cards
     const { data: documents = [] } = useQuery<Document[]>({
@@ -259,18 +271,25 @@ export default function HealthDrillDownModal({
         enabled: isOpen && !!categoryKey,
     });
 
-    const filteredData = detailData?.filter((item: any) => {
-        if (!searchTerm) return true;
-        const search = searchTerm.toLowerCase();
-        const fullName = `${item.firstName || ""} ${item.lastName || ""}`.toLowerCase();
-        return (
-            item.firstName?.toLowerCase().includes(search) ||
-            item.lastName?.toLowerCase().includes(search) ||
-            item.rank?.toLowerCase().includes(search) ||
-            item.nationality?.toLowerCase().includes(search) ||
-            fullName.includes(search)
-        );
-    }) || [];
+    const filteredData = useMemo(() => {
+        if (!detailData) return [];
+        if (!deferredSearchTerm) return detailData;
+        const search = deferredSearchTerm.toLowerCase();
+        return detailData.filter((item: any) => {
+            const fullName = `${item.firstName || ""} ${item.lastName || ""}`.toLowerCase();
+            return (
+                item.firstName?.toLowerCase().includes(search) ||
+                item.lastName?.toLowerCase().includes(search) ||
+                item.rank?.toLowerCase().includes(search) ||
+                item.nationality?.toLowerCase().includes(search) ||
+                fullName.includes(search)
+            );
+        });
+    }, [detailData, deferredSearchTerm]);
+
+    const displayData = useMemo(() => {
+        return filteredData.slice(0, displayCount);
+    }, [filteredData, displayCount]);
 
     const handleUpload = (member: any, type: string) => {
         setSelectedCrewForUpload(member);
@@ -460,7 +479,17 @@ export default function HealthDrillDownModal({
                         </div>
                     </DialogHeader>
 
-                    <div className="flex-1 min-h-[400px] max-h-[calc(85vh-180px)] overflow-y-auto custom-scrollbar bg-slate-50/30 dark:bg-black/20 p-4">
+                    <div
+                        className="flex-1 min-h-[400px] max-h-[calc(85vh-180px)] overflow-y-auto custom-scrollbar bg-slate-50/30 dark:bg-black/20 p-4"
+                        onScroll={(e) => {
+                            const target = e.currentTarget;
+                            if (target.scrollHeight - target.scrollTop - target.clientHeight < 100) {
+                                if (displayCount < filteredData.length) {
+                                    setDisplayCount(prev => prev + BATCH_SIZE);
+                                }
+                            }
+                        }}
+                    >
                         {isLoading ? (
                             <div className="h-64 flex flex-col items-center justify-center gap-4">
                                 <Loader2 className="h-10 w-10 animate-spin text-primary opacity-50" />
@@ -474,27 +503,39 @@ export default function HealthDrillDownModal({
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {filteredData && filteredData.length > 0 ? (
-                                    filteredData.map((item: any) => (
-                                        <CrewDetailCard
+                                {displayData && displayData.length > 0 ? (
+                                    displayData.map((item: any) => (
+                                        <motion.div
                                             key={item.id}
-                                            member={item}
-                                            documents={documents}
-                                            onView={(m) => { setSelectedCrewMember(m); setShowViewDialog(true); }}
-                                            onEdit={(m) => { setSelectedCrewMember(m); setShowEditDialog(true); }}
-                                            onVesselHistory={(m) => { setSelectedCrewForHistory(m); setShowVesselHistoryDialog(true); }}
-                                            onSendMail={(m) => sendCrewEmailMutation.mutate(m)}
-                                            onDownload={(id, name) => handleDownloadCrewDocuments(id, name)}
-                                            onUpload={handleUpload}
-                                            onViewAOA={handleViewAOAClick}
-                                            onSignOff={handleSignOffClick}
-                                            onSignOn={handleSignOnClick}
-                                            isMailPending={sendCrewEmailMutation.isPending}
-                                        />
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, scale: 0.95 }}
+                                            transition={{ duration: 0.2 }}
+                                        >
+                                            <CrewDetailCard
+                                                member={item}
+                                                documents={documents}
+                                                onView={(m) => { setSelectedCrewMember(m); setShowViewDialog(true); }}
+                                                onEdit={(m) => { setSelectedCrewMember(m); setShowEditDialog(true); }}
+                                                onVesselHistory={(m) => { setSelectedCrewForHistory(m); setShowVesselHistoryDialog(true); }}
+                                                onSendMail={(m) => sendCrewEmailMutation.mutate(m)}
+                                                onDownload={(id, name) => handleDownloadCrewDocuments(id, name)}
+                                                onUpload={handleUpload}
+                                                onViewAOA={handleViewAOAClick}
+                                                onSignOff={handleSignOffClick}
+                                                onSignOn={handleSignOnClick}
+                                                isMailPending={sendCrewEmailMutation.isPending}
+                                            />
+                                        </motion.div>
                                     ))
                                 ) : (
                                     <div className="h-48 flex items-center justify-center text-slate-500 dark:text-slate-400 italic font-medium bg-white/50 dark:bg-white/5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
                                         No records found for this category.
+                                    </div>
+                                )}
+                                {displayCount < filteredData.length && (
+                                    <div className="flex justify-center p-4">
+                                        <Loader2 className="h-6 w-6 animate-spin text-primary/30" />
                                     </div>
                                 )}
                             </div>
@@ -973,4 +1014,6 @@ export default function HealthDrillDownModal({
             </Dialog>
         </>
     );
-}
+});
+
+export default HealthDrillDownModal;

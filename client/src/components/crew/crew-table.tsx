@@ -59,7 +59,7 @@ export const getContractDaysRemaining = (member: any) => {
   return daysDiff > 0 ? daysDiff : 0;
 };
 
-export default function CrewTable() {
+const CrewTable = React.memo(() => {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -114,6 +114,7 @@ export default function CrewTable() {
       console.log('Received crew data:', data);
       return data;
     },
+    refetchInterval: 30000,
   });
 
   const { data: vessels } = useQuery({
@@ -200,13 +201,9 @@ export default function CrewTable() {
         return { type, status: 'missing' as const, expiryDate: null, daysUntil: null, docId: null, filePath: null };
       }
 
-      // Handle documents without expiry dates (like Photo/NOK)
-      if (!doc.expiryDate) {
-        // If file exists, it's valid (standard for Photo/NOK)
-        if (doc.filePath) {
-          return { type, status: 'valid' as const, expiryDate: null, daysUntil: null, docId: doc.id, filePath: doc.filePath };
-        }
-        return { type, status: 'missing' as const, expiryDate: null, daysUntil: null, docId: doc.id, filePath: doc.filePath };
+      // Handle documents without expiry dates (like Photo/NOK) or TBD
+      if (doc.expiryDate === null) {
+        return { type, status: 'valid' as const, expiryDate: null, daysUntil: null, docId: doc.id, filePath: doc.filePath, isTbd: true };
       }
 
       const expiryDate = new Date(doc.expiryDate);
@@ -2369,7 +2366,9 @@ export default function CrewTable() {
       </Dialog>
     </div>
   );
-}
+});
+
+export default CrewTable;
 
 
 

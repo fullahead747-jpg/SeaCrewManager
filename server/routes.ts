@@ -2945,101 +2945,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const allContracts = await storage.getContracts();
       const allDocs = await storage.getDocuments();
 
+      // Create Maps for O(1) lookups
+      const vesselMap = new Map(allVessels.map(v => [v.id, v]));
+      const activeContractMap = new Map();
+      allContracts.forEach(c => {
+        if (c.status === 'active') {
+          activeContractMap.set(c.crewMemberId, c);
+        }
+      });
+
+      const docsByCrewId = new Map();
+      allDocs.forEach(d => {
+        if (!docsByCrewId.has(d.crewMemberId)) docsByCrewId.set(d.crewMemberId, []);
+        docsByCrewId.get(d.crewMemberId).push(d);
+      });
+
+      const crewMap = new Map(allCrew.map(m => [m.id, m]));
+
       // Apply vessel filtering if vesselId is provided
       const crewMembers = vesselId
         ? allCrew.filter(m => m.currentVesselId === vesselId)
         : allCrew;
 
-      const vessels = allVessels;
-
-      const contracts = vesselId
-        ? allContracts.filter(c => c.vesselId === vesselId)
-        : allContracts;
-
-      const allDocuments = vesselId
+      const filteredDocuments = vesselId
         ? allDocs.filter(d => {
-          const crew = allCrew.find(m => m.id === d.crewMemberId);
+          const crew = crewMap.get(d.crewMemberId);
           return crew && crew.currentVesselId === vesselId;
         })
         : allDocs;
 
       const results = await (type === 'document' ? (async () => {
-        const filteredDocs = allDocuments.filter(doc => {
-          if (key === 'expired') return doc.expiryDate && doc.expiryDate < now && new Date(doc.expiryDate).getFullYear() > 1900;
-          if (key === 'critical') return doc.expiryDate && doc.expiryDate >= now && doc.expiryDate <= thirtyDaysFromNow;
-          if (key === 'warning') return doc.expiryDate && doc.expiryDate > thirtyDaysFromNow && doc.expiryDate <= ninetyDaysFromNow;
-          if (key === 'attention') return doc.expiryDate && doc.expiryDate > ninetyDaysFromNow && doc.expiryDate <= oneEightyDaysFromNow;
-          if (key === 'valid') return !doc.expiryDate || doc.expiryDate > oneEightyDaysFromNow || new Date(doc.expiryDate).getFullYear() < 1900;
-          return false;
+        const matchingCrewIds = new Set<string>();
+        filteredDocuments.forEach(doc => {
+          let isMatch = false;
+          if (key === 'expired') isMatch = !!(doc.expiryDate && doc.expiryDate < now && new Date(doc.expiryDate).getFullYear() > 1900);
+          else if (key === 'critical') isMatch = !!(doc.expiryDate && doc.expiryDate >= now && doc.expiryDate <= thirtyDaysFromNow);
+          else if (key === 'warning') isMatch = !!(doc.expiryDate && doc.expiryDate > thirtyDaysFromNow && doc.expiryDate <= ninetyDaysFromNow);
+          else if (key === 'attention') isMatch = !!(doc.expiryDate && doc.expiryDate > ninetyDaysFromNow && doc.expiryDate <= oneEightyDaysFromNow);
+          else if (key === 'valid') isMatch = !doc.expiryDate || (doc.expiryDate > oneEightyDaysFromNow) || (new Date(doc.expiryDate).getFullYear() < 1900);
+
+          if (isMatch) matchingCrewIds.add(doc.crewMemberId);
         });
 
-        // Get unique crew member IDs who have matching documents
-        const crewIds = [...new Set(filteredDocs.map(d => d.crewMemberId))];
-
         // Return full CrewMemberWithDetails for these IDs
-        return crewIds.map(id => {
-          const crew = crewMembers.find(m => m.id === id);
-          if (!crew) return null;
-
-          const vessel = vessels.find(v => v.id === crew.currentVesselId);
-          const activeContract = contracts.find(c => c.crewMemberId === crew.id && c.status === 'active');
+        return Array.from(matchingCrewIds).map(id => {
+          const crew = crewMap.get(id);
+          if (!crew || (vesselId && crew.currentVesselId !== vesselId)) return null;
 
           return {
             ...crew,
-            currentVessel: vessel || null,
-            activeContract: activeContract || null,
-            documents: allDocuments.filter(d => d.crewMemberId === crew.id)
+            currentVessel: vesselMap.get(crew.currentVesselId || '') || null,
+            activeContract: activeContractMap.get(crew.id) || null,
+            documents: docsByCrewId.get(crew.id) || []
           };
         }).filter(Boolean);
       })() : (async () => {
         if (key === 'shored') {
           return crewMembers
             .filter(m => m.status === 'onShore')
-            .map(m => {
-              const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
-              return {
-                ...m,
-                currentVessel: null,
-                activeContract: activeContract || null,
-                documents: allDocuments.filter(d => d.crewMemberId === m.id)
-              };
-            });
-        } else if (key === 'global-search') {
-          // Return all crew members for global search
-          return crewMembers.map(m => {
-            const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
-            const vessel = vessels.find(v => v.id === m.currentVesselId);
-            return {
+            .map(m => ({
               ...m,
-              currentVessel: vessel || null,
-              activeContract: activeContract || null,
-              documents: allDocuments.filter(d => d.crewMemberId === m.id)
-            };
-          });
+              currentVessel: null,
+              activeContract: activeContractMap.get(m.id) || null,
+              documents: docsByCrewId.get(m.id) || []
+            }));
+        } else if (key === 'global-search') {
+          return crewMembers.map(m => ({
+            ...m,
+            currentVessel: vesselMap.get(m.currentVesselId || '') || null,
+            activeContract: activeContractMap.get(m.id) || null,
+            documents: docsByCrewId.get(m.id) || []
+          }));
         } else if (key === 'overdue') {
           return crewMembers
             .filter(m => {
               if (m.status !== 'onBoard') return false;
-              const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
-              return !activeContract || activeContract.endDate < now;
+              const contract = activeContractMap.get(m.id);
+              return !contract || contract.endDate < now;
             })
-            .map(m => {
-              const activeContract = contracts.find(c => c.crewMemberId === m.id && c.status === 'active');
-              const vessel = vessels.find(v => v.id === m.currentVesselId);
-
-              // Return full CrewMemberWithDetails structure
-              return {
-                ...m,
-                currentVessel: vessel,
-                activeContract: activeContract,
-                documents: allDocuments.filter(d => d.crewMemberId === m.id)
-              };
-            });
+            .map(m => ({
+              ...m,
+              currentVessel: vesselMap.get(m.currentVesselId || '') || null,
+              activeContract: activeContractMap.get(m.id) || null,
+              documents: docsByCrewId.get(m.id) || []
+            }));
         } else {
-          const filteredContracts = contracts.filter(c => {
-            if (c.status !== 'active') return false;
-            const crew = crewMembers.find(m => m.id === c.crewMemberId);
-            if (!crew || crew.status !== 'onBoard') return false;
+          // Contract health categories (critical, upcoming, soon, stable)
+          const filteredCrew = crewMembers.filter(m => {
+            if (m.status !== 'onBoard') return false;
+            const c = activeContractMap.get(m.id);
+            if (!c) return false;
 
             const endDate = new Date(c.endDate);
             if (key === 'critical') return endDate >= now && endDate <= fifteenDaysFromNow;
@@ -3049,19 +3044,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return false;
           });
 
-          return filteredContracts.map(c => {
-            const crew = crewMembers.find(m => m.id === c.crewMemberId);
-            const vessel = vessels.find(v => v.id === c.vesselId);
-
-            if (!crew) return null;
-
-            return {
-              ...crew,
-              currentVessel: vessel,
-              activeContract: c,
-              documents: allDocuments.filter(d => d.crewMemberId === crew.id)
-            };
-          }).filter(Boolean);
+          return filteredCrew.map(m => ({
+            ...m,
+            currentVessel: vesselMap.get(m.currentVesselId || '') || null,
+            activeContract: activeContractMap.get(m.id) || null,
+            documents: docsByCrewId.get(m.id) || []
+          }));
         }
       })());
 
@@ -3128,18 +3116,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Document expirations
       documents.forEach(document => {
-        if ((document.status === 'valid' || document.status === 'expiring') && document.expiryDate >= currentDate && document.expiryDate <= futureDate) {
+        if ((document.status === 'valid' || document.status === 'expiring') && document.expiryDate && document.expiryDate >= currentDate && document.expiryDate <= futureDate) {
           const crewMember = crewMembers.find(c => c.id === document.crewMemberId);
 
-          const daysUntil = Math.ceil((document.expiryDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24));
+          const daysUntil = document.expiryDate ? Math.ceil((document.expiryDate.getTime() - currentDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+          const severity = daysUntil <= 0 ? 'high' : daysUntil <= 7 ? 'high' : daysUntil <= 15 ? 'warning' : 'info';
 
           events.push({
-            id: `document - ${document.id} `,
+            id: `document-${document.id}`,
             type: 'document_expiry',
             title: 'Document Expiring',
             description: `${crewMember?.firstName} ${crewMember?.lastName} - ${document.type.toUpperCase()} (${daysUntil} days)`,
-            date: document.expiryDate,
-            severity: daysUntil <= 7 ? 'high' : daysUntil <= 15 ? 'warning' : 'info',
+            date: document.expiryDate!,
+            severity: severity,
             crewMemberId: document.crewMemberId,
             documentId: document.id,
             documentType: document.type
@@ -3370,12 +3359,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const subject = `${docIcon} ${docTypeLabel} - ${crewMember.firstName} ${crewMember.lastName} `;
 
       const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;"><div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center;"><h1 style="margin: 0; font-size: 28px;"> ${docIcon} ${docTypeLabel} </h1><p style="margin: 10px 0 0; opacity: 0.9;"> Crew Document Details </p></div><div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><h2 style="color: #1e40af; margin-top: 0;"> Crew Member Information </h2><table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><tr><td style="padding: 8px 0; color: #6b7280; width: 40%;"> Name: </td><td style="padding: 8px 0; font-weight: 600;">${crewMember.firstName} ${crewMember.lastName}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Rank: </td><td style="padding: 8px 0; font-weight: 600;">${crewMember.rank}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Nationality: </td><td style="padding: 8px 0; font-weight: 600;">${crewMember.nationality}</td></tr></table><h2 style="color: #1e40af; margin-top: 30px;"> Document Details </h2><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #6b7280; width: 40%;"> Document Type: </td><td style="padding: 8px 0; font-weight: 600;">${docTypeLabel}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Document Number: </td><td style="padding: 8px 0; font-weight: 600;">${document.documentNumber}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Issue Date: </td><td style="padding: 8px 0; font-weight: 600;">${new Date(document.issueDate).toLocaleDateString()}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Expiry Date: </td><td style="padding: 8px 0; font-weight: 600;">${new Date(document.expiryDate).toLocaleDateString()}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Issuing Authority: </td><td style="padding: 8px 0; font-weight: 600;">${document.issuingAuthority || 'N/A'}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Status: </td><td style="padding: 8px 0;"><span style="background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">${document.status.toUpperCase()}</span></td></tr></table>
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;"><div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center;"><h1 style="margin: 0; font-size: 28px;"> ${docIcon} ${docTypeLabel} </h1><p style="margin: 10px 0 0; opacity: 0.9;"> Crew Document Details </p></div><div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><h2 style="color: #1e40af; margin-top: 0;"> Crew Member Information </h2><table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><tr><td style="padding: 8px 0; color: #6b7280; width: 40%;"> Name: </td><td style="padding: 8px 0; font-weight: 600;">${crewMember.firstName} ${crewMember.lastName}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Rank: </td><td style="padding: 8px 0; font-weight: 600;">${crewMember.rank}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Nationality: </td><td style="padding: 8px 0; font-weight: 600;">${crewMember.nationality}</td></tr></table><h2 style="color: #1e40af; margin-top: 30px;"> Document Details </h2><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #6b7280; width: 40%;"> Document Type: </td><td style="padding: 8px 0; font-weight: 600;">${docTypeLabel}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Document Number: </td><td style="padding: 8px 0; font-weight: 600;">${document.documentNumber}</td></tr><tr><td style="padding: 8px 0; color: #6b7280; width: 40%;"> Issue Date: </td><td style="padding: 8px 0; font-weight: 600;">${document.issueDate ? new Date(document.issueDate).toLocaleDateString() : 'N/A'}</td></tr><tr><td style="padding: 8px 0; color: #6b7280; width: 40%;"> Expiry Date: </td><td style="padding: 8px 0; font-weight: 600;">${document.expiryDate ? new Date(document.expiryDate).toLocaleDateString() : 'TBD'}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Issuing Authority: </td><td style="padding: 8px 0; font-weight: 600;">${document.issuingAuthority || 'N/A'}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Status: </td><td style="padding: 8px 0;"><span style="background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">${document.status.toUpperCase()}</span></td></tr></table>
             ${document.filePath ? '<p style="margin-top: 20px; padding: 15px; background: #eff6ff; border-left: 4px solid #3b82f6; color: #1e40af;">?? The document file is attached to this email.</p>' : ''}
   </div><div style="text-align: center; padding: 20px; color: #6b7280; font-size: 12px;"><p>This email was sent from CrewTrack Pro Document Management System </p></div></div>
           `;
 
-      const text = `${docTypeLabel} - ${crewMember.firstName} ${crewMember.lastName} \n\nCrew Member: \n - Name: ${crewMember.firstName} ${crewMember.lastName} \n - Rank: ${crewMember.rank} \n - Nationality: ${crewMember.nationality} \n\nDocument Details: \n - Type: ${docTypeLabel} \n - Number: ${document.documentNumber} \n - Issue Date: ${new Date(document.issueDate).toLocaleDateString()} \n - Expiry Date: ${new Date(document.expiryDate).toLocaleDateString()} \n - Issuing Authority: ${document.issuingAuthority || 'N/A'} \n - Status: ${document.status.toUpperCase()} `;
+      const text = `${docTypeLabel} - ${crewMember.firstName} ${crewMember.lastName} \n\nCrew Member: \n - Name: ${crewMember.firstName} ${crewMember.lastName} \n - Rank: ${crewMember.rank} \n - Nationality: ${crewMember.nationality} \n\nDocument Details: \n - Type: ${docTypeLabel} \n - Number: ${document.documentNumber} \n - Issue Date: ${document.issueDate ? new Date(document.issueDate).toLocaleDateString() : 'N/A'} \n - Expiry Date: ${document.expiryDate ? new Date(document.expiryDate).toLocaleDateString() : 'TBD'} \n - Issuing Authority: ${document.issuingAuthority || 'N/A'} \n - Status: ${document.status.toUpperCase()} `;
 
       // Prepare attachments if document has file
       const attachments = [];
@@ -3481,12 +3470,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9fafb;"><div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; padding: 30px; border-radius: 10px 10px 0 0; text-align: center;"><h1 style="margin: 0; font-size: 28px;"> ${contractIcon} Crew Contract </h1><p style="margin: 10px 0 0; opacity: 0.9;"> Employment Contract Details </p></div><div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><h2 style="color: #1e40af; margin-top: 0;"> Crew Member Information </h2><table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;"><tr><td style="padding: 8px 0; color: #6b7280; width: 40%;"> Name: </td><td style="padding: 8px 0; font-weight: 600;">${crewMember.firstName} ${crewMember.lastName}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Rank: </td><td style="padding: 8px 0; font-weight: 600;">${crewMember.rank}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Nationality: </td><td style="padding: 8px 0; font-weight: 600;">${crewMember.nationality}</td></tr>
               ${vessel ? `<tr><td style="padding: 8px 0; color: #6b7280;">Vessel:</td><td style="padding: 8px 0; font-weight: 600;">${vessel.name}</td></tr>` : ''}
-  </table><h2 style="color: #1e40af; margin-top: 30px;"> Contract Details </h2><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #6b7280; width: 40%;"> Contract Type: </td><td style="padding: 8px 0; font-weight: 600;">${contractTypeLabel}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Contract Number: </td><td style="padding: 8px 0; font-weight: 600;">${contract.contractNumber || 'N/A'}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Start Date: </td><td style="padding: 8px 0; font-weight: 600;">${new Date(contract.startDate).toLocaleDateString()}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> End Date: </td><td style="padding: 8px 0; font-weight: 600;">${new Date(contract.endDate).toLocaleDateString()}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Status: </td><td style="padding: 8px 0;"><span style="background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">${contract.status.toUpperCase()}</span></td></tr></table>
+  </table><h2 style="color: #1e40af; margin-top: 30px;"> Contract Details </h2><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 8px 0; color: #6b7280; width: 40%;"> Contract Type: </td><td style="padding: 8px 0; font-weight: 600;">${contractTypeLabel}</td></tr><tr><td style="padding: 8px 0; color: #6b7280;"> Contract Number: </td><td style="padding: 8px 0; font-weight: 600;">${contract.contractNumber || 'N/A'}</td></tr><tr><td style="padding: 8px 0; color: #6b7280; width: 40%;"> Start Date: </td><td style="padding: 8px 0; font-weight: 600;">${contract.startDate ? new Date(contract.startDate).toLocaleDateString() : 'N/A'}</td></tr><tr><td style="padding: 8px 0; color: #6b7280; width: 40%;"> End Date: </td><td style="padding: 8px 0; font-weight: 600;">${contract.endDate ? new Date(contract.endDate).toLocaleDateString() : 'TBD'}</td></tr>
+<tr><td style="padding: 8px 0; color: #6b7280;"> Status: </td><td style="padding: 8px 0;"><span style="background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">${contract.status.toUpperCase()}</span></td></tr></table>
             ${contract.filePath ? '<p style="margin-top: 20px; padding: 15px; background: #eff6ff; border-left: 4px solid #3b82f6; color: #1e40af;">📎 The contract file is attached to this email.</p>' : ''}
   </div><div style="text-align: center; padding: 20px; color: #6b7280; font-size: 12px;"><p>This email was sent from CrewTrack Pro Management System </p></div></div>
           `;
 
-      const text = `Contract(${contractTypeLabel}) - ${crewMember.firstName} ${crewMember.lastName} \n\nCrew Member: \n - Name: ${crewMember.firstName} ${crewMember.lastName} \n - Rank: ${crewMember.rank} \n - Nationality: ${crewMember.nationality} \n\nContract Details: \n - Type: ${contractTypeLabel} \n - Number: ${contract.contractNumber || 'N/A'} \n - Start Date: ${new Date(contract.startDate).toLocaleDateString()} \n - End Date: ${new Date(contract.endDate).toLocaleDateString()} \n - Status: ${contract.status.toUpperCase()} `;
+      const text = `Contract(${contractTypeLabel}) - ${crewMember.firstName} ${crewMember.lastName} \n\nCrew Member: \n - Name: ${crewMember.firstName} ${crewMember.lastName} \n - Rank: ${crewMember.rank} \n - Nationality: ${crewMember.nationality} \n\nContract Details: \n - Type: ${contractTypeLabel} \n - Number: ${contract.contractNumber || 'N/A'} \n - Start Date: ${contract.startDate ? new Date(contract.startDate).toLocaleDateString() : 'N/A'} \n - End Date: ${contract.endDate ? new Date(contract.endDate).toLocaleDateString() : 'TBD'} \n - Status: ${contract.status.toUpperCase()} `;
 
       // Prepare attachments if contract has file
       const attachments = [];
@@ -3950,10 +3940,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ${crewDocuments.length > 0 ? `
             <div style="background: #f3e5f5; padding: 20px; border-radius: 8px; margin-bottom: 20px;"><h2 style="color: #7b1fa2; margin: 0 0 15px 0; font-size: 18px;">📄 Documents</h2><table style="width: 100%; border-collapse: collapse; font-size: 14px;"><thead><tr style="background: #e1bee7;"><th style="padding: 10px; text-align: left;">Type</th><th style="padding: 10px; text-align: left;">Number</th><th style="padding: 10px; text-align: left;">Expiry Date</th><th style="padding: 10px; text-align: left;">Status</th></tr></thead><tbody>
                   ${crewDocuments.map(doc => {
-          const isExpired = new Date(doc.expiryDate) < new Date();
-          const isExpiring = new Date(doc.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+          const isExpired = doc.expiryDate && new Date(doc.expiryDate) < new Date();
+          const isExpiring = doc.expiryDate && new Date(doc.expiryDate) < new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
           return `
-                    <tr><td style="padding: 10px; border-bottom: 1px solid #e1bee7; text-transform: uppercase;">${doc.type}</td><td style="padding: 10px; border-bottom: 1px solid #e1bee7;">${doc.documentNumber}</td><td style="padding: 10px; border-bottom: 1px solid #e1bee7;">${new Date(doc.expiryDate).toLocaleDateString()}</td><td style="padding: 10px; border-bottom: 1px solid #e1bee7;"><span style="background: ${isExpired ? '#dc3545' : isExpiring ? '#ffc107' : '#28a745'}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                    <tr><td style="padding: 10px; border-bottom: 1px solid #e1bee7; text-transform: uppercase;">${doc.type}</td><td style="padding: 10px; border-bottom: 1px solid #e1bee7;">${doc.documentNumber}</td><td style="padding: 10px; border-bottom: 1px solid #e1bee7;">${doc.expiryDate ? new Date(doc.expiryDate).toLocaleDateString() : 'TBD'}</td><td style="padding: 10px; border-bottom: 1px solid #e1bee7;"><span style="background: ${isExpired ? '#dc3545' : isExpiring ? '#ffc107' : '#28a745'}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">
                           ${isExpired ? 'Expired' : isExpiring ? 'Expiring Soon' : 'Valid'}
                         </span></td></tr>`;
         }).join('')}

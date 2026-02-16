@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback, memo, lazy, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { Link } from 'wouter';
@@ -8,12 +8,12 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import StatsCard from '@/components/dashboard/stats-card';
-import UpcomingEvents from '@/components/dashboard/upcoming-events';
-import CrewTable from '@/components/crew/crew-table';
-import VesselCards from '@/components/vessels/vessel-cards';
-import DashboardNotifications from '@/components/dashboard/dashboard-notifications';
-import MissingDocumentsNotifications from '@/components/documents/missing-documents-notifications';
-import ExpiringDocumentsWidget from '@/components/dashboard/expiring-documents-widget';
+const UpcomingEvents = memo(lazy(() => import('@/components/dashboard/upcoming-events')));
+const CrewTable = memo(lazy(() => import('@/components/crew/crew-table')));
+const VesselCards = memo(lazy(() => import('@/components/vessels/vessel-cards')));
+const DashboardNotifications = memo(lazy(() => import('@/components/dashboard/dashboard-notifications')));
+const MissingDocumentsNotifications = memo(lazy(() => import('@/components/documents/missing-documents-notifications')));
+const ExpiringDocumentsWidget = memo(lazy(() => import('@/components/dashboard/expiring-documents-widget')));
 import AddContractForm from '@/components/crew/add-contract-form';
 import AttendanceUploadDialog from '@/components/crew/attendance-upload-dialog';
 import ChatWidget from '@/components/dashboard/chat-widget';
@@ -23,10 +23,9 @@ import InteractiveHealthCard, { HealthDataPoint } from '@/components/dashboard/i
 import HealthDrillDownModal from '@/components/dashboard/health-drill-down-modal';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, FileText, Download, Calendar, Plus, ExternalLink, ClipboardList } from 'lucide-react';
+import { AlertTriangle, FileText, Download, Calendar, Plus, ExternalLink, ClipboardList, Loader2 } from 'lucide-react';
 import { DashboardStats } from '@/types';
 import MinimalHealthRow from '@/components/dashboard/minimal-health-row';
-import { useMemo, memo } from 'react';
 
 // Memoized helper components to stabilize data references and prevent chart jitter
 const MemoizedContractHealth = memo(({ stats, statsLoading, onDrillDown }: { stats: DashboardStats, statsLoading: boolean, onDrillDown: any }) => {
@@ -100,11 +99,11 @@ export default function Dashboard() {
   const [drillDownCategory, setDrillDownCategory] = useState({ key: '', name: '' });
   const [drillDownType, setDrillDownType] = useState<'contract' | 'document'>('document');
 
-  const handleDrillDown = (type: 'contract' | 'document', key: string, name: string) => {
+  const handleDrillDown = useCallback((type: 'contract' | 'document', key: string, name: string) => {
     setDrillDownType(type);
     setDrillDownCategory({ key, name });
     setDrillDownOpen(true);
-  };
+  }, []);
 
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
@@ -116,7 +115,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch stats');
       return response.json();
     },
-    refetchInterval: 5000, // Auto-refresh every 5 seconds
+    refetchInterval: 30000, // Reduced from 5s to 30s to prevent lagging
   });
 
   const { data: expiringDocuments, isLoading: alertsLoading } = useQuery({
@@ -131,6 +130,7 @@ export default function Dashboard() {
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
+
   // Fetch crew data for export
   const { data: crewMembers } = useQuery({
     queryKey: ['/api/crew'],
@@ -141,8 +141,9 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch crew');
       return response.json();
     },
-    refetchInterval: 5000, // Auto-refresh every 5 seconds
+    refetchInterval: 30000,
   });
+
 
   // Fetch vessels data for export
   const { data: vessels } = useQuery({
@@ -154,7 +155,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch vessels');
       return response.json();
     },
-    refetchInterval: 5000, // Auto-refresh every 5 seconds
+    refetchInterval: 30000, // Reduced from 5s to 30s
   });
 
   // Fetch contracts data for export
@@ -167,7 +168,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch contracts');
       return response.json();
     },
-    refetchInterval: 5000, // Auto-refresh every 5 seconds
+    refetchInterval: 30000, // Reduced from 5s to 30s
   });
 
   // Fetch documents data for export
@@ -180,7 +181,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch documents');
       return response.json();
     },
-    refetchInterval: 5000, // Auto-refresh every 5 seconds
+    refetchInterval: 30000, // Reduced from 5s to 30s
   });
 
   // Fetch rotations data for export
@@ -193,7 +194,7 @@ export default function Dashboard() {
       if (!response.ok) throw new Error('Failed to fetch rotations');
       return response.json();
     },
-    refetchInterval: 5000, // Auto-refresh every 5 seconds
+    refetchInterval: 30000, // Reduced from 5s to 30s
   });
 
   const exportCrewByVessel = async () => {
@@ -510,7 +511,9 @@ export default function Dashboard() {
         <div className="mb-8">
           <div className="bg-card border border-border rounded-xl shadow-sm">
             <div className="p-6">
-              <VesselCards showUploadButton={false} />
+              <Suspense fallback={<div className="h-[400px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary/50" /></div>}>
+                <VesselCards showUploadButton={false} />
+              </Suspense>
             </div>
           </div>
         </div>
@@ -560,27 +563,37 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="p-6 flex-1">
-              <CrewTable />
+              <Suspense fallback={<div className="h-[800px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary/50" /></div>}>
+                <CrewTable />
+              </Suspense>
             </div>
           </div>
         </div>
 
         {/* Right Sidebar */}
         <div className="lg:col-span-4 space-y-6">
-          <UpcomingEvents />
-          <ExpiringDocumentsWidget />
+          <Suspense fallback={<div className="h-48 animate-pulse bg-muted rounded-xl" />}>
+            <UpcomingEvents />
+          </Suspense>
+          <Suspense fallback={<div className="h-48 animate-pulse bg-muted rounded-xl" />}>
+            <ExpiringDocumentsWidget />
+          </Suspense>
           {crewMembers && documents && (
-            <MissingDocumentsNotifications
-              crewMembers={crewMembers}
-              documents={documents}
-              onUploadSuccess={() => {
-                queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
-                queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
-                queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
-              }}
-            />
+            <Suspense fallback={<div className="h-48 animate-pulse bg-muted rounded-xl" />}>
+              <MissingDocumentsNotifications
+                crewMembers={crewMembers}
+                documents={documents}
+                onUploadSuccess={() => {
+                  queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+                }}
+              />
+            </Suspense>
           )}
-          <DashboardNotifications />
+          <Suspense fallback={<div className="h-48 animate-pulse bg-muted rounded-xl" />}>
+            <DashboardNotifications />
+          </Suspense>
         </div>
       </div>
 
@@ -604,14 +617,16 @@ export default function Dashboard() {
         onClose={() => setShowExpiryTimelineModal(false)}
       />
 
-      {/* Drill-down Detail Modal */}
-      <HealthDrillDownModal
-        isOpen={drillDownOpen}
-        onClose={() => setDrillDownOpen(false)}
-        type={drillDownType}
-        categoryKey={drillDownCategory.key}
-        categoryName={drillDownCategory.name}
-      />
+      {/* Drill-down Detail Modal - Conditional rendering for performance */}
+      {drillDownOpen && (
+        <HealthDrillDownModal
+          isOpen={drillDownOpen}
+          onClose={() => setDrillDownOpen(false)}
+          type={drillDownType}
+          categoryKey={drillDownCategory.key}
+          categoryName={drillDownCategory.name}
+        />
+      )}
     </div>
   );
 }

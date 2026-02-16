@@ -37,7 +37,7 @@ interface CrewDetailCardProps {
     isMailPending?: boolean;
 }
 
-export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
+export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
     member,
     documents,
     onView,
@@ -54,41 +54,41 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
     isMailPending
 }) => {
     const { toast } = useToast();
-    const startDate = member.activeContract?.startDate ? new Date(member.activeContract.startDate) : null;
+    const now = React.useMemo(() => new Date(), []);
 
-    const endDate = member.activeContract?.endDate ? new Date(member.activeContract.endDate) : null;
-    const now = new Date();
+    const contractStats = React.useMemo(() => {
+        const startDate = member.activeContract?.startDate ? new Date(member.activeContract.startDate) : null;
+        const endDate = member.activeContract?.endDate ? new Date(member.activeContract.endDate) : null;
 
-    let remainingDays = 0;
-    let totalDays = 0;
-    let progressPercent = 0;
+        let remainingDays = 0;
+        let totalDays = 0;
+        let progressPercent = 0;
 
-    if (startDate && endDate && member.activeContract?.status === 'active' && member.status !== 'onShore') {
-        totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-        const elapsedDays = Math.max(0, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
-        remainingDays = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-        progressPercent = totalDays > 0 ? Math.min(100, (elapsedDays / totalDays) * 100) : 0;
-    }
+        if (startDate && endDate && member.activeContract?.status === 'active' && member.status !== 'onShore') {
+            totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            const elapsedDays = Math.max(0, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+            remainingDays = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+            progressPercent = totalDays > 0 ? Math.min(100, (elapsedDays / totalDays) * 100) : 0;
+        }
 
-    const formatShortDate = (date: Date | null) => {
+        return { startDate, endDate, remainingDays, totalDays, progressPercent };
+    }, [member.activeContract, member.status, now]);
+
+    const { startDate, endDate, progressPercent } = contractStats;
+
+    const formatShortDate = React.useCallback((date: Date | null) => {
         if (!date) return '';
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    };
+    }, []);
 
-    const getInitials = (firstName?: string | null, lastName?: string | null) => {
-        const first = firstName?.charAt(0) || '';
-        const last = lastName?.charAt(0) || '';
-        return (first + last).toUpperCase() || '?';
-    };
-
-    const getDocTypeLabel = (type: string) => {
+    const getDocTypeLabel = React.useCallback((type: string) => {
         const labels: Record<string, string> = {
             passport: 'Passport', cdc: 'CDC', coc: 'COC', medical: 'Medical', aoa: 'AOA', photo: 'Photo', nok: 'NOK'
         };
         return labels[type] || type.toUpperCase();
-    };
+    }, []);
 
-    const getCrewDocumentExpiry = (member: any) => {
+    const docStatuses = React.useMemo(() => {
         const TRACKED_DOC_TYPES = ['medical', 'cdc', 'coc', 'aoa', 'photo', 'nok', 'passport'] as const;
         const crewDocs = documents.filter(doc => doc.crewMemberId === member.id);
 
@@ -112,9 +112,10 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
                 }
             }
 
-            if (!doc) return { type, status: 'missing' as const, expiryDate: null, daysUntil: null, docId: null, filePath: null };
+            if (!doc) return { type, status: 'missing' as const, expiryDate: null, daysUntil: null, docId: null, filePath: null, isTbd: false };
 
             const expiryDate = doc.expiryDate ? new Date(doc.expiryDate) : null;
+            const isTbd = doc.expiryDate === null;
             const daysUntil = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
 
             let status: any = 'valid';
@@ -123,16 +124,20 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
                 else if (daysUntil !== null && daysUntil <= 30) status = 'expiring';
             }
 
-            return { type, status, expiryDate, daysUntil, docId: doc.id, filePath: doc.filePath };
+            return { type, status, expiryDate, daysUntil, docId: doc.id, filePath: doc.filePath, isTbd };
         });
-    };
+    }, [member.id, member.activeContract, documents, now]);
 
-    const docStatuses = getCrewDocumentExpiry(member);
-    const validCount = docStatuses.filter(d => d.status === 'valid').length;
-    const expiringCount = docStatuses.filter(d => d.status === 'expiring').length;
-    const expiredCount = docStatuses.filter(d => d.status === 'expired' || d.status === 'missing').length;
+    const stats = React.useMemo(() => {
+        const validCount = docStatuses.filter(d => d.status === 'valid').length;
+        const expiringCount = docStatuses.filter(d => d.status === 'expiring').length;
+        const expiredCount = docStatuses.filter(d => d.status === 'expired' || d.status === 'missing').length;
+        return { validCount, expiringCount, expiredCount };
+    }, [docStatuses]);
 
-    const handleDocClick = async (doc: any) => {
+    const { validCount, expiringCount, expiredCount } = stats;
+
+    const handleDocClick = React.useCallback(async (doc: any) => {
         if (!doc.filePath || !doc.docId) {
             toast({ title: 'Not Available', description: 'No document file has been uploaded for this type.' });
             return;
@@ -148,7 +153,7 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
         } catch (error) {
             toast({ title: 'Error', description: 'Failed to open document', variant: 'destructive' });
         }
-    };
+    }, [toast]);
 
     return (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row min-h-[260px]">
@@ -283,7 +288,11 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
                             </div>
 
                             <div className="flex items-center bg-slate-50/30 rounded-lg p-0.5">
-                                {doc.status === 'missing' || !doc.filePath ? (
+                                {doc.isTbd && !doc.filePath ? (
+                                    <div className="flex items-center px-3 py-1 bg-amber-50 border border-amber-100 rounded-md">
+                                        <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">TBD</span>
+                                    </div>
+                                ) : doc.status === 'missing' || !doc.filePath ? (
                                     <Button
                                         variant="ghost"
                                         size="sm"
@@ -363,4 +372,4 @@ export const CrewDetailCard: React.FC<CrewDetailCardProps> = ({
             </div>
         </div>
     );
-};
+});
