@@ -72,8 +72,8 @@ export class CompliancePolicyService {
                         return {
                             allowed: false,
                             reason: `${type.toUpperCase()} expires on ${expiry.toLocaleDateString()} which is before the new contract end date.`,
-                            actionRequired: 'Document must be renewed before extension.',
-                            severity: 'error'
+                            actionRequired: 'Document must be renewed before extension. Proceed with caution.',
+                            severity: 'warning' // Changed from 'error' to 'warning' to allow override
                         };
                     } else {
                         return {

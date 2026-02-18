@@ -2187,26 +2187,19 @@ const CrewTable = React.memo(() => {
 
       {/* Edit Crew Member Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto p-0">
-          <div className="p-6 overflow-y-auto max-h-[85vh]">
-            <DialogHeader className="mb-6">
-              <DialogTitle className="text-foreground mb-3">
-                Edit Crew Member
-              </DialogTitle>
-            </DialogHeader>
-            {selectedCrewMember && (
-              <EditCrewForm
-                crewMember={selectedCrewMember}
-                onSuccess={() => {
-                  console.log('Edit form success - closing dialog and refreshing data');
-                  setShowEditDialog(false);
-                  setSelectedCrewMember(null);
-                  // Force additional refresh to ensure UI updates
-                  refetch();
-                }}
-              />
-            )}
-          </div>
+        <DialogContent className="sm:max-w-5xl max-h-[95vh] p-0 overflow-hidden border-none bg-transparent shadow-none">
+          {selectedCrewMember && (
+            <EditCrewForm
+              crewMember={selectedCrewMember}
+              onSuccess={() => {
+                console.log('Edit form success - closing dialog and refreshing data');
+                setShowEditDialog(false);
+                setSelectedCrewMember(null);
+                // Force additional refresh to ensure UI updates
+                refetch();
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
 

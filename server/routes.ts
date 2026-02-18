@@ -1389,18 +1389,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // 0. GLOBAL SEARCH: Check if document number is unique (if changed)
       if (updates.documentNumber) {
-        const uniqueness = await documentVerificationService.isDocumentNumberUnique(
-          updates.documentNumber,
-          existingDocument.crewMemberId,
-          existingDocument.id
-        );
+        const normalizedNew = updates.documentNumber.replace(/[\s\-\/\.]/g, '').toUpperCase();
+        const normalizedExisting = existingDocument.documentNumber.replace(/[\s\-\/\.]/g, '').toUpperCase();
 
-        if (!uniqueness.isUnique) {
-          return res.status(400).json({
-            message: `Verification Failed: Document Number ${updates.documentNumber} is already registered to ${uniqueness.ownerName}.`
-          });
+        if (normalizedNew !== normalizedExisting) {
+          const uniqueness = await documentVerificationService.isDocumentNumberUnique(
+            updates.documentNumber,
+            existingDocument.crewMemberId,
+            existingDocument.id
+          );
+
+          if (!uniqueness.isUnique) {
+            return res.status(400).json({
+              message: `Verification Failed: Document Number ${updates.documentNumber} is already registered to ${uniqueness.ownerName}.`
+            });
+          }
         }
       }
+
 
       const crewMember = await storage.getCrewMember(existingDocument.crewMemberId);
       if (!crewMember) {
@@ -3016,12 +3022,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
             activeContract: activeContractMap.get(m.id) || null,
             documents: docsByCrewId.get(m.id) || []
           }));
+        } else if (key === 'no-contract') {
+          // New category for vessel cards: Crew assigned but with no active contract
+          return crewMembers
+            .filter(m => !activeContractMap.has(m.id))
+            .map(m => ({
+              ...m,
+              currentVessel: vesselMap.get(m.currentVesselId || '') || null,
+              activeContract: null,
+              documents: docsByCrewId.get(m.id) || []
+            }));
         } else if (key === 'overdue') {
           return crewMembers
             .filter(m => {
-              if (m.status !== 'onBoard') return false;
+              // For vessel cards, 'overdue' (Expired) should only show those with an actual expired contract
+              // to avoid overlap with 'no-contract'
               const contract = activeContractMap.get(m.id);
-              return !contract || contract.endDate < now;
+              return contract && contract.endDate < now;
             })
             .map(m => ({
               ...m,
@@ -3032,11 +3049,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           // Contract health categories (critical, upcoming, soon, stable)
           const filteredCrew = crewMembers.filter(m => {
-            if (m.status !== 'onBoard') return false;
             const c = activeContractMap.get(m.id);
             if (!c) return false;
 
             const endDate = new Date(c.endDate);
+
+            // Special handling for vessel cards: 'upcoming' (Due Soon) segment matches 0-45 day range
+            if (vesselId && key === 'upcoming') {
+              return endDate >= now && endDate <= fortyFiveDaysFromNow;
+            }
+
+            // Normal dashboard behavior
             if (key === 'critical') return endDate >= now && endDate <= fifteenDaysFromNow;
             if (key === 'upcoming') return endDate > fifteenDaysFromNow && endDate <= thirtyDaysFromNow;
             if (key === 'soon') return endDate > thirtyDaysFromNow && endDate <= fortyFiveDaysFromNow;

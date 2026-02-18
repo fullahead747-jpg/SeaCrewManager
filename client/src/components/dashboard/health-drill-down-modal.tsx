@@ -439,7 +439,7 @@ const HealthDrillDownModal = memo(({
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div>
                                 <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
-                                    {categoryKey === 'global-search' ? 'Global Crew Search' : (type === 'contract' ? 'Contract Details' : 'Document Details')}
+                                    {categoryKey === 'global-search' ? 'Search' : (type === 'contract' ? 'Contract Details' : 'Document Details')}
                                     {categoryKey !== 'global-search' && (
                                         <Badge className="ml-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-bold">
                                             {categoryName}

@@ -88,8 +88,8 @@ export default function MinimalHealthRow({ stats, className, onSearchClick, onDo
             />
 
             <StatItem
-                label="Search"
-                value="Global"
+                label=""
+                value="Search"
                 icon={Search}
                 color="text-emerald-500"
                 description="Find crew member"

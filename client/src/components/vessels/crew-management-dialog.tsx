@@ -30,7 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { OCRDocumentScanner } from '@/components/crew/OCRDocumentScanner';
+import AddCrewForm from '../crew/add-crew-form';
 import { format } from 'date-fns';
 import { getAuthHeaders } from '@/lib/auth';
 import { useAuth } from '@/contexts/auth-context';
@@ -117,49 +117,14 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
   const [signOnReason, setSignOnReason] = useState('');
   const [deleteCrewDialogOpen, setDeleteCrewDialogOpen] = useState(false);
   const [selectedCrewForDeletion, setSelectedCrewForDeletion] = useState<CrewMemberWithDetails | null>(null);
+  const [showVesselHistoryDialog, setShowVesselHistoryDialog] = useState(false);
+  const [selectedCrewForHistory, setSelectedCrewForHistory] = useState<CrewMemberWithDetails | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Add crew form
-  const addCrewForm = useForm<AddCrewFormData>({
-    resolver: zodResolver(addCrewSchema),
-    defaultValues: {
-      firstName: '',
-      lastName: '',
-      nationality: '',
-      dateOfBirth: '',
-      rank: '',
-      phoneNumber: '',
-      status: 'onBoard',
-      emergencyContactName: '',
-      emergencyContactRelationship: '',
-      emergencyContactPhone: '',
-      emergencyContactEmail: '',
-      emergencyContactPostalAddress: '',
-      passportNumber: '',
-      passportPlaceOfIssue: '',
-      passportIssueDate: '',
-      passportExpiryDate: '',
-      cdcNumber: '',
-      cdcPlaceOfIssue: '',
-      cdcIssueDate: '',
-      cdcExpiryDate: '',
-      cocGradeNo: '',
-      cocPlaceOfIssue: '',
-      cocIssueDate: '',
-      cocExpiryDate: '',
-      medicalIssuingAuthority: '',
-      medicalApprovalNo: '',
-      medicalIssueDate: '',
-      medicalExpiryDate: '',
-      cocNotApplicable: false,
-      passportTbd: false,
-      cdcTbd: false,
-      cocTbd: false,
-      medicalTbd: false,
-    },
-  });
+
 
   // Edit crew form
   const editCrewForm = useForm<AddCrewFormData>({
@@ -218,7 +183,8 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           : new Date(selectedCrewForEdit.dateOfBirth).toISOString().split('T')[0],
         rank: selectedCrewForEdit.rank,
         phoneNumber: selectedCrewForEdit.phoneNumber || '',
-        status: selectedCrewForEdit.status as 'onBoard' | 'onShore',
+        // Map 'active' or any other non-standard status to 'onBoard' to satisfy schema
+        status: (selectedCrewForEdit.status === 'onShore' ? 'onShore' : 'onBoard') as 'onBoard' | 'onShore',
         emergencyContactName: (selectedCrewForEdit.emergencyContact as any)?.name || '',
         emergencyContactRelationship: (selectedCrewForEdit.emergencyContact as any)?.relationship || '',
         emergencyContactPhone: (selectedCrewForEdit.emergencyContact as any)?.phone || '',
@@ -242,7 +208,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
         medicalExpiryDate: medical?.expiryDate ? new Date(medical.expiryDate).toISOString().split('T')[0] : '',
         cocNotApplicable: selectedCrewForEdit.cocNotApplicable || false,
       });
-      setOriginalStatus(selectedCrewForEdit.status);
+      setOriginalStatus(selectedCrewForEdit.status === 'active' ? 'onBoard' : selectedCrewForEdit.status);
     }
   }, [selectedCrewForEdit, editCrewForm]);
 
@@ -331,159 +297,10 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
     setContractEndDate(endDate);
   };
 
-  // Helper to convert date formats from OCR (DD-MMM-YYYY) to ISO (YYYY-MM-DD)
-  const convertDateToISO = (dateStr: string): string => {
-    if (!dateStr) return '';
-    // If already in ISO format
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
-    // Convert DD-MMM-YYYY to ISO
-    const months: { [key: string]: string } = {
-      'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04',
-      'MAY': '05', 'JUN': '06', 'JUL': '07', 'AUG': '08',
-      'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
-    };
-    const match = dateStr.match(/(\d{2})-([A-Z]{3})-(\d{4})/i);
-    if (match) {
-      const [, day, month, year] = match;
-      const monthNum = months[month.toUpperCase()];
-      if (monthNum) return `${year}-${monthNum}-${day}`;
-    }
-    return dateStr;
-  };
+
 
   // Handle OCR data extraction to populate Add Crew form
-  const handleOCRDataExtracted = (extractedData: any) => {
-    console.log('OCR data received in handleOCRDataExtracted:', extractedData);
-    const setValueOptions = { shouldDirty: true, shouldTouch: true, shouldValidate: false };
 
-    // Parse name into first and last name
-    if (extractedData.seafarerName || extractedData.name) {
-      const fullName = extractedData.seafarerName || extractedData.name || '';
-      const nameParts = fullName.trim().split(/\s+/);
-      if (nameParts.length >= 2) {
-        addCrewForm.setValue('firstName', nameParts.slice(0, -1).join(' '), setValueOptions);
-        addCrewForm.setValue('lastName', nameParts[nameParts.length - 1], setValueOptions);
-      } else if (nameParts.length === 1) {
-        addCrewForm.setValue('firstName', nameParts[0], setValueOptions);
-      }
-    }
-
-    // Nationality
-    if (extractedData.seafarerNationality) {
-      addCrewForm.setValue('nationality', extractedData.seafarerNationality, setValueOptions);
-    }
-
-    // Date of birth - extract from combined field
-    if (extractedData.seafarerDatePlaceOfBirth) {
-      const dobMatch = extractedData.seafarerDatePlaceOfBirth.match(/(\d{2}-[A-Z]{3}-\d{4})/i);
-      if (dobMatch) {
-        addCrewForm.setValue('dateOfBirth', convertDateToISO(dobMatch[1]), setValueOptions);
-      }
-    }
-
-    // Phone/Mobile
-    if (extractedData.seafarerMobile) {
-      addCrewForm.setValue('phoneNumber', extractedData.seafarerMobile, setValueOptions);
-    }
-
-    // Passport details
-    if (extractedData.passportNumber) {
-      console.log('Setting passport number:', extractedData.passportNumber);
-      addCrewForm.setValue('passportNumber', extractedData.passportNumber, setValueOptions);
-    }
-    if (extractedData.passportPlaceOfIssue) {
-      addCrewForm.setValue('passportPlaceOfIssue', extractedData.passportPlaceOfIssue, setValueOptions);
-    }
-    if (extractedData.passportIssueDate) {
-      addCrewForm.setValue('passportIssueDate', convertDateToISO(extractedData.passportIssueDate), setValueOptions);
-    }
-    if (extractedData.passportExpiryDate) {
-      addCrewForm.setValue('passportExpiryDate', convertDateToISO(extractedData.passportExpiryDate), setValueOptions);
-    }
-
-    // CDC details
-    if (extractedData.cdcNumber) {
-      console.log('Setting CDC number:', extractedData.cdcNumber);
-      addCrewForm.setValue('cdcNumber', extractedData.cdcNumber, setValueOptions);
-    }
-    if (extractedData.cdcPlaceOfIssue) {
-      addCrewForm.setValue('cdcPlaceOfIssue', extractedData.cdcPlaceOfIssue, setValueOptions);
-    }
-    if (extractedData.cdcIssueDate) {
-      addCrewForm.setValue('cdcIssueDate', convertDateToISO(extractedData.cdcIssueDate), setValueOptions);
-    }
-    if (extractedData.cdcExpiryDate) {
-      addCrewForm.setValue('cdcExpiryDate', convertDateToISO(extractedData.cdcExpiryDate), setValueOptions);
-    }
-
-    // COC details
-    if (extractedData.cocGradeNo) {
-      console.log('Setting COC grade/no:', extractedData.cocGradeNo);
-      addCrewForm.setValue('cocGradeNo', extractedData.cocGradeNo, setValueOptions);
-    }
-    if (extractedData.cocPlaceOfIssue) {
-      addCrewForm.setValue('cocPlaceOfIssue', extractedData.cocPlaceOfIssue, setValueOptions);
-    }
-    if (extractedData.cocIssueDate) {
-      addCrewForm.setValue('cocIssueDate', convertDateToISO(extractedData.cocIssueDate), setValueOptions);
-    }
-    if (extractedData.cocExpiryDate) {
-      addCrewForm.setValue('cocExpiryDate', convertDateToISO(extractedData.cocExpiryDate), setValueOptions);
-    }
-
-    // Medical certificate details
-    if (extractedData.medicalIssuingAuthority) {
-      addCrewForm.setValue('medicalIssuingAuthority', extractedData.medicalIssuingAuthority, setValueOptions);
-    }
-    if (extractedData.medicalApprovalNo) {
-      console.log('Setting medical approval no:', extractedData.medicalApprovalNo);
-      addCrewForm.setValue('medicalApprovalNo', extractedData.medicalApprovalNo, setValueOptions);
-    }
-    if (extractedData.medicalIssueDate) {
-      addCrewForm.setValue('medicalIssueDate', convertDateToISO(extractedData.medicalIssueDate), setValueOptions);
-    }
-    if (extractedData.medicalExpiryDate) {
-      addCrewForm.setValue('medicalExpiryDate', convertDateToISO(extractedData.medicalExpiryDate), setValueOptions);
-    }
-
-    // Emergency contact / NOK details
-    if (extractedData.nokName) {
-      addCrewForm.setValue('emergencyContactName', extractedData.nokName, setValueOptions);
-    }
-    if (extractedData.nokRelationship) {
-      addCrewForm.setValue('emergencyContactRelationship', extractedData.nokRelationship, setValueOptions);
-    }
-    if (extractedData.nokTelephone) {
-      addCrewForm.setValue('emergencyContactPhone', extractedData.nokTelephone, setValueOptions);
-    }
-    if (extractedData.nokEmail) {
-      addCrewForm.setValue('emergencyContactEmail', extractedData.nokEmail, setValueOptions);
-    }
-    if (extractedData.nokPostalAddress) {
-      addCrewForm.setValue('emergencyContactPostalAddress', extractedData.nokPostalAddress, setValueOptions);
-    }
-
-    // Contract dates
-    if (extractedData.contractStartDate) {
-      const startDate = convertDateToISO(extractedData.contractStartDate);
-      addCrewForm.setValue('contractStartDate', startDate, setValueOptions);
-    }
-    if (extractedData.engagementPeriodMonths) {
-      const durationDays = extractedData.engagementPeriodMonths * 30;
-      addCrewForm.setValue('contractDurationDays', durationDays, setValueOptions);
-      // Calculate end date
-      const startDate = addCrewForm.getValues('contractStartDate');
-      if (startDate) {
-        const start = new Date(startDate);
-        const end = new Date(start);
-        end.setDate(start.getDate() + durationDays);
-        addCrewForm.setValue('contractEndDate', end.toISOString().split('T')[0], setValueOptions);
-      }
-    }
-
-    // Log the final form values after setting
-    console.log('Form values after OCR extraction:', addCrewForm.getValues());
-  };
 
   // Assign crew member mutation with flexible vessel assignment
   const assignCrewMutation = useMutation({
@@ -585,168 +402,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
     },
   });
 
-  // Add new crew member mutation
-  const addCrewMutation = useMutation({
-    mutationFn: async (data: AddCrewFormData) => {
-      console.log('Add crew form data received:', JSON.stringify(data, null, 2));
-      console.log('Document fields:', {
-        passportNumber: data.passportNumber,
-        passportExpiryDate: data.passportExpiryDate,
-        cdcNumber: data.cdcNumber,
-        cdcExpiryDate: data.cdcExpiryDate,
-        cocGradeNo: data.cocGradeNo,
-        cocExpiryDate: data.cocExpiryDate,
-        medicalApprovalNo: data.medicalApprovalNo,
-        medicalExpiryDate: data.medicalExpiryDate,
-      });
-      const crewData = {
-        firstName: data.firstName,
-        lastName: data.lastName,
-        nationality: data.nationality,
-        dateOfBirth: data.dateOfBirth,
-        rank: data.rank,
-        phoneNumber: data.phoneNumber || null,
-        status: data.status,
-        currentVesselId: vessel?.id || null,
-        emergencyContact: data.emergencyContactName ? {
-          name: data.emergencyContactName,
-          relationship: data.emergencyContactRelationship || '',
-          phone: data.emergencyContactPhone || '',
-          email: data.emergencyContactEmail || '',
-          postalAddress: data.emergencyContactPostalAddress || '',
-        } : null,
-        cocNotApplicable: data.cocNotApplicable || false,
-      };
 
-      const response = await fetch('/api/crew', {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(crewData),
-      });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        if (errorData.error === 'DUPLICATE_CREW_MEMBER') {
-          throw new Error(errorData.message || 'This crew member already exists on the same vessel.');
-        }
-        throw new Error(errorData.message || 'Failed to create crew member');
-      }
-      const newCrewMember = await response.json();
-
-      // Create documents for the new crew member
-      const documentsToCreate = [];
-
-      if (data.passportNumber || data.passportExpiryDate || data.passportTbd) {
-        documentsToCreate.push({
-          crewMemberId: newCrewMember.id,
-          type: 'passport',
-          documentNumber: data.passportNumber || 'N/A',
-          issuingAuthority: data.passportPlaceOfIssue || 'Unknown',
-          issueDate: data.passportIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.passportTbd ? null : (data.passportExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
-        });
-      }
-
-      if (data.cdcNumber || data.cdcExpiryDate || data.cdcTbd) {
-        documentsToCreate.push({
-          crewMemberId: newCrewMember.id,
-          type: 'cdc',
-          documentNumber: data.cdcNumber || 'N/A',
-          issuingAuthority: data.cdcPlaceOfIssue || 'Unknown',
-          issueDate: data.cdcIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.cdcTbd ? null : (data.cdcExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
-        });
-      }
-
-      if (!data.cocNotApplicable && (data.cocGradeNo || data.cocExpiryDate || data.cocTbd)) {
-        documentsToCreate.push({
-          crewMemberId: newCrewMember.id,
-          type: 'coc',
-          documentNumber: data.cocGradeNo || 'N/A',
-          issuingAuthority: data.cocPlaceOfIssue || 'Unknown',
-          issueDate: data.cocIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.cocTbd ? null : (data.cocExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
-        });
-      }
-
-      if (data.medicalApprovalNo || data.medicalExpiryDate || data.medicalTbd) {
-        documentsToCreate.push({
-          crewMemberId: newCrewMember.id,
-          type: 'medical',
-          documentNumber: data.medicalApprovalNo || 'N/A',
-          issuingAuthority: data.medicalIssuingAuthority || 'Unknown',
-          issueDate: data.medicalIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.medicalTbd ? null : (data.medicalExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
-        });
-      }
-
-      // Create all documents
-      console.log('Creating documents:', documentsToCreate);
-      for (const doc of documentsToCreate) {
-        try {
-          const docResponse = await fetch('/api/documents', {
-            method: 'POST',
-            headers: {
-              ...getAuthHeaders(),
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(doc),
-          });
-          if (!docResponse.ok) {
-            const errorData = await docResponse.json().catch(() => ({}));
-            console.error('Failed to create document:', doc.type, errorData);
-          } else {
-            console.log('Document created successfully:', doc.type);
-          }
-        } catch (docError) {
-          console.error('Error creating document:', doc.type, docError);
-        }
-      }
-
-      // Create contract if contract dates are provided
-      if (data.contractStartDate && data.contractEndDate && vessel?.id) {
-        await fetch('/api/contracts', {
-          method: 'POST',
-          headers: {
-            ...getAuthHeaders(),
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            crewMemberId: newCrewMember.id,
-            vesselId: vessel.id,
-            startDate: new Date(data.contractStartDate),
-            endDate: new Date(data.contractEndDate),
-            durationDays: data.contractDurationDays || 90,
-            status: 'active',
-          }),
-        });
-      }
-
-      return newCrewMember;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/vessels'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/contracts'] });
-      toast({
-        title: 'Success',
-        description: 'New crew member added successfully',
-      });
-      setShowAddCrewDialog(false);
-      addCrewForm.reset();
-    },
-    onError: (error: any) => {
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to add crew member',
-        variant: 'destructive',
-      });
-    },
-  });
 
   // Remove crew member from vessel mutation
   const removeCrewMutation = useMutation({
@@ -988,6 +644,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           postalAddress: data.emergencyContactPostalAddress || '',
         } : null,
         cocNotApplicable: data.cocNotApplicable || false,
+        currentVesselId: data.currentVesselId, // Ensure vessel assignment is passed
       };
 
       if (data.statusChangeReason) {
@@ -1012,7 +669,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       const existingDocs = selectedCrewForEdit?.documents || [];
 
       // Helper to update or create document
-      const saveDocument = async (type: string, docData: { documentNumber: string; issuingAuthority: string; issueDate: string; expiryDate: string }) => {
+      const saveDocument = async (type: string, docData: { documentNumber: string; issuingAuthority: string; issueDate: string; expiryDate: string | null }) => {
         const existing = existingDocs.find(d => d.type === type);
         try {
           if (existing) {
@@ -1090,6 +747,59 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           issueDate: data.medicalIssueDate || new Date().toISOString().split('T')[0],
           expiryDate: data.medicalTbd ? null : (data.medicalExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
         });
+      }
+
+      // Save Contract Details
+      if (data.contractStartDate && data.contractDurationDays) {
+        // Use the newly updated crew's currentVesselId if available, or fall back to the form data
+        // This ensures if the user just assigned a vessel, we use that one.
+        const effectiveVesselId = updatedCrew.currentVesselId || data.currentVesselId || vessel?.id;
+
+        if (!effectiveVesselId) {
+          console.error("Cannot create contract: No vessel assigned to crew member");
+          toast({
+            title: "Contract Warning",
+            description: "Contract details could not be saved because no vessel is assigned. Please assign a vessel first.",
+            variant: "destructive"
+          });
+        } else {
+          const contractData = {
+            crewMemberId: data.id,
+            vesselId: effectiveVesselId,
+            startDate: new Date(data.contractStartDate + 'T00:00:00.000Z'),
+            endDate: data.contractEndDate ? new Date(data.contractEndDate + 'T00:00:00.000Z') : null,
+            durationDays: data.contractDurationDays,
+            status: 'active',
+            contractType: 'SEA',
+          };
+
+          const existingContract = selectedCrewForEdit?.activeContract;
+          if (existingContract) {
+            console.log('Updating existing contract:', existingContract.id);
+            const contractResp = await fetch(`/api/contracts/${existingContract.id}`, {
+              method: 'PUT',
+              headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+              body: JSON.stringify(contractData),
+            });
+            if (!contractResp.ok) {
+              const error = await contractResp.json().catch(() => ({}));
+              console.error('Failed to update contract:', error);
+              toast({ title: "Contract Error", description: "Failed to update contract details.", variant: "destructive" });
+            }
+          } else {
+            console.log('Creating new contract during edit with vesselId:', effectiveVesselId);
+            const contractResp = await fetch('/api/contracts', {
+              method: 'POST',
+              headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+              body: JSON.stringify(contractData),
+            });
+            if (!contractResp.ok) {
+              const error = await contractResp.json().catch(() => ({}));
+              console.error('Failed to create contract:', error);
+              toast({ title: "Contract Error", description: "Failed to create new contract. Reason: " + (error.message || "Unknown error"), variant: "destructive" });
+            }
+          }
+        }
       }
 
       return updatedCrew;
@@ -1202,7 +912,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
     }
   };
 
+
   const handleExportExcel = async () => {
+    if (!vessel) return;
     try {
       const response = await fetch(`/api/vessels/${vessel.id}/export-excel`, {
         headers: getAuthHeaders(),
@@ -1234,7 +946,10 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
   const [isExporting, setIsExporting] = useState(false);
   const [isEmailing, setIsEmailing] = useState(false);
 
+
   const handleEmailExcel = async () => {
+    if (!vessel) return;
+
     try {
       setIsEmailing(true);
       const response = await fetch(`/api/vessels/${vessel.id}/email-excel`, {
@@ -1282,11 +997,17 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       rank: member.rank,
       phoneNumber: member.phoneNumber || '',
       status: member.status as 'onBoard' | 'onShore',
+      // Emergency Contact
       emergencyContactName: (member.emergencyContact as any)?.name || '',
       emergencyContactRelationship: (member.emergencyContact as any)?.relationship || '',
       emergencyContactPhone: (member.emergencyContact as any)?.phone || '',
       emergencyContactEmail: (member.emergencyContact as any)?.email || '',
       emergencyContactPostalAddress: (member.emergencyContact as any)?.postalAddress || '',
+
+      // Contract Details
+      contractStartDate: member.activeContract?.startDate ? new Date(member.activeContract.startDate).toISOString().split('T')[0] : '',
+      contractDurationDays: member.activeContract?.durationDays || 90,
+      contractEndDate: member.activeContract?.endDate ? new Date(member.activeContract.endDate).toISOString().split('T')[0] : '',
 
       // Documents
       passportNumber: passport?.documentNumber || '',
@@ -1334,7 +1055,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           <DialogHeader>
             <DialogTitle className="text-xl font-semibold text-foreground flex items-center gap-2">
               <Users className="h-5 w-5" />
-              View Crew - {vessel.name}
+              View Crew - {vessel.name} | Current Crew Members ({crewMembers.length})
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground mt-0">
               Manage crew members assigned to this vessel, view their contracts, and assign new crew members.
@@ -1393,10 +1114,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           </div>
 
           {/* Current Crew Section */}
-          <div className="mb-1">
-            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100 mb-1.5 flex items-center justify-between">
-              <span>Current Crew Members ({crewMembers.length})</span>
-            </h3>
+          <div className="mb-0">
 
             {isLoading ? (
               <div className="h-64 flex flex-col items-center justify-center gap-4">
@@ -1556,7 +1274,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                       <div className="w-2 h-2 bg-amber-600 rounded-full mr-3"></div>
                       Details of Competency Certificates
                       {selectedCrewForView.cocNotApplicable && (
-                        <Badge className="ml-3 bg-amber-100 text-amber-800 border-amber-200">NILL / Not Applicable</Badge>
+                        <Badge className="ml-3 bg-amber-100 text-amber-800 border-amber-200">TBD (To Be Determined)</Badge>
                       )}
                     </h4>
                     <div className="text-sm space-y-2">
@@ -1696,779 +1414,11 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
 
       {/* Add New Crew Dialog */}
       {showAddCrewDialog && (
-        <Dialog open={showAddCrewDialog} onOpenChange={setShowAddCrewDialog}>
-          <DialogContent className="sm:max-w-3xl max-h-[95vh] overflow-hidden">
-            <DialogHeader className="px-6 pt-6 pb-2">
-              <DialogTitle className="text-foreground flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                Add New Crew Member
-              </DialogTitle>
-              <DialogDescription>
-                Create a new crew member profile with personal and emergency contact information. They will be automatically assigned to {vessel?.name}.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="px-6 pb-6 overflow-y-auto max-h-[calc(95vh-120px)]">
-              {/* OCR Document Scanner */}
-              <div className="mb-4">
-                <OCRDocumentScanner
-                  onDataExtracted={handleOCRDataExtracted}
-                  className="w-full"
-                  mode="seafarer"
-                />
-              </div>
-
-              <Form {...addCrewForm}>
-                <form onSubmit={addCrewForm.handleSubmit((data) => addCrewMutation.mutate(data))} className="space-y-4">
-                  {/* Personal Information */}
-                  <div className="space-y-3 p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                    <h3 className="text-lg font-semibold text-blue-900 dark:text-blue-100 flex items-center">
-                      <div className="w-2 h-2 bg-blue-600 rounded-full mr-3"></div>
-                      Personal Information
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={addCrewForm.control}
-                        name="firstName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>First Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter first name" {...field} data-testid="input-firstName" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="lastName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Last Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter last name" {...field} data-testid="input-lastName" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="nationality"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Nationality</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter nationality" {...field} data-testid="input-nationality" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="dateOfBirth"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Date of Birth</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} data-testid="input-dateOfBirth" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={addCrewForm.control}
-                      name="phoneNumber"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone Number (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter phone number" {...field} data-testid="input-phoneNumber" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/* Professional Information */}
-                  <div className="space-y-3 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
-                    <h3 className="text-lg font-semibold text-green-900 dark:text-green-100 flex items-center">
-                      <div className="w-2 h-2 bg-green-600 rounded-full mr-3"></div>
-                      Professional Information
-                    </h3>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={addCrewForm.control}
-                        name="rank"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Rank</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger data-testid="select-rank">
-                                  <SelectValue placeholder="Select rank" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="Captain">Captain</SelectItem>
-                                <SelectItem value="Master (NCV)">Master (NCV)</SelectItem>
-                                <SelectItem value="Chief Engineer">Chief Engineer</SelectItem>
-                                <SelectItem value="Chief Engineer (NCV)">Chief Engineer (NCV)</SelectItem>
-                                <SelectItem value="2nd Engineer">2nd Engineer</SelectItem>
-                                <SelectItem value="3rd Engineer">3rd Engineer</SelectItem>
-                                <SelectItem value="4th Engineer">4th Engineer</SelectItem>
-                                <SelectItem value="Chief Officer">Chief Officer</SelectItem>
-                                <SelectItem value="Chief Officer (NCV)">Chief Officer (NCV)</SelectItem>
-                                <SelectItem value="Second Officer">Second Officer</SelectItem>
-                                <SelectItem value="Third Officer">Third Officer</SelectItem>
-                                <SelectItem value="IV Master">IV Master</SelectItem>
-                                <SelectItem value="Second Master (IV)">Second Master (IV)</SelectItem>
-                                <SelectItem value="Bosun">Bosun</SelectItem>
-                                <SelectItem value="AB Seaman">AB Seaman</SelectItem>
-                                <SelectItem value="Deck Watchkeeping Rating (AB)">Deck Watchkeeping Rating (AB)</SelectItem>
-                                <SelectItem value="Engine Rating">Engine Rating</SelectItem>
-                                <SelectItem value="Cook">Cook</SelectItem>
-                                <SelectItem value="2nd Cook">2nd Cook</SelectItem>
-                                <SelectItem value="Saloon Rating">Saloon Rating</SelectItem>
-                                <SelectItem value="Oiler">Oiler</SelectItem>
-                                <SelectItem value="Wiper">Wiper</SelectItem>
-                                <SelectItem value="Fitter">Fitter</SelectItem>
-                                <SelectItem value="Handler">Handler</SelectItem>
-                                <SelectItem value="Tube Operator">Tube Operator</SelectItem>
-                                <SelectItem value="Lathe Operator">Lathe Operator</SelectItem>
-                                <SelectItem value="Radio Officer">Radio Officer</SelectItem>
-                                <SelectItem value="ETO">ETO</SelectItem>
-                                <SelectItem value="ASST ETO">ASST ETO</SelectItem>
-                                <SelectItem value="GMDSS OPERATOR">GMDSS OPERATOR</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={addCrewForm.control}
-                        name="status"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Status</FormLabel>
-                            <FormControl>
-                              <RadioGroup
-                                onValueChange={field.onChange}
-                                value={field.value || 'onBoard'}
-                                className="flex flex-col space-y-2"
-                                data-testid="status-radio-group-crew-mgmt"
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <RadioGroupItem value="onBoard" id="onBoard-crew-mgmt" />
-                                  <Label htmlFor="onBoard-crew-mgmt" className="cursor-pointer">On Board</Label>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                  <RadioGroupItem value="onShore" id="onShore-crew-mgmt" />
-                                  <Label htmlFor="onShore-crew-mgmt" className="cursor-pointer">On Shore</Label>
-                                </div>
-                              </RadioGroup>
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Emergency Contact */}
-                  <div className="space-y-3 p-4 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-                    <h3 className="text-lg font-semibold text-orange-900 dark:text-orange-100 flex items-center">
-                      <div className="w-2 h-2 bg-orange-600 rounded-full mr-3"></div>
-                      Emergency Contact (Optional)
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={addCrewForm.control}
-                        name="emergencyContactName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Contact Name</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter contact name" {...field} data-testid="input-emergencyContactName" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="emergencyContactRelationship"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Relationship</FormLabel>
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <FormControl>
-                                <SelectTrigger data-testid="input-emergencyContactRelationship">
-                                  <SelectValue placeholder="Select relationship" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="Spouse">Spouse</SelectItem>
-                                <SelectItem value="Wife">Wife</SelectItem>
-                                <SelectItem value="Parent">Parent</SelectItem>
-                                <SelectItem value="Child">Child</SelectItem>
-                                <SelectItem value="Sibling">Sibling</SelectItem>
-                                <SelectItem value="Friend">Friend</SelectItem>
-                                <SelectItem value="Other">Other</SelectItem>
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="emergencyContactPhone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Contact Phone</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter contact phone" {...field} data-testid="input-emergencyContactPhone" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="emergencyContactEmail"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Contact Email</FormLabel>
-                            <FormControl>
-                              <Input type="email" placeholder="Enter contact email" {...field} data-testid="input-emergencyContactEmail" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                    <FormField
-                      control={addCrewForm.control}
-                      name="emergencyContactPostalAddress"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Postal Address</FormLabel>
-                          <FormControl>
-                            <Textarea placeholder="Enter postal address" {...field} data-testid="input-emergencyContactPostalAddress" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  {/* Passport Details */}
-                  <div className="space-y-3 p-4 bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-                    <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-100 flex items-center">
-                      <div className="w-2 h-2 bg-purple-600 rounded-full mr-3"></div>
-                      Passport Details
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={addCrewForm.control}
-                        name="passportNumber"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Passport Number</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter passport number" {...field} data-testid="input-passportNumber" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="passportPlaceOfIssue"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Place of Issue</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter place of issue" {...field} data-testid="input-passportPlaceOfIssue" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="passportIssueDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Issue Date</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} data-testid="input-passportIssueDate" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="passportExpiryDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Expiry Date</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="date"
-                                {...field}
-                                disabled={addCrewForm.watch('passportTbd')}
-                                data-testid="input-passportExpiryDate"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="passportTbd"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={(checked) => {
-                                  field.onChange(checked);
-                                  if (checked) {
-                                    addCrewForm.setValue('passportExpiryDate', '');
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
-                                TBD (To Be Determined)
-                              </FormLabel>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  {/* CDC Details */}
-                  <div className="space-y-3 p-4 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800 rounded-lg">
-                    <h3 className="text-lg font-semibold text-teal-900 dark:text-teal-100 flex items-center">
-                      <div className="w-2 h-2 bg-teal-600 rounded-full mr-3"></div>
-                      CDC Details
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={addCrewForm.control}
-                        name="cdcNumber"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>CDC Number</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter CDC number" {...field} data-testid="input-cdcNumber" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="cdcPlaceOfIssue"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Place of Issue</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter place of issue" {...field} data-testid="input-cdcPlaceOfIssue" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="cdcIssueDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Issue Date</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} data-testid="input-cdcIssueDate" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="cdcExpiryDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Expiry Date</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="date"
-                                {...field}
-                                disabled={addCrewForm.watch('cdcTbd')}
-                                data-testid="input-cdcExpiryDate"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="cdcTbd"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={(checked) => {
-                                  field.onChange(checked);
-                                  if (checked) {
-                                    addCrewForm.setValue('cdcExpiryDate', '');
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
-                                TBD (To Be Determined)
-                              </FormLabel>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  {/* COC Details */}
-                  <div className="space-y-3 p-4 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
-                    <h3 className="text-lg font-semibold text-indigo-900 dark:text-indigo-100 flex items-center">
-                      <div className="w-2 h-2 bg-indigo-600 rounded-full mr-3"></div>
-                      COC Details
-                      <FormField
-                        control={addCrewForm.control}
-                        name="cocNotApplicable"
-                        render={({ field }) => (
-                          <div className="ml-auto flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              id="add-cocNotApplicable"
-                              checked={field.value}
-                              onChange={field.onChange}
-                              className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                            />
-                            <Label htmlFor="add-cocNotApplicable" className="text-sm font-medium cursor-pointer">NILL / Not Applicable</Label>
-                          </div>
-                        )}
-                      />
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={addCrewForm.control}
-                        name="cocGradeNo"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className={addCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Grade / Certificate Number</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter COC grade/number" {...field} disabled={addCrewForm.watch('cocNotApplicable')} data-testid="input-cocGradeNo" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="cocPlaceOfIssue"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className={addCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Place of Issue</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter place of issue" {...field} disabled={addCrewForm.watch('cocNotApplicable')} data-testid="input-cocPlaceOfIssue" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="cocIssueDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className={addCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Issue Date</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} disabled={addCrewForm.watch('cocNotApplicable')} data-testid="input-cocIssueDate" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="cocExpiryDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className={addCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Expiry Date</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="date"
-                                {...field}
-                                disabled={addCrewForm.watch('cocNotApplicable') || addCrewForm.watch('cocTbd')}
-                                data-testid="input-cocExpiryDate"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="cocTbd"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={(checked) => {
-                                  field.onChange(checked);
-                                  if (checked) {
-                                    addCrewForm.setValue('cocExpiryDate', '');
-                                  }
-                                }}
-                                disabled={addCrewForm.watch('cocNotApplicable')}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel className={`font-normal cursor-pointer ${addCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
-                                TBD (To Be Determined)
-                              </FormLabel>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Medical Certificate Details */}
-                  <div className="space-y-3 p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800 rounded-lg">
-                    <h3 className="text-lg font-semibold text-rose-900 dark:text-rose-100 flex items-center">
-                      <div className="w-2 h-2 bg-rose-600 rounded-full mr-3"></div>
-                      Medical Certificate Details
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={addCrewForm.control}
-                        name="medicalIssuingAuthority"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Issuing Authority</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter issuing authority" {...field} data-testid="input-medicalIssuingAuthority" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="medicalApprovalNo"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Approval Number</FormLabel>
-                            <FormControl>
-                              <Input placeholder="Enter approval number" {...field} data-testid="input-medicalApprovalNo" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="medicalIssueDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Issue Date</FormLabel>
-                            <FormControl>
-                              <Input type="date" {...field} data-testid="input-medicalIssueDate" />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="medicalExpiryDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Expiry Date</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="date"
-                                {...field}
-                                disabled={addCrewForm.watch('medicalTbd')}
-                                data-testid="input-medicalExpiryDate"
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={addCrewForm.control}
-                        name="medicalTbd"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={(checked) => {
-                                  field.onChange(checked);
-                                  if (checked) {
-                                    addCrewForm.setValue('medicalExpiryDate', '');
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
-                                TBD (To Be Determined)
-                              </FormLabel>
-                            </div>
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Contract Information */}
-                  <div className="space-y-3 p-4 bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-                    <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-100 flex items-center">
-                      <div className="w-2 h-2 bg-purple-600 rounded-full mr-3"></div>
-                      Contract Information
-                    </h3>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <FormField
-                        control={addCrewForm.control}
-                        name="contractStartDate"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Contract Start Date</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="date"
-                                {...field}
-                                data-testid="input-contractStartDate"
-                                onChange={(e) => {
-                                  field.onChange(e);
-                                  // Calculate end date when start date changes
-                                  const startDate = e.target.value;
-                                  const duration = addCrewForm.getValues('contractDurationDays');
-                                  if (startDate && duration) {
-                                    const start = new Date(startDate);
-                                    const end = new Date(start);
-                                    end.setDate(start.getDate() + duration);
-                                    addCrewForm.setValue('contractEndDate', end.toISOString().split('T')[0]);
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={addCrewForm.control}
-                        name="contractDurationDays"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Duration (Days)</FormLabel>
-                            <FormControl>
-                              <Input
-                                type="number"
-                                min="1"
-                                placeholder="e.g., 90"
-                                {...field}
-                                value={field.value || 90}
-                                data-testid="input-contractDurationDays"
-                                onChange={(e) => {
-                                  const duration = parseInt(e.target.value) || 0;
-                                  field.onChange(duration);
-                                  // Calculate end date when duration changes
-                                  const startDate = addCrewForm.getValues('contractStartDate');
-                                  if (startDate && duration > 0) {
-                                    const start = new Date(startDate);
-                                    const end = new Date(start);
-                                    end.setDate(start.getDate() + duration);
-                                    addCrewForm.setValue('contractEndDate', end.toISOString().split('T')[0]);
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-
-                    <FormField
-                      control={addCrewForm.control}
-                      name="contractEndDate"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Contract End Date (Auto-calculated)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="date"
-                              {...field}
-                              data-testid="input-contractEndDate"
-                              readOnly
-                              className="bg-gray-50 dark:bg-gray-800 cursor-not-allowed"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setShowAddCrewDialog(false)}
-                      data-testid="cancel-add-crew"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      type="submit"
-                      className="bg-maritime-navy hover:bg-blue-800"
-                      disabled={addCrewMutation.isPending}
-                      data-testid="submit-add-crew"
-                    >
-                      {addCrewMutation.isPending ? 'Adding...' : 'Add Crew Member'}
-                    </Button>
-                  </div>
-                </form>
-              </Form>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <AddCrewForm
+          open={showAddCrewDialog}
+          onOpenChange={setShowAddCrewDialog}
+          defaultVesselId={vessel?.id}
+        />
       )}
 
       {/* Edit Crew Dialog */}
@@ -2501,6 +1451,21 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                     ...data,
                     id: selectedCrewForEdit.id,
                     statusChangeReason: isStatusChanged ? statusChangeReason : undefined
+                  });
+                }, (errors) => {
+                  console.error('Form validation errors:', errors);
+                  const errorMessages = Object.entries(errors)
+                    .map(([field, error]: [string, any]) => {
+                      const message = error.message || 'Invalid value';
+                      const fieldName = field.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+                      return `${fieldName}: ${message}`;
+                    })
+                    .join(', ');
+
+                  toast({
+                    title: 'Validation Error',
+                    description: `Please correct: ${errorMessages}`,
+                    variant: 'destructive',
                   });
                 })} className="space-y-4">
                   {/* Personal Information */}
@@ -2775,6 +1740,92 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                     />
                   </div>
 
+                  {/* Contract Details */}
+                  <div className="space-y-3 p-4 bg-sky-50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800 rounded-lg">
+                    <h3 className="text-lg font-semibold text-sky-900 dark:text-sky-100 flex items-center">
+                      <div className="w-2 h-2 bg-sky-600 rounded-full mr-3"></div>
+                      Contract Details
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={editCrewForm.control}
+                        name="contractStartDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Start Date</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="date"
+                                {...field}
+                                onChange={(e) => {
+                                  field.onChange(e);
+                                  const startDate = e.target.value;
+                                  const duration = editCrewForm.getValues('contractDurationDays');
+                                  if (startDate && duration) {
+                                    const start = new Date(startDate);
+                                    const end = new Date(start);
+                                    end.setDate(start.getDate() + parseInt(duration.toString()));
+                                    editCrewForm.setValue('contractEndDate', end.toISOString().split('T')[0]);
+                                  }
+                                }}
+                                data-testid="edit-input-contractStartDate"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editCrewForm.control}
+                        name="contractDurationDays"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Duration (Days)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                {...field}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value) || 0;
+                                  field.onChange(val);
+                                  const startDate = editCrewForm.getValues('contractStartDate');
+                                  if (startDate && val > 0) {
+                                    const start = new Date(startDate);
+                                    const end = new Date(start);
+                                    end.setDate(start.getDate() + val);
+                                    editCrewForm.setValue('contractEndDate', end.toISOString().split('T')[0], { shouldDirty: true });
+                                  }
+                                }}
+                                data-testid="edit-input-contractDurationDays"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editCrewForm.control}
+                        name="contractEndDate"
+                        render={({ field }) => (
+                          <FormItem className="col-span-2">
+                            <FormLabel>End Date (Auto-calculated)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="date"
+                                {...field}
+                                readOnly
+                                disabled
+                                className="bg-muted"
+                                data-testid="edit-input-contractEndDate"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
+
                   {/* Passport Details */}
                   <div className="space-y-3 p-4 bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg">
                     <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-100 flex items-center">
@@ -2974,7 +2025,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                               onChange={field.onChange}
                               className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                             />
-                            <Label htmlFor="edit-cocNotApplicable" className="text-sm font-medium cursor-pointer">NILL / Not Applicable</Label>
+                            <Label htmlFor="edit-cocNotApplicable" className="text-sm font-medium cursor-pointer">TBD (To Be Determined)</Label>
                           </div>
                         )}
                       />
@@ -3447,6 +2498,33 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Vessel History Dialog */}
+      <Dialog open={showVesselHistoryDialog} onOpenChange={setShowVesselHistoryDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Vessel History
+            </DialogTitle>
+            <DialogDescription>
+              History for {selectedCrewForHistory?.firstName} {selectedCrewForHistory?.lastName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="flex flex-col items-center justify-center p-8 text-muted-foreground border border-dashed rounded-lg">
+              <Ship className="h-8 w-8 mb-2 opacity-50" />
+              <p>Vessel history timeline coming soon</p>
+            </div>
+            {selectedCrewForHistory?.lastVessel && (
+              <div className="mt-4 p-4 bg-muted/50 rounded-lg">
+                <p className="text-sm font-medium">Last Vessel:</p>
+                <p className="text-sm text-foreground">{selectedCrewForHistory.lastVessel.name}</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

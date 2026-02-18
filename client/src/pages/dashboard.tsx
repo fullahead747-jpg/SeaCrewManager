@@ -8,14 +8,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import StatsCard from '@/components/dashboard/stats-card';
-const UpcomingEvents = memo(lazy(() => import('@/components/dashboard/upcoming-events')));
-const CrewTable = memo(lazy(() => import('@/components/crew/crew-table')));
 const VesselCards = memo(lazy(() => import('@/components/vessels/vessel-cards')));
-const DashboardNotifications = memo(lazy(() => import('@/components/dashboard/dashboard-notifications')));
-const MissingDocumentsNotifications = memo(lazy(() => import('@/components/documents/missing-documents-notifications')));
-const ExpiringDocumentsWidget = memo(lazy(() => import('@/components/dashboard/expiring-documents-widget')));
-import AddContractForm from '@/components/crew/add-contract-form';
-import AttendanceUploadDialog from '@/components/crew/attendance-upload-dialog';
 import ChatWidget from '@/components/dashboard/chat-widget';
 import SignOffDueModal from '@/components/dashboard/sign-off-due-modal';
 import ContractExpiryTimelineModal from '@/components/dashboard/contract-expiry-timeline-modal';
@@ -23,7 +16,7 @@ import InteractiveHealthCard, { HealthDataPoint } from '@/components/dashboard/i
 import HealthDrillDownModal from '@/components/dashboard/health-drill-down-modal';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { AlertTriangle, FileText, Download, Calendar, Plus, ExternalLink, ClipboardList, Loader2 } from 'lucide-react';
+import { AlertTriangle, FileText, Download, Calendar, Plus, ExternalLink, Loader2 } from 'lucide-react';
 import { DashboardStats } from '@/types';
 import MinimalHealthRow from '@/components/dashboard/minimal-health-row';
 
@@ -58,7 +51,7 @@ const MemoizedContractHealth = memo(({ stats, statsLoading, onDrillDown }: { sta
   );
 });
 
-const MemoizedCertificateHealth = memo(({ stats, statsLoading, onDrillDown }: { stats: DashboardStats, statsLoading: boolean, onDrillDown: any }) => {
+const MemoizedDocumentHealth = memo(({ stats, statsLoading, onDrillDown }: { stats: DashboardStats, statsLoading: boolean, onDrillDown: any }) => {
   const data = useMemo(() => [
     { key: 'expired', name: 'Expired Documents', value: stats.documentHealth.expired, color: '#ef4444' },
     { key: 'critical', name: 'Critical Expiry (< 30d)', value: stats.documentHealth.critical, color: '#f97316' },
@@ -75,10 +68,10 @@ const MemoizedCertificateHealth = memo(({ stats, statsLoading, onDrillDown }: { 
 
   return (
     <InteractiveHealthCard
-      title="Certificate Compliance Index"
+      title="Documents Index"
       description="Real-time validity status of mandatory documents"
       total={stats.documentHealth.total}
-      totalLabel="CERTIFICATES"
+      totalLabel="DOCUMENTS"
       isLoading={statsLoading}
       onSegmentClick={(key, name) => onDrillDown('document', key, name)}
       data={data}
@@ -89,10 +82,8 @@ const MemoizedCertificateHealth = memo(({ stats, statsLoading, onDrillDown }: { 
 export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [showAddContractForm, setShowAddContractForm] = useState(false);
   const [showSignOffDueModal, setShowSignOffDueModal] = useState(false);
   const [showExpiryTimelineModal, setShowExpiryTimelineModal] = useState(false);
-  const [showAttendanceDialog, setShowAttendanceDialog] = useState(false);
 
   // Drill-down states
   const [drillDownOpen, setDrillDownOpen] = useState(false);
@@ -118,17 +109,6 @@ export default function Dashboard() {
     refetchInterval: 30000, // Reduced from 5s to 30s to prevent lagging
   });
 
-  const { data: expiringDocuments, isLoading: alertsLoading } = useQuery({
-    queryKey: ['/api/alerts/expiring-documents', { days: 90 }],
-    queryFn: async () => {
-      const response = await fetch('/api/alerts/expiring-documents?days=90', {
-        headers: getAuthHeaders(),
-      });
-      if (!response.ok) throw new Error('Failed to fetch alerts');
-      return response.json();
-    },
-    refetchInterval: 30000, // Refresh every 30 seconds
-  });
 
 
   // Fetch crew data for export
@@ -490,7 +470,7 @@ export default function Dashboard() {
         <MinimalHealthRow
           stats={stats}
           className="mb-4"
-          onSearchClick={() => handleDrillDown('contract', 'global-search', 'Global Crew Search')}
+          onSearchClick={() => handleDrillDown('contract', 'global-search', 'Search')}
           onDownloadClick={exportCrewByVessel}
         />
       )}
@@ -501,8 +481,8 @@ export default function Dashboard() {
           {/* Contract Health Section */}
           <MemoizedContractHealth stats={stats} statsLoading={statsLoading} onDrillDown={handleDrillDown} />
 
-          {/* Certificate Health Section */}
-          <MemoizedCertificateHealth stats={stats} statsLoading={statsLoading} onDrillDown={handleDrillDown} />
+          {/* Document Health Section */}
+          <MemoizedDocumentHealth stats={stats} statsLoading={statsLoading} onDrillDown={handleDrillDown} />
         </div>
       )}
 
@@ -519,93 +499,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        <div className="lg:col-span-8">
-          <div className="bg-card rounded-xl shadow-sm border border-border h-full min-h-[800px]">
-            <div className="p-6 border-b border-border">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-foreground">
-                  Crew Overview
-                </h3>
-                {(user?.role === 'admin' || user?.role === 'office_staff') && (
-                  <div className="flex space-x-2">
-                    <Button
-                      variant="outline"
-                      className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-300 dark:bg-purple-950 dark:hover:bg-purple-900 dark:text-purple-300 dark:border-purple-700"
-                      size="sm"
-                      onClick={() => setShowAddContractForm(true)}
-                      data-testid="add-contract-button"
-                    >
-                      Add Contract
-                    </Button>
-                    <Button
-                      className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                      size="sm"
-                      onClick={() => setShowAttendanceDialog(true)}
-                      data-testid="upload-attendance-button"
-                    >
-                      <ClipboardList className="h-4 w-4 mr-2" />
-                      Attendance Sheet
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={exportCrewByVessel}
-                      disabled={!crewMembers || crewMembers.length === 0}
-                      data-testid="export-crew-button"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="p-6 flex-1">
-              <Suspense fallback={<div className="h-[800px] flex items-center justify-center"><Loader2 className="h-12 w-12 animate-spin text-primary/50" /></div>}>
-                <CrewTable />
-              </Suspense>
-            </div>
-          </div>
-        </div>
 
-        {/* Right Sidebar */}
-        <div className="lg:col-span-4 space-y-6">
-          <Suspense fallback={<div className="h-48 animate-pulse bg-muted rounded-xl" />}>
-            <UpcomingEvents />
-          </Suspense>
-          <Suspense fallback={<div className="h-48 animate-pulse bg-muted rounded-xl" />}>
-            <ExpiringDocumentsWidget />
-          </Suspense>
-          {crewMembers && documents && (
-            <Suspense fallback={<div className="h-48 animate-pulse bg-muted rounded-xl" />}>
-              <MissingDocumentsNotifications
-                crewMembers={crewMembers}
-                documents={documents}
-                onUploadSuccess={() => {
-                  queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
-                  queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
-                  queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
-                }}
-              />
-            </Suspense>
-          )}
-          <Suspense fallback={<div className="h-48 animate-pulse bg-muted rounded-xl" />}>
-            <DashboardNotifications />
-          </Suspense>
-        </div>
-      </div>
-
-      <AddContractForm
-        open={showAddContractForm}
-        onOpenChange={setShowAddContractForm}
-      />
-
-      <AttendanceUploadDialog
-        open={showAttendanceDialog}
-        onOpenChange={setShowAttendanceDialog}
-      />
 
       <SignOffDueModal
         isOpen={showSignOffDueModal}

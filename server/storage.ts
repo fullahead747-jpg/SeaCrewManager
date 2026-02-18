@@ -79,7 +79,7 @@ export interface IStorage {
   getActiveContract(crewMemberId: string): Promise<Contract | undefined>;
   createContract(contract: InsertContract): Promise<Contract>;
   updateContract(id: string, contract: Partial<InsertContract>): Promise<Contract | undefined>;
-  getVesselContractStats(vesselId: string): Promise<{ active: number, expiringSoon: number, expired: number }>;
+  getVesselContractStats(vesselId: string): Promise<{ active: number, expiringSoon: number, expired: number, noContract: number }>;
   getVesselContracts(vesselId: string, status?: string): Promise<Array<Contract & { crewMember: CrewMember }>>;
 
   // Document operations
@@ -901,11 +901,8 @@ export class DatabaseStorage implements IStorage {
       [validStatusDocsCount],
       [drilldownExpiredDocsCount],
       [drilldownTbdDocsCount],
-      [criticalContractsCount],
-      [upcomingContractsCount],
-      [soonContractsCount],
-      [stableContractsCount],
-      [validContactCrewCount],
+      allOnBoardCrew,
+      allActiveContracts,
       [totalContractsCount]
     ] = await Promise.all([
       db.select({ count: count() }).from(crewMembers).where(eq(crewMembers.status, 'onBoard')),
@@ -923,25 +920,41 @@ export class DatabaseStorage implements IStorage {
       db.select({ count: count() }).from(documents).where(eq(documents.status, 'valid')),
       db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) > 1900`)),
       db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) <= 1900`)),
-      db.select({ count: count() }).from(contracts).innerJoin(crewMembers, eq(contracts.crewMemberId, crewMembers.id)).where(and(eq(contracts.status, 'active'), eq(crewMembers.status, 'onBoard'), gte(contracts.endDate, now), lte(contracts.endDate, fifteenDaysFromNow))),
-      db.select({ count: count() }).from(contracts).innerJoin(crewMembers, eq(contracts.crewMemberId, crewMembers.id)).where(and(eq(contracts.status, 'active'), eq(crewMembers.status, 'onBoard'), gt(contracts.endDate, fifteenDaysFromNow), lte(contracts.endDate, thirtyDaysFromNow))),
-      db.select({ count: count() }).from(contracts).innerJoin(crewMembers, eq(contracts.crewMemberId, crewMembers.id)).where(and(eq(contracts.status, 'active'), eq(crewMembers.status, 'onBoard'), gt(contracts.endDate, thirtyDaysFromNow), lte(contracts.endDate, fortyFiveDaysFromNow))),
-      db.select({ count: count() }).from(contracts).innerJoin(crewMembers, eq(contracts.crewMemberId, crewMembers.id)).where(and(eq(contracts.status, 'active'), eq(crewMembers.status, 'onBoard'), gt(contracts.endDate, fortyFiveDaysFromNow))),
-      db.select({ count: count() })
-        .from(crewMembers)
-        .innerJoin(contracts, eq(crewMembers.id, contracts.crewMemberId))
-        .where(and(
-          eq(crewMembers.status, 'onBoard'),
-          eq(contracts.status, 'active'),
-          gte(contracts.endDate, now)
-        )),
+      db.select().from(crewMembers).where(eq(crewMembers.status, 'onBoard')),
+      db.select().from(contracts).where(eq(contracts.status, 'active')),
       db.select({ count: count() }).from(contracts).where(eq(contracts.status, 'active'))
     ]);
+
+    // Robust Contract Health Aggregation (Mutually Exclusive)
+    const contractHealth = {
+      overdue: 0,
+      critical: 0,
+      upcoming: 0,
+      soon: 0,
+      stable: 0,
+      shored: crewOnShoreCount.count,
+      total: totalCrewCount.count
+    };
+
+    const activeContractMap = new Map();
+    allActiveContracts.forEach(c => activeContractMap.set(c.crewMemberId, c));
+
+    allOnBoardCrew.forEach(m => {
+      const contract = activeContractMap.get(m.id);
+      if (!contract || (contract.endDate && new Date(contract.endDate) < now)) {
+        contractHealth.overdue++;
+      } else {
+        const endDate = new Date(contract.endDate);
+        if (endDate <= fifteenDaysFromNow) contractHealth.critical++;
+        else if (endDate <= thirtyDaysFromNow) contractHealth.upcoming++;
+        else if (endDate <= fortyFiveDaysFromNow) contractHealth.soon++;
+        else contractHealth.stable++;
+      }
+    });
 
     const validDocsCount = permanentDocsCount.count + farFutureDocsCount.count + tbdDocsCount.count;
     const complianceRate = totalDocsCount.count > 0 ? (validStatusDocsCount.count / totalDocsCount.count) * 100 : 100;
     const pendingActions = criticalDocsCount.count; // Same as expires <= 30 days
-    const overdueContractsCount = activeCrewCount.count - validContactCrewCount.count;
 
     return {
       activeCrew: activeCrewCount.count,
@@ -951,9 +964,9 @@ export class DatabaseStorage implements IStorage {
       complianceRate: Math.round(complianceRate * 10) / 10,
       totalContracts: totalContractsCount.count,
       totalDocuments: totalDocsCount.count,
-      signOffDue: criticalContractsCount.count, // Default to critical
-      signOffDue30Days: (upcomingContractsCount.count + criticalContractsCount.count),
-      signOffDue15Days: criticalContractsCount.count,
+      signOffDue: contractHealth.critical,
+      signOffDue30Days: (contractHealth.critical + contractHealth.upcoming),
+      signOffDue15Days: contractHealth.critical,
       documentHealth: {
         expired: expiredDocsCount.count,
         critical: criticalDocsCount.count,
@@ -962,15 +975,7 @@ export class DatabaseStorage implements IStorage {
         valid: validDocsCount,
         total: totalDocsCount.count
       },
-      contractHealth: {
-        overdue: overdueContractsCount, // Using the optimized calculation
-        critical: criticalContractsCount.count,
-        upcoming: upcomingContractsCount.count,
-        soon: soonContractsCount.count,
-        stable: stableContractsCount.count,
-        shored: crewOnShoreCount.count,
-        total: totalCrewCount.count
-      }
+      contractHealth
     };
   }
 
@@ -1009,28 +1014,38 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount || 0) > 0;
   }
 
-  async getVesselContractStats(vesselId: string): Promise<{ active: number, expiringSoon: number, expired: number }> {
+  async getVesselContractStats(vesselId: string): Promise<{ active: number, expiringSoon: number, expired: number, noContract: number }> {
     const now = new Date();
     const fortyFiveDaysFromNow = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
 
-    const vesselContracts = await db
+    // Get all crew members on this vessel
+    const allVesselCrew = await db
       .select()
-      .from(contracts)
-      .innerJoin(crewMembers, eq(contracts.crewMemberId, crewMembers.id))
+      .from(crewMembers)
       .where(eq(crewMembers.currentVesselId, vesselId));
 
     const stats = {
       active: 0,
       expiringSoon: 0,
-      expired: 0
+      expired: 0,
+      noContract: 0
     };
 
-    for (const { contracts: contract } of vesselContracts) {
-      if (contract.status !== 'active') continue;
+    if (allVesselCrew.length === 0) return stats;
 
-      if (contract.endDate < now) {
+    // For each crew member, find their latest (active) contract
+    for (const member of allVesselCrew) {
+      const activeContract = await this.getActiveContract(member.id);
+
+      if (!activeContract || activeContract.status !== 'active') {
+        stats.noContract++;
+        continue;
+      }
+
+      const endDate = new Date(activeContract.endDate);
+      if (endDate < now) {
         stats.expired++;
-      } else if (contract.endDate <= fortyFiveDaysFromNow) {
+      } else if (endDate <= fortyFiveDaysFromNow) {
         stats.expiringSoon++;
       } else {
         stats.active++;
@@ -2142,21 +2157,26 @@ export class MemStorage implements IStorage {
     return this.crewRotations.delete(id);
   }
 
-  async getVesselContractStats(vesselId: string): Promise<{ active: number, expiringSoon: number, expired: number }> {
+  async getVesselContractStats(vesselId: string): Promise<{ active: number, expiringSoon: number, expired: number, noContract: number }> {
     const now = new Date();
     const fortyFiveDaysFromNow = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
 
-    const stats = { active: 0, expiringSoon: 0, expired: 0 };
+    const stats = { active: 0, expiringSoon: 0, expired: 0, noContract: 0 };
 
-    for (const contract of Array.from(this.contracts.values())) {
-      const crewMember = this.crewMembers.get(contract.crewMemberId);
-      if (!crewMember || crewMember.currentVesselId !== vesselId || contract.status !== 'active') {
+    const vesselCrew = Array.from(this.crewMembers.values()).filter(c => c.currentVesselId === vesselId);
+
+    for (const member of vesselCrew) {
+      const activeContract = await this.getActiveContract(member.id);
+
+      if (!activeContract || activeContract.status !== 'active') {
+        stats.noContract++;
         continue;
       }
 
-      if (contract.endDate < now) {
+      const endDate = new Date(activeContract.endDate);
+      if (endDate < now) {
         stats.expired++;
-      } else if (contract.endDate <= fortyFiveDaysFromNow) {
+      } else if (endDate <= fortyFiveDaysFromNow) {
         stats.expiringSoon++;
       } else {
         stats.active++;

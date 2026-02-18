@@ -66,7 +66,7 @@ export class DocumentValidationService {
             const doc = crewDocs.find(d => d.type === type);
 
             if (!doc) {
-                blockers.push({
+                warnings.push({
                     type,
                     message: `Missing mandatory document: ${type.toUpperCase()}`,
                     expiryDate: null
@@ -75,7 +75,7 @@ export class DocumentValidationService {
             }
 
             if (!doc.expiryDate) {
-                blockers.push({
+                warnings.push({
                     type,
                     message: `${type.toUpperCase()} has no expiry date set`,
                     expiryDate: null
@@ -87,17 +87,17 @@ export class DocumentValidationService {
             const daysUntilExpiry = differenceInDays(expiry, today);
             const daysFromStartToExpiry = differenceInDays(expiry, startDate);
 
-            // 1. BLOCK if expired
+            // 1. WARNING if expired (was BLOCK)
             if (daysUntilExpiry < 0) {
-                blockers.push({
+                warnings.push({
                     type,
                     message: `${type.toUpperCase()} expired on ${expiry.toLocaleDateString()}`,
                     expiryDate: expiry
                 });
             }
-            // 2. BLOCK if expiring within 30 days of sign-on
+            // 2. WARNING if expiring within 30 days of sign-on (was BLOCK)
             else if (daysUntilExpiry < this.MINIMUM_VALIDITY_DAYS) {
-                blockers.push({
+                warnings.push({
                     type,
                     message: `${type.toUpperCase()} expires in ${daysUntilExpiry} days (minimum 30 days required)`,
                     expiryDate: expiry
@@ -112,7 +112,7 @@ export class DocumentValidationService {
                         expiryDate: expiry
                     });
                 } else {
-                    blockers.push({
+                    warnings.push({
                         type,
                         message: `${type.toUpperCase()} expires on ${expiry.toLocaleDateString()} which is during the contract period`,
                         expiryDate: expiry

@@ -60,7 +60,7 @@ const ContractStatusDonut = memo(function ContractStatusDonut({
     onSegmentClick
 }: {
     vesselId: string;
-    stats?: { active: number, expiringSoon: number, expired: number };
+    stats?: { active: number, expiringSoon: number, expired: number, noContract?: number };
     onSegmentClick?: (key: string, name: string) => void;
 }) {
     const isFirstRender = useRef(true);
@@ -69,14 +69,15 @@ const ContractStatusDonut = memo(function ContractStatusDonut({
         isFirstRender.current = false;
     }, []);
 
-    const safeStats = stats || { active: 0, expiringSoon: 0, expired: 0 };
-    const total = (safeStats.active || 0) + (safeStats.expiringSoon || 0) + (safeStats.expired || 0);
+    const safeStats = stats || { active: 0, expiringSoon: 0, expired: 0, noContract: 0 };
+    const total = (safeStats.active || 0) + (safeStats.expiringSoon || 0) + (safeStats.expired || 0) + (safeStats.noContract || 0);
     const normalizedTotal = total > 0 ? total : 1;
 
     const data = [
         { key: 'stable', name: 'Valid', value: safeStats.active || 0, color: '#10b981' },
         { key: 'upcoming', name: 'Due Soon', value: safeStats.expiringSoon || 0, color: '#f59e0b' },
         { key: 'overdue', name: 'Expired', value: safeStats.expired || 0, color: '#ef4444' },
+        { key: 'no-contract', name: 'No Contract', value: safeStats.noContract || 0, color: '#94a3b8' },
     ].filter(d => d.value > 0);
 
     if (data.length === 0) {

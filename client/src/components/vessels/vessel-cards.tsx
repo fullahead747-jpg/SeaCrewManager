@@ -53,7 +53,7 @@ export interface VesselWithDetails extends Vessel {
 // Sortable Vessel Card Component - Innovative Horizontal Split Design
 const SortableVesselCard = React.memo(({ vessel, stats, onViewDetails, onManageCrew, onUploadDocument, isAdmin, showUploadButton = true }: {
   vessel: VesselWithDetails;
-  stats?: { active: number, expiringSoon: number, expired: number };
+  stats?: { active: number, expiringSoon: number, expired: number, noContract: number };
   onViewDetails: (vessel: VesselWithDetails) => void;
   onManageCrew: (vessel: VesselWithDetails) => void;
   onUploadDocument: (vessel: VesselWithDetails) => void;
@@ -323,6 +323,12 @@ const SortableVesselCard = React.memo(({ vessel, stats, onViewDetails, onManageC
               >
                 <div className="w-2 h-2 rounded-full bg-red-500" /> Expired <span className="text-slate-400">({stats?.expired || 0})</span>
               </div>
+              <div
+                className="flex items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity"
+                onClick={() => handleSegmentClick(vessel.id, 'no-contract', 'No Contract')}
+              >
+                <div className="w-2 h-2 rounded-full bg-slate-400" /> No Contract <span className="text-slate-400">({stats?.noContract || 0})</span>
+              </div>
             </div>
 
             {/* Action Bar */}
@@ -334,7 +340,7 @@ const SortableVesselCard = React.memo(({ vessel, stats, onViewDetails, onManageC
                 onClick={() => onViewDetails(vessel)}
               >
                 <Ship className="h-3 w-3 mr-2 opacity-60" />
-                INFO
+                Vessel Info
               </Button>
               <Button
                 variant="default"
@@ -343,7 +349,7 @@ const SortableVesselCard = React.memo(({ vessel, stats, onViewDetails, onManageC
                 onClick={() => onManageCrew(vessel)}
               >
                 <Users className="h-3 w-3 mr-2" />
-                Manage
+                Crew Manage
               </Button>
             </div>
 
@@ -484,40 +490,45 @@ const VesselCards = React.memo(({ showUploadButton = true }: { showUploadButton?
     }
   };
 
-  // Calculate vessel stats from contracts
+  // Calculate vessel stats from assigned crew and their active contracts
   const vesselStats = useMemo(() => {
-    const stats: Record<string, { active: number, expiringSoon: number, expired: number }> = {};
+    const stats: Record<string, { active: number, expiringSoon: number, expired: number, noContract: number }> = {};
     if (!vessels) return stats;
 
     // Initialize all vessels with 0
     vessels.forEach(v => {
-      stats[v.id] = { active: 0, expiringSoon: 0, expired: 0 };
+      stats[v.id] = { active: 0, expiringSoon: 0, expired: 0, noContract: 0 };
     });
 
-    if (!contracts || !Array.isArray(contracts)) return stats;
+    if (!crewMembers || !Array.isArray(crewMembers)) return stats;
 
     const now = new Date();
     const fortyFiveDays = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
 
-    contracts.forEach((c: any) => {
-      // Only consider active contracts
-      if (c.status !== 'active') return;
+    crewMembers.forEach((member: any) => {
+      // If crew belongs to a known vessel
+      if (member.currentVesselId && stats[member.currentVesselId]) {
+        const contract = member.activeContract;
 
-      // If contract belongs to a known vessel
-      if (stats[c.vesselId]) {
-        const endDate = new Date(c.endDate);
+        // If no active contract found or status is not active
+        if (!contract || contract.status !== 'active') {
+          stats[member.currentVesselId].noContract++;
+          return;
+        }
+
+        const endDate = new Date(contract.endDate);
         if (endDate < now) {
-          stats[c.vesselId].expired++;
+          stats[member.currentVesselId].expired++;
         } else if (endDate <= fortyFiveDays) {
-          stats[c.vesselId].expiringSoon++;
+          stats[member.currentVesselId].expiringSoon++;
         } else {
-          stats[c.vesselId].active++;
+          stats[member.currentVesselId].active++;
         }
       }
     });
 
     return stats;
-  }, [vessels, contracts]);
+  }, [vessels, crewMembers]);
 
   // Initialize and maintain vessel order
   const orderedVessels = useMemo(() => {
