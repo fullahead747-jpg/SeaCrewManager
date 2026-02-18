@@ -1,108 +1,137 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { User } from '@shared/schema';
+import { User, InsertUser } from '@shared/schema';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
   user: User | null;
-  login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
-  switchRole: (role: string) => void;
-  isAuthenticated: boolean;
+  isLoading: boolean;
+  loginMutation: any;
+  logoutMutation: any;
+  registerMutation: any;
+  forgotPasswordMutation: any;
+  resetPasswordMutation: any;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    // Check for existing auth token on app load
-    let token = localStorage.getItem('auth_token');
-    let userData = localStorage.getItem('user_data');
+  // Get current user from session
+  const { data: user, isLoading, error } = useQuery<User | null>({
+    queryKey: ['/api/user'],
+    retry: false, // Don't retry 401s
+  });
 
-    // Auto-login for demo purposes if no user found or if data is incomplete
-    const isValidUser = (data: any) => {
-      return data && typeof data === 'object' && data.id && data.username && data.role;
-    };
-
-    if (!token || !userData) {
-      console.log('No auth found, setting up demo user for first load');
-      setupDemoUser();
-    } else {
-      try {
-        const parsedUser = JSON.parse(userData);
-        if (isValidUser(parsedUser)) {
-          setUser(parsedUser);
-          setIsAuthenticated(true);
-        } else {
-          console.log('Incomplete user data found, resetting to demo user');
-          setupDemoUser();
-        }
-      } catch (error) {
-        setupDemoUser();
-      }
-    }
-
-    function setupDemoUser() {
-      const demoUser = {
-        id: 'demo-admin-id',
-        username: 'admin',
-        password: 'demo-password',
-        role: 'admin',
-        name: 'Demo Administrator',
-        email: 'admin@example.com',
-        createdAt: new Date()
-      };
-      const demoToken = 'mock-token-demo-admin-id';
-
-      localStorage.setItem('auth_token', demoToken);
-      localStorage.setItem('user_data', JSON.stringify(demoUser));
-
-      setUser(demoUser);
-      setIsAuthenticated(true);
-    }
-  }, []);
-
-  const login = async (username: string, password: string): Promise<boolean> => {
-    try {
-      const response = await fetch('/api/auth/login', {
+  const loginMutation = useMutation({
+    mutationFn: async (credentials: any) => {
+      const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify(credentials),
       });
-
-      if (response.ok) {
-        const fullUser: User = await response.json();
-        setUser(fullUser);
-        setIsAuthenticated(true);
-        localStorage.setItem('auth_token', `real-token-${username}`);
-        localStorage.setItem('user_data', JSON.stringify(fullUser));
-        return true;
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Login failed');
       }
-
-      return false;
-    } catch (error) {
-      return false;
+      return res.json();
+    },
+    onSuccess: (user) => {
+      queryClient.setQueryData(['/api/user'], user);
+      toast({ title: 'Welcome back!', description: `Signed in as ${user.name}` });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Login failed', description: error.message, variant: 'destructive' });
     }
-  };
+  });
 
-  const logout = () => {
-    setUser(null);
-    setIsAuthenticated(false);
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_data');
-  };
-
-  const switchRole = (role: string) => {
-    if (user) {
-      const updatedUser = { ...user, role };
-      setUser(updatedUser);
-      localStorage.setItem('user_data', JSON.stringify(updatedUser));
+  const registerMutation = useMutation({
+    mutationFn: async (data: InsertUser) => {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(err || 'Registration failed');
+      }
+      return res.json();
+    },
+    onSuccess: (user) => {
+      queryClient.setQueryData(['/api/user'], user);
+      toast({ title: 'Account created', description: 'You have been registered successfully.' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Registration failed', description: error.message, variant: 'destructive' });
     }
-  };
+  });
+
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      await fetch('/api/logout', { method: 'POST' });
+    },
+    onSuccess: () => {
+      queryClient.setQueryData(['/api/user'], null);
+      toast({ title: 'Signed out', description: 'Session ended safely.' });
+    }
+  });
+
+  const forgotPasswordMutation = useMutation({
+    mutationFn: async (data: string | { email: string, method?: string }) => {
+      const body = typeof data === 'string' ? { email: data } : data;
+      const res = await fetch('/api/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Request failed' }));
+        throw new Error(err.message || 'Request failed');
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: 'Success', description: data.message });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Request failed', description: error.message, variant: 'destructive' });
+    }
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await fetch('/api/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Reset failed' }));
+        throw new Error(err.message || 'Reset failed');
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: 'Success', description: data.message });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Reset failed', description: error.message, variant: 'destructive' });
+    }
+  });
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, switchRole, isAuthenticated }}>
+    <AuthContext.Provider value={{
+      user: user || null,
+      isLoading,
+      loginMutation,
+      logoutMutation,
+      registerMutation,
+      forgotPasswordMutation,
+      resetPasswordMutation
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -110,8 +139,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within an AuthProvider');
   return context;
 }

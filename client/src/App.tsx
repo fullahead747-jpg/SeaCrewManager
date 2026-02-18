@@ -1,9 +1,9 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "./contexts/auth-context";
+import { AuthProvider, useAuth } from "./contexts/auth-context";
 import { ThemeProvider } from "./contexts/theme-context";
 import { ExtractedRecordsProvider } from "./contexts/extracted-records-context";
 import AppLayout from "@/components/layout/app-layout";
@@ -11,7 +11,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Suspense, lazy } from "react";
 import Loading from "@/components/ui/loading";
 
-// Lazy load pages
+// Lazy load auth pages
+const LoginPage = lazy(() => import("@/pages/auth/login-page"));
+const RegisterPage = lazy(() => import("@/pages/auth/register-page"));
+const ForgotPasswordPage = lazy(() => import("@/pages/auth/forgot-password"));
+const ResetPasswordPage = lazy(() => import("@/pages/auth/reset-password"));
+
+// Lazy load app pages
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const CrewManagement = lazy(() => import("@/pages/crew-management"));
@@ -23,67 +29,74 @@ const CrewDocumentsSplitView = lazy(() => import("@/pages/crew-documents-split-v
 const Settings = lazy(() => import("@/pages/settings"));
 const Notifications = lazy(() => import("@/pages/notifications"));
 
-function Router() {
-  const [location] = useLocation();
-  console.log("Current location:", location);
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, isLoading } = useAuth();
 
+  if (isLoading) {
+    return <Loading />;
+  }
+
+  if (!user) {
+    return <Redirect to="/auth/login" />;
+  }
+
+  return <>{children}</>;
+}
+
+function Router() {
   return (
     <AnimatePresence mode="wait">
-      <motion.div
-        key={location}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="min-h-screen w-full"
-      >
-        <Suspense fallback={<Loading />}>
-          <Switch>
-            {/* Dashboard and Management Pages (Wrapped in Layout) */}
-            <Route path="/admin">
-              <AppLayout><Dashboard /></AppLayout>
-            </Route>
-            <Route path="/dashboard">
-              <AppLayout><Dashboard /></AppLayout>
-            </Route>
-            <Route path="/crew">
-              <AppLayout><CrewManagement /></AppLayout>
-            </Route>
-            <Route path="/fleet">
-              <AppLayout><FleetManagement /></AppLayout>
-            </Route>
-            <Route path="/scheduling">
-              <AppLayout><Scheduling /></AppLayout>
-            </Route>
-            <Route path="/documents">
-              <AppLayout><CrewDocumentsSplitView /></AppLayout>
-            </Route>
+      <Suspense fallback={<Loading />}>
+        <Switch>
+          {/* Auth Pages */}
+          <Route path="/auth/login" component={LoginPage} />
+          <Route path="/auth/register" component={RegisterPage} />
+          <Route path="/auth/forgot-password" component={ForgotPasswordPage} />
+          <Route path="/auth/reset-password" component={ResetPasswordPage} />
 
-            {/* Dashboard as Default Route */}
-            <Route path="/">
-              <AppLayout><Dashboard /></AppLayout>
-            </Route>
+          {/* Protected App Pages */}
+          <Route path="/admin">
+            <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
+          </Route>
+          <Route path="/dashboard">
+            <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
+          </Route>
+          <Route path="/crew">
+            <ProtectedRoute><AppLayout><CrewManagement /></AppLayout></ProtectedRoute>
+          </Route>
+          <Route path="/fleet">
+            <ProtectedRoute><AppLayout><FleetManagement /></AppLayout></ProtectedRoute>
+          </Route>
+          <Route path="/scheduling">
+            <ProtectedRoute><AppLayout><Scheduling /></AppLayout></ProtectedRoute>
+          </Route>
+          <Route path="/documents">
+            <ProtectedRoute><AppLayout><CrewDocumentsSplitView /></AppLayout></ProtectedRoute>
+          </Route>
+          <Route path="/status-history">
+            <ProtectedRoute><AppLayout><StatusHistory /></AppLayout></ProtectedRoute>
+          </Route>
+          <Route path="/settings">
+            <ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>
+          </Route>
+          <Route path="/notifications">
+            <ProtectedRoute><AppLayout><Notifications /></AppLayout></ProtectedRoute>
+          </Route>
+          <Route path="/captain">
+            <ProtectedRoute><CaptainLite /></ProtectedRoute>
+          </Route>
 
-            {/* Captain Assistant */}
-            <Route path="/captain" component={CaptainLite} />
+          {/* Default Route */}
+          <Route path="/">
+            <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
+          </Route>
 
-            <Route path="/status-history">
-              <AppLayout><StatusHistory /></AppLayout>
-            </Route>
-            <Route path="/settings">
-              <AppLayout><Settings /></AppLayout>
-            </Route>
-            <Route path="/notifications">
-              <AppLayout><Notifications /></AppLayout>
-            </Route>
-
-            {/* Final Fallback - Dashboard */}
-            <Route path="/:rest*">
-              <AppLayout><Dashboard /></AppLayout>
-            </Route>
-          </Switch>
-        </Suspense>
-      </motion.div>
+          {/* Fallback */}
+          <Route path="/:rest*">
+            <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
+          </Route>
+        </Switch>
+      </Suspense>
     </AnimatePresence>
   );
 }

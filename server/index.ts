@@ -2,6 +2,7 @@ import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { setupAuth } from "./auth";
 import { backgroundScheduler } from "./services/background-scheduler";
 import compression from "compression";
 
@@ -50,6 +51,7 @@ app.use((req, res, next) => {
   console.log(`🔑 DB URL SNIPPET: ${dbSnippet}`);
   console.log('================================================\n\n');
 
+  setupAuth(app);
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

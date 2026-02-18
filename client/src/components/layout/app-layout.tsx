@@ -8,12 +8,13 @@ import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Bell, User, Ship } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Popover,
   PopoverContent,
@@ -22,14 +23,15 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getAuthHeaders } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { LogOut, User as UserIcon, Settings as SettingsIcon } from 'lucide-react';
 
 interface AppLayoutProps {
   children: React.ReactNode;
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  const { user, switchRole } = useAuth();
+  const { user, logoutMutation } = useAuth();
   const [notificationPopoverOpen, setNotificationPopoverOpen] = useState(false);
   const isMobile = useIsMobile();
   const [, setLocation] = useLocation();
@@ -176,6 +178,45 @@ export default function AppLayout({ children }: AppLayoutProps) {
               </PopoverContent>
             </Popover>
 
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="flex items-center gap-2 px-2 hover:bg-accent transition-colors">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 border border-blue-200">
+                    <UserIcon className="h-4 w-4" />
+                  </div>
+                  {!isMobile && (
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-semibold leading-none">{user.name}</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider mt-0.5">Administrator</span>
+                    </div>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56 mt-1">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">{user.name}</p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {user.username}
+                    </p>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setLocation('/settings')} className="cursor-pointer">
+                  <SettingsIcon className="mr-2 h-4 w-4" />
+                  <span>Settings</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => logoutMutation.mutate()}
+                  className="text-destructive focus:text-destructive cursor-pointer"
+                  disabled={logoutMutation.isPending}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>{logoutMutation.isPending ? 'Signing out...' : 'Sign out'}</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </motion.header>

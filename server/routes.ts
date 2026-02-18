@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { z } from "zod";
+import { hashPassword } from "./auth";
 import {
   insertCrewMemberSchema,
   insertVesselSchema,
@@ -289,47 +290,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Auth routes
-  app.post("/api/auth/login", async (req, res) => {
+  // Password Reset Routes
+  app.post("/api/forgot-password", async (req, res) => {
     try {
-      const { username, password } = req.body;
-      const user = await storage.getUserByUsername(username);
+      const { email, method } = req.body;
+      console.log(`[AUTH] Forgot password request for: ${email}, method: ${method}`);
 
-      if (!user || user.password !== password) {
-        return res.status(401).json({ message: "Invalid credentials" });
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        console.log(`[AUTH] User not found for email: ${email}`);
+        // For security, don't reveal if user exists
+        return res.json({ message: "If that email exists in our system, a reset link has been sent." });
       }
 
-      // In a real app, generate JWT token here
-      const token = `mock-token-${user.id}`;
+      if (method === 'otp') {
+        // Handle OTP generation
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiry = new Date(Date.now() + 600000); // 10 minutes
 
-      // Log login activity
-      try {
-        await db.insert(activityLogs).values({
-          type: 'System',
-          action: 'login',
-          entityType: 'user',
-          entityId: user.id,
-          userId: null,
-          username: user.username,
-          userRole: user.role,
-          description: `${user.role === 'admin' ? 'Admin' : 'Office Staff'} user ${user.username} logged into system`,
-          severity: 'info',
-          metadata: {
-            userRole: user.role,
-            userName: user.name
-          }
-        });
-        console.log('Login activity logged successfully');
-      } catch (logError) {
-        console.error('Failed to log login activity:', logError);
+        console.log(`[AUTH] Generating OTP for ${email}: ${otp}`);
+        await storage.updateUserOtp(user.id, otp, expiry);
+
+        // Send OTP email
+        try {
+          console.log(`[AUTH] Attempting to send OTP email to ${email}`);
+          const emailResult = await smtpEmailService.sendEmail({
+            to: email,
+            subject: "Your OTP for Sea Crew Manager",
+            html: `<p>Your one-time password (OTP) for password reset is: <strong>${otp}</strong></p><p>This code expires in 10 minutes.</p>`
+          });
+          console.log(`[AUTH] OTP email send result:`, emailResult);
+        } catch (emailError) {
+          console.error("[AUTH] Failed to send OTP email:", emailError);
+        }
+
+        return res.json({ message: "OTP has been sent to your email." });
       }
 
-      res.json({
-        user: { id: user.id, username: user.username, role: user.role, name: user.name, email: user.email },
-        token
+      // Default to link method
+      const token = randomUUID();
+      const expiry = new Date(Date.now() + 3600000); // 1 hour
+
+      console.log(`[AUTH] Generating reset token for ${email}`);
+      await storage.updateUser(user.id, {
+        resetToken: token,
+        resetTokenExpiry: expiry
       });
+
+      // Send email
+      const resetLink = `${req.protocol}://${req.get('host')}/auth/reset-password?token=${token}`;
+      try {
+        console.log(`[AUTH] Attempting to send reset link email to ${email}`);
+        const emailResult = await smtpEmailService.sendEmail({
+          to: email,
+          subject: "Reset Your Sea Crew Manager Password",
+          html: `<p>You requested a password reset. Click the link below to set a new password:</p><a href="${resetLink}">${resetLink}</a><p>This link expires in 1 hour.</p>`
+        });
+        console.log(`[AUTH] Reset link email send result:`, emailResult);
+      } catch (emailError) {
+        console.error("[AUTH] Failed to send reset email:", emailError);
+      }
+
+      res.json({ message: "If that email exists in our system, a reset link has been sent." });
     } catch (error) {
-      res.status(500).json({ message: "Login failed" });
+      console.error("[AUTH] Forgot password error:", error);
+      res.status(500).json({ message: "Failed to process request" });
+    }
+  });
+
+  app.post("/api/reset-password", async (req, res) => {
+    try {
+      const { token, password } = req.body;
+      const allUsers = await storage.getAllUsers();
+      const user = allUsers.find(u => u.resetToken === token && u.resetTokenExpiry && u.resetTokenExpiry > new Date());
+
+      if (!user) {
+        return res.status(400).json({ message: "Invalid or expired reset token" });
+      }
+
+      const hashedPassword = await hashPassword(password);
+      await storage.updateUser(user.id, {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null
+      });
+
+      res.json({ message: "Password has been reset successfully." });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  app.post("/api/verify-otp", async (req, res) => {
+    try {
+      const { email, otp } = req.body;
+      const user = await storage.getUserByEmail(email);
+
+      if (!user || user.otp !== otp || !user.otpExpiry || user.otpExpiry < new Date()) {
+        return res.status(400).json({ message: "Invalid or expired OTP" });
+      }
+
+      res.json({ message: "OTP verified successfully", verified: true });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to verify OTP" });
+    }
+  });
+
+  app.post("/api/reset-password-otp", async (req, res) => {
+    try {
+      const { email, otp, password } = req.body;
+      const user = await storage.getUserByEmail(email);
+
+      if (!user || user.otp !== otp || !user.otpExpiry || user.otpExpiry < new Date()) {
+        return res.status(400).json({ message: "Invalid or expired OTP" });
+      }
+
+      const hashedPassword = await hashPassword(password);
+      await storage.updateUser(user.id, {
+        password: hashedPassword,
+        otp: null,
+        otpExpiry: null
+      });
+
+      res.json({ message: "Password has been reset successfully." });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to reset password" });
     }
   });
 

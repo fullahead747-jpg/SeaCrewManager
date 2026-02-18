@@ -51,7 +51,11 @@ export interface IStorage {
   // User operations
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByOtp(otp: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, user: Partial<User>): Promise<User | undefined>;
+  updateUserOtp(id: string, otp: string | null, expiry: Date | null): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
 
   // Vessel operations
@@ -178,12 +182,40 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user || undefined;
+  }
+
+  async getUserByOtp(otp: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.otp, otp));
+    return user || undefined;
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db
       .insert(users)
       .values(insertUser)
       .returning();
     return user;
+  }
+
+  async updateUser(id: string, userData: Partial<User>): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set(userData)
+      .where(eq(users.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async updateUserOtp(id: string, otp: string | null, expiry: Date | null): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set({ otp, otpExpiry: expiry })
+      .where(eq(users.id, id))
+      .returning();
+    return updated || undefined;
   }
 
   async getAllUsers(): Promise<User[]> {

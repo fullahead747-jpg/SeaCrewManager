@@ -21,7 +21,8 @@ export function PersonalInfoSection({ crewMember }: PersonalInfoSectionProps) {
     // Calculate profile completion (simplified logic based on filled required fields)
     const calculateCompletion = () => {
         const values = form.getValues();
-        const requiredFields = ['firstName', 'lastName', 'nationality', 'dateOfBirth', 'rank', 'status'];
+        // Removed 'status' as it has a default value, ensuring completion starts at 0%
+        const requiredFields = ['firstName', 'lastName', 'nationality', 'dateOfBirth', 'rank'];
         const filledFields = requiredFields.filter(field => values[field]);
         return Math.round((filledFields.length / requiredFields.length) * 100);
     };

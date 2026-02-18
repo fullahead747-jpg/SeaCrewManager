@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -132,6 +132,41 @@ export function OCRDocumentScanner({ onDataExtracted, className, mode = 'crew' }
     e.preventDefault();
     setIsDragging(false);
   }, []);
+
+  // Handle global paste events
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      // Only handle if dialog is open and not processing
+      if (!isOpen || isProcessing || extractedData) return;
+
+      const pastedFiles = e.clipboardData?.files;
+      if (pastedFiles && pastedFiles.length > 0) {
+        e.preventDefault(); // Prevent default paste behavior
+
+        const file = pastedFiles[0];
+
+        // Validate file type
+        if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
+          setError("Please paste an image file (JPG, PNG) or PDF document.");
+          return;
+        }
+
+        // Validate file size
+        if (file.size > 10 * 1024 * 1024) {
+          setError("File size must be less than 10MB.");
+          return;
+        }
+
+        processDocument(file);
+      }
+    };
+
+    if (isOpen) {
+      window.addEventListener('paste', handlePaste);
+    }
+
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [isOpen, isProcessing, extractedData]);
 
   const processDocument = async (file: File) => {
     setIsProcessing(true);
@@ -537,7 +572,7 @@ export function OCRDocumentScanner({ onDataExtracted, className, mode = 'crew' }
                           <Upload className={`h-7 w-7 transition-colors ${isDragging ? 'text-primary' : 'text-primary/70'}`} />
                         </motion.div>
 
-                        <h3 className="font-medium text-lg mb-1">Drop your document here</h3>
+                        <h3 className="font-medium text-lg mb-1">Drop, Paste (Ctrl+V) or Browse</h3>
                         <p className="text-sm text-muted-foreground mb-4">
                           or click to browse files
                         </p>
