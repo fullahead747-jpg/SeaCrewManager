@@ -20,6 +20,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import DocumentUpload from '../documents/document-upload';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -102,6 +103,11 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
   const [showAddCrewDialog, setShowAddCrewDialog] = useState(false);
   const [selectedCrewForEdit, setSelectedCrewForEdit] = useState<CrewMemberWithDetails | null>(null);
   const [showEditCrewDialog, setShowEditCrewDialog] = useState(false);
+
+  // Document Upload State
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [selectedCrewForUpload, setSelectedCrewForUpload] = useState<CrewMemberWithDetails | null>(null);
+  const [uploadDocumentType, setUploadDocumentType] = useState<string | null>(null);
   const [contractDialogOpen, setContractDialogOpen] = useState(false);
   const [selectedCrewForContract, setSelectedCrewForContract] = useState<CrewMemberWithDetails | null>(null);
   const [contractStartDate, setContractStartDate] = useState('');
@@ -1045,6 +1051,12 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
     setShowVesselHistoryDialog(true);
   };
 
+  const handleUploadClick = (member: CrewMemberWithDetails, type: string) => {
+    setSelectedCrewForUpload(member);
+    setUploadDocumentType(type);
+    setShowUploadDialog(true);
+  };
+
   if (!vessel) return null;
 
   return (
@@ -1142,6 +1154,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         onViewAOA={handleViewAOAClick}
                         onSignOff={handleSignOffClick}
                         onSignOn={handleSignOnClick}
+                        onUpload={handleUploadClick}
                         isMailPending={sendCrewEmailMutation.isPending}
                       />
                     ))}
@@ -1411,6 +1424,22 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Document Upload Dialog */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="sm:max-w-4xl border-0 p-0 bg-transparent shadow-none">
+          <div className="h-full w-full">
+            <DocumentUpload
+              crewMemberId={selectedCrewForUpload?.id}
+              preselectedType={uploadDocumentType || undefined}
+              onSuccess={() => {
+                setShowUploadDialog(false);
+                queryClient.invalidateQueries({ queryKey: [`/api/vessels/${vessel?.id}/crew`] });
+              }}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Add New Crew Dialog */}
       {showAddCrewDialog && (
