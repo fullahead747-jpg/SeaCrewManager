@@ -139,7 +139,7 @@ export interface IStorage {
   getWhatsappMessages(remoteJid: string, limit?: number): Promise<WhatsappMessage[]>;
 
   // Dashboard statistics
-  getDashboardStats(): Promise<{
+  getDashboardStats(vesselId?: string): Promise<{
     activeCrew: number;
     activeVessels: number;
     pendingActions: number;
@@ -908,13 +908,24 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
-  async getDashboardStats() {
+  async getDashboardStats(vesselId?: string) {
     const now = new Date();
     const fifteenDaysFromNow = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
     const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     const fortyFiveDaysFromNow = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
     const ninetyDaysFromNow = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
     const oneEightyDaysFromNow = new Date(now.getTime() + 180 * 24 * 60 * 60 * 1000);
+
+    // Apply vessel filtering to base logic
+    let crewFilter = vesselId ? and(eq(crewMembers.status, 'onBoard'), eq(crewMembers.currentVesselId, vesselId)) : eq(crewMembers.status, 'onBoard');
+    let crewOnShoreFilter = vesselId ? sql`FALSE` : eq(crewMembers.status, 'onShore'); // On shore crew are not assigned to vessels usually
+    let totalCrewFilter = vesselId ? eq(crewMembers.currentVesselId, vesselId) : undefined;
+
+    // For documents, we need a join or subquery if filtering by vesselId
+    let docVesselFilter = vesselId ? inArray(
+      documents.crewMemberId,
+      db.select({ id: crewMembers.id }).from(crewMembers).where(eq(crewMembers.currentVesselId, vesselId))
+    ) : undefined;
 
     // Optimized parallel query execution
     const [
@@ -931,31 +942,44 @@ export class DatabaseStorage implements IStorage {
       [farFutureDocsCount],
       [totalDocsCount],
       [validStatusDocsCount],
-      [drilldownExpiredDocsCount],
-      [drilldownTbdDocsCount],
       allOnBoardCrew,
       allActiveContracts,
       [totalContractsCount]
     ] = await Promise.all([
-      db.select({ count: count() }).from(crewMembers).where(eq(crewMembers.status, 'onBoard')),
-      db.select({ count: count() }).from(crewMembers).where(eq(crewMembers.status, 'onShore')),
-      db.select({ count: count() }).from(crewMembers),
-      db.select({ count: count() }).from(vessels).where(inArray(vessels.status, ['harbour-mining', 'coastal-mining', 'world-wide', 'oil-field', 'line-up-mining', 'active'])),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) > 1900`)),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) <= 1900`)),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gte(documents.expiryDate, now), lte(documents.expiryDate, thirtyDaysFromNow))),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, thirtyDaysFromNow), lte(documents.expiryDate, ninetyDaysFromNow))),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, ninetyDaysFromNow), lte(documents.expiryDate, oneEightyDaysFromNow))),
-      db.select({ count: count() }).from(documents).where(isNull(documents.expiryDate)),
-      db.select({ count: count() }).from(documents).where(gt(documents.expiryDate, oneEightyDaysFromNow)),
-      db.select({ count: count() }).from(documents),
-      db.select({ count: count() }).from(documents).where(eq(documents.status, 'valid')),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) > 1900`)),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) <= 1900`)),
-      db.select().from(crewMembers).where(eq(crewMembers.status, 'onBoard')),
-      db.select().from(contracts).where(eq(contracts.status, 'active')),
-      db.select({ count: count() }).from(contracts).where(eq(contracts.status, 'active'))
+      db.select({ count: count() }).from(crewMembers).where(crewFilter),
+      db.select({ count: count() }).from(crewMembers).where(crewOnShoreCountFilterHelper(vesselId)),
+      db.select({ count: count() }).from(crewMembers).where(totalCrewFilter || sql`TRUE`),
+      db.select({ count: count() }).from(vessels).where(and(
+        inArray(vessels.status, ['harbour-mining', 'coastal-mining', 'world-wide', 'oil-field', 'line-up-mining', 'active']),
+        vesselId ? eq(vessels.id, vesselId) : sql`TRUE`
+      )),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) > 1900`, docVesselFilter || sql`TRUE`)),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) <= 1900`, docVesselFilter || sql`TRUE`)),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gte(documents.expiryDate, now), lte(documents.expiryDate, thirtyDaysFromNow), docVesselFilter || sql`TRUE`)),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, thirtyDaysFromNow), lte(documents.expiryDate, ninetyDaysFromNow), docVesselFilter || sql`TRUE`)),
+      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, ninetyDaysFromNow), lte(documents.expiryDate, oneEightyDaysFromNow), docVesselFilter || sql`TRUE`)),
+      db.select({ count: count() }).from(documents).where(and(isNull(documents.expiryDate), docVesselFilter || sql`TRUE`)),
+      db.select({ count: count() }).from(documents).where(and(gt(documents.expiryDate, oneEightyDaysFromNow), docVesselFilter || sql`TRUE`)),
+      db.select({ count: count() }).from(documents).where(docVesselFilter || sql`TRUE`),
+      db.select({ count: count() }).from(documents).where(and(eq(documents.status, 'valid'), docVesselFilter || sql`TRUE`)),
+
+      db.select().from(crewMembers).where(vesselId ? and(eq(crewMembers.status, 'onBoard'), eq(crewMembers.currentVesselId, vesselId)) : eq(crewMembers.status, 'onBoard')),
+
+      db.select().from(contracts).where(and(
+        eq(contracts.status, 'active'),
+        vesselId ? eq(contracts.vesselId, vesselId) : sql`TRUE`
+      )),
+      db.select({ count: count() }).from(contracts).where(and(
+        eq(contracts.status, 'active'),
+        vesselId ? eq(contracts.vesselId, vesselId) : sql`TRUE`
+      ))
     ]);
+
+    // Helper function for crewOnShore count when vessel filtered
+    function crewOnShoreCountFilterHelper(vId?: string) {
+      if (!vId) return eq(crewMembers.status, 'onShore');
+      return and(eq(crewMembers.status, 'onShore'), sql`FALSE`); // Vessels don't have onShore crew in this context
+    }
 
     // Robust Contract Health Aggregation (Mutually Exclusive)
     const contractHealth = {
@@ -990,7 +1014,7 @@ export class DatabaseStorage implements IStorage {
 
     return {
       activeCrew: activeCrewCount.count,
-      activeVessels: activeVesselsCount.count,
+      activeVessels: vesselId ? (activeCrewCount.count > 0 ? 1 : 0) : activeVesselsCount.count,
       pendingActions: pendingActions,
       crewOnShore: crewOnShoreCount.count,
       complianceRate: Math.round(complianceRate * 10) / 10,

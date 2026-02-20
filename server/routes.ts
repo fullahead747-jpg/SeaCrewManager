@@ -3011,7 +3011,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Dashboard stats
   app.get("/api/dashboard/stats", authenticate, async (req, res) => {
     try {
-      const stats = await storage.getDashboardStats();
+      const { vesselId } = req.query as { vesselId?: string };
+      const stats = await storage.getDashboardStats(vesselId);
       res.json(stats);
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);

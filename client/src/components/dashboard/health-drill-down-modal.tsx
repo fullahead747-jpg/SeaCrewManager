@@ -80,6 +80,9 @@ const HealthDrillDownModal = memo(({
     const [displayCount, setDisplayCount] = useState(20);
     const BATCH_SIZE = 20;
 
+    // Local vessel filter state
+    const [localVesselId, setLocalVesselId] = useState<string>("all");
+
     // Reset display count when search or category changes
     useEffect(() => {
         setDisplayCount(BATCH_SIZE);
@@ -309,11 +312,11 @@ const HealthDrillDownModal = memo(({
 
 
     const { data: detailData, isLoading, error } = useQuery({
-        queryKey: ['/api/dashboard/drilldown', type, categoryKey, vesselId],
+        queryKey: ['/api/dashboard/drilldown', type, categoryKey, localVesselId],
         queryFn: async () => {
             if (!categoryKey) return null;
             const params = new URLSearchParams({ type, key: categoryKey });
-            if (vesselId) params.append('vesselId', vesselId);
+            if (localVesselId && localVesselId !== "all") params.append('vesselId', localVesselId);
 
             const response = await fetch(`/api/dashboard/drilldown?${params.toString()}`, {
                 headers: getAuthHeaders(),
@@ -509,27 +512,47 @@ const HealthDrillDownModal = memo(({
                                             : `List of documents currently in the "${categoryName}" category.`)}
                                 </DialogDescription>
                             </div>
-                            <div className="relative w-full md:w-[280px]">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                <Input
-                                    placeholder="Search crew members..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className={cn(
-                                        "pl-10 pr-10 bg-[#F1F5F9] border-0 focus:ring-2 focus:ring-blue-500/20 transition-all h-10 rounded-xl text-sm font-bold placeholder:text-slate-400 placeholder:font-bold border-transparent",
-                                        categoryKey === 'global-search' && "ring-2 ring-blue-500/10"
-                                    )}
-                                    autoFocus={categoryKey === 'global-search'}
-                                    data-testid="drilldown-search-input"
-                                />
-                                {searchTerm && (
-                                    <button
-                                        onClick={() => setSearchTerm("")}
-                                        className="absolute right-5 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200 rounded-full transition-colors text-slate-400"
+                            <div className="flex items-center gap-3 w-full md:w-auto mt-4 md:mt-0">
+                                <div className="relative w-full md:w-[200px]">
+                                    <Ship className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                    <select
+                                        value={localVesselId}
+                                        onChange={(e) => setLocalVesselId(e.target.value)}
+                                        className="bg-[#F1F5F9] border-0 focus:ring-2 focus:ring-blue-500/20 transition-all h-10 w-full pl-10 pr-10 rounded-xl text-sm font-bold text-slate-700 outline-none appearance-none cursor-pointer"
                                     >
-                                        <X className="h-4 w-4" />
-                                    </button>
-                                )}
+                                        <option value="all">ALL VESSELS</option>
+                                        {vessels?.map((v: any) => (
+                                            <option key={v.id} value={v.id}>{v.name.toUpperCase()}</option>
+                                        ))}
+                                    </select>
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+                                        <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div className="relative w-full md:w-[280px]">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                    <Input
+                                        placeholder="Search crew members..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className={cn(
+                                            "pl-10 pr-10 bg-[#F1F5F9] border-0 focus:ring-2 focus:ring-blue-500/20 transition-all h-10 rounded-xl text-sm font-bold placeholder:text-slate-400 placeholder:font-bold border-transparent",
+                                            categoryKey === 'global-search' && "ring-2 ring-blue-500/10"
+                                        )}
+                                        autoFocus={categoryKey === 'global-search'}
+                                        data-testid="drilldown-search-input"
+                                    />
+                                    {searchTerm && (
+                                        <button
+                                            onClick={() => setSearchTerm("")}
+                                            className="absolute right-5 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200 rounded-full transition-colors text-slate-400"
+                                        >
+                                            <X className="h-4 w-4" />
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </DialogHeader>
@@ -597,10 +620,10 @@ const HealthDrillDownModal = memo(({
                         )}
                     </div>
                 </DialogContent>
-            </Dialog>
+            </Dialog >
 
             {/* View Crew Member Dialog */}
-            <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+            < Dialog open={showViewDialog} onOpenChange={setShowViewDialog} >
                 <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center space-x-2">
@@ -738,7 +761,7 @@ const HealthDrillDownModal = memo(({
                         </div>
                     )}
                 </DialogContent>
-            </Dialog>
+            </Dialog >
 
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
                 <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">
@@ -914,25 +937,27 @@ const HealthDrillDownModal = memo(({
                 </DialogContent>
             </Dialog>
 
-            {signOnDialogOpen && selectedCrewForSignOn && (
-                <SignOnWizardDialog
-                    open={signOnDialogOpen}
-                    onOpenChange={setSignOnDialogOpen}
-                    crewMember={selectedCrewForSignOn}
-                    vessels={vessels}
-                    onSubmit={(data) => {
-                        signOnCrewMutation.mutate({
-                            crewId: selectedCrewForSignOn.id,
-                            reason: data.reason,
-                            vesselId: data.vesselId,
-                            contractStartDate: data.startDate,
-                            contractEndDate: data.endDate,
-                            profileUpdates: data.profileUpdates,
-                        });
-                    }}
-                    isSubmitting={signOnCrewMutation.isPending}
-                />
-            )}
+            {
+                signOnDialogOpen && selectedCrewForSignOn && (
+                    <SignOnWizardDialog
+                        open={signOnDialogOpen}
+                        onOpenChange={setSignOnDialogOpen}
+                        crewMember={selectedCrewForSignOn}
+                        vessels={vessels}
+                        onSubmit={(data) => {
+                            signOnCrewMutation.mutate({
+                                crewId: selectedCrewForSignOn.id,
+                                reason: data.reason,
+                                vesselId: data.vesselId,
+                                contractStartDate: data.startDate,
+                                contractEndDate: data.endDate,
+                                profileUpdates: data.profileUpdates,
+                            });
+                        }}
+                        isSubmitting={signOnCrewMutation.isPending}
+                    />
+                )
+            }
 
             <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
                 <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">
