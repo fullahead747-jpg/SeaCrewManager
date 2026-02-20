@@ -3129,6 +3129,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else if (key === 'overdue') {
           return crewMembers
             .filter(m => {
+              // Only consider On Board crew for overdue list
+              if (m.status !== 'onBoard') return false;
+
               // For vessel cards, 'overdue' (Expired) should only show those with an actual expired contract
               // to avoid overlap with 'no-contract'
               const contract = activeContractMap.get(m.id);
@@ -3143,6 +3146,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         } else {
           // Contract health categories (critical, upcoming, soon, stable)
           const filteredCrew = crewMembers.filter(m => {
+            // Only consider On Board crew for contract health categories
+            if (m.status !== 'onBoard') return false;
+
             const c = activeContractMap.get(m.id);
             if (!c) return false;
 

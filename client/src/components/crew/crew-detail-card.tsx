@@ -63,18 +63,34 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
         let remainingDays = 0;
         let totalDays = 0;
         let progressPercent = 0;
+        let progressColor = '#3B82F6'; // Default Blue
 
-        if (startDate && endDate && member.activeContract?.status === 'active' && member.status !== 'onShore') {
+        if (member.status === 'onShore') {
+            progressPercent = 100;
+            progressColor = '#3B82F6'; // Signed off color
+        } else if (startDate && endDate && member.activeContract?.status === 'active') {
             totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            remainingDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
             const elapsedDays = Math.max(0, Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
-            remainingDays = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-            progressPercent = totalDays > 0 ? Math.min(100, (elapsedDays / totalDays) * 100) : 0;
+
+            if (remainingDays < 0) {
+                progressPercent = 100;
+                progressColor = '#475569'; // Overdue
+            } else {
+                progressPercent = totalDays > 0 ? Math.min(100, (elapsedDays / totalDays) * 100) : 0;
+
+                // Color based on health schema
+                if (remainingDays <= 15) progressColor = '#ef4444'; // Critical
+                else if (remainingDays <= 30) progressColor = '#f97316'; // Upcoming
+                else if (remainingDays <= 45) progressColor = '#eab308'; // Attention
+                else progressColor = '#10b981'; // Not Due
+            }
         }
 
-        return { startDate, endDate, remainingDays, totalDays, progressPercent };
+        return { startDate, endDate, remainingDays, totalDays, progressPercent, progressColor };
     }, [member.activeContract, member.status, now]);
 
-    const { startDate, endDate, progressPercent } = contractStats;
+    const { startDate, endDate, progressPercent, progressColor } = contractStats;
 
     const formatShortDate = React.useCallback((date: Date | null) => {
         if (!date) return '';
@@ -240,7 +256,10 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                         </div>
                         <div className="h-1 w-full bg-slate-50 rounded-full overflow-hidden mb-2 relative">
                             {/* Visual Progress Indication */}
-                            <div className="absolute top-0 left-0 bottom-0 bg-[#3B82F6] w-3/4 rounded-full" />
+                            <div
+                                className="absolute top-0 left-0 bottom-0 rounded-full transition-all duration-500 ease-in-out"
+                                style={{ width: `${progressPercent}%`, backgroundColor: progressColor }}
+                            />
                         </div>
 
                         <div className="pt-1.5 border-t border-slate-100">
