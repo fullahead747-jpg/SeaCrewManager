@@ -3133,10 +3133,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Only consider On Board crew for overdue list
               if (m.status !== 'onBoard') return false;
 
-              // For vessel cards, 'overdue' (Expired) should only show those with an actual expired contract
-              // to avoid overlap with 'no-contract'
+              // Match dashboard getDashboardStats: overdue = no contract OR expired contract
               const contract = activeContractMap.get(m.id);
-              return contract && contract.endDate < now;
+              return !contract || (contract.endDate && contract.endDate < now);
+
+
             })
             .map(m => ({
               ...m,
