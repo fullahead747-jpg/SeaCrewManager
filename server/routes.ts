@@ -3100,6 +3100,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               activeContract: activeContractMap.get(m.id) || null,
               documents: docsByCrewId.get(m.id) || []
             }));
+        } else if (key === 'on-board') {
+          return crewMembers
+            .filter(m => m.status === 'onBoard')
+            .map(m => ({
+              ...m,
+              currentVessel: vesselMap.get(m.currentVesselId || '') || null,
+              activeContract: activeContractMap.get(m.id) || null,
+              documents: docsByCrewId.get(m.id) || []
+            }));
         } else if (key === 'global-search') {
           return crewMembers.map(m => ({
             ...m,

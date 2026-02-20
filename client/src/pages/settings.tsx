@@ -338,8 +338,8 @@ export default function Settings() {
                     key={section.id}
                     onClick={() => setActiveSection(section.id)}
                     className={`w-full flex items-center px-4 py-3 text-left text-sm font-medium rounded-none border-r-2 transition-colors ${activeSection === section.id
-                        ? 'bg-primary/10 border-primary text-primary'
-                        : 'hover:bg-muted border-transparent text-muted-foreground hover:text-foreground'
+                      ? 'bg-primary/10 border-primary text-primary'
+                      : 'hover:bg-muted border-transparent text-muted-foreground hover:text-foreground'
                       }`}
                     data-testid={`settings-${section.id}-tab`}
                   >
@@ -503,6 +503,36 @@ export default function Settings() {
                         checked={emailSettings?.enabled ?? true}
                         onCheckedChange={(checked) => handleEmailSettingsUpdate('enabled', checked)}
                       />
+                    </div>
+
+                    <div>
+                      <Label className="text-base font-medium mb-3 block">Daily Managed Reports (18:30)</Label>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Enable or disable automated daily reports sent at 6:30 PM.
+                      </p>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm">Critical Report (≤ 15 Days)</Label>
+                          <Switch
+                            checked={emailSettings?.criticalEnabled ?? true}
+                            onCheckedChange={(checked) => handleEmailSettingsUpdate('criticalEnabled', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm">Upcoming Report (16-30 Days)</Label>
+                          <Switch
+                            checked={emailSettings?.upcomingEnabled ?? true}
+                            onCheckedChange={(checked) => handleEmailSettingsUpdate('upcomingEnabled', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm">Attention Report (31-45 Days / No Contract)</Label>
+                          <Switch
+                            checked={emailSettings?.attentionEnabled ?? true}
+                            onCheckedChange={(checked) => handleEmailSettingsUpdate('attentionEnabled', checked)}
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     <Separator />

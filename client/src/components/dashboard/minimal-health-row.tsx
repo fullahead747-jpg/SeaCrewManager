@@ -17,24 +17,24 @@ function StatItem({ label, value, icon: Icon, color, description, onClick }: Sta
         <div
             onClick={onClick}
             className={cn(
-                "flex items-center gap-3 px-3 py-1 first:pl-0 last:pr-0 border-r border-border/40 last:border-0 min-w-max",
+                "flex items-center gap-2 px-2 py-1 first:pl-0 last:pr-0 border-r border-border/40 last:border-0 min-w-max",
                 onClick && "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/40 rounded-lg transition-colors group"
             )}
         >
             <div className={cn(
-                "p-1.5 rounded-md bg-opacity-10 transition-transform",
+                "p-1 rounded-md bg-opacity-10 transition-transform",
                 color.replace('text-', 'bg-'),
                 onClick && "group-hover:scale-110"
             )}>
-                <Icon className={cn("h-4 w-4", color)} />
+                <Icon className={cn("h-3.5 w-3.5", color)} />
             </div>
             <div>
-                <div className="flex items-baseline gap-1.5">
+                <div className="flex items-baseline gap-1">
                     <span className="text-lg font-bold tracking-tight text-foreground leading-none">{value}</span>
                     <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-tight leading-none group-hover:text-primary transition-colors">{label}</span>
                 </div>
                 {description && (
-                    <p className="text-[9px] text-muted-foreground/60 font-medium leading-none mt-1">{description}</p>
+                    <p className="text-[10px] text-muted-foreground/60 font-medium leading-none mt-1">{description}</p>
                 )}
             </div>
         </div>
@@ -44,11 +44,24 @@ function StatItem({ label, value, icon: Icon, color, description, onClick }: Sta
 interface MinimalHealthRowProps {
     stats: any;
     className?: string;
+    onOnBoardClick?: () => void;
+    onVesselsClick?: () => void;
+    onCriticalClick?: () => void;
+    onOverdueClick?: () => void;
     onSearchClick?: () => void;
     onDownloadClick?: () => void;
 }
 
-export default function MinimalHealthRow({ stats, className, onSearchClick, onDownloadClick }: MinimalHealthRowProps) {
+export default function MinimalHealthRow({
+    stats,
+    className,
+    onOnBoardClick,
+    onVesselsClick,
+    onCriticalClick,
+    onOverdueClick,
+    onSearchClick,
+    onDownloadClick
+}: MinimalHealthRowProps) {
     if (!stats) return null;
 
     return (
@@ -63,6 +76,7 @@ export default function MinimalHealthRow({ stats, className, onSearchClick, onDo
                 icon={Users}
                 color="text-blue-500"
                 description="Active personnel"
+                onClick={onOnBoardClick}
             />
 
             <StatItem
@@ -71,6 +85,7 @@ export default function MinimalHealthRow({ stats, className, onSearchClick, onDo
                 icon={Ship}
                 color="text-indigo-500"
                 description="Fleet operational"
+                onClick={onVesselsClick}
             />
             <StatItem
                 label="Critical"
@@ -78,6 +93,7 @@ export default function MinimalHealthRow({ stats, className, onSearchClick, onDo
                 icon={AlertTriangle}
                 color="text-red-500"
                 description="< 30 Days"
+                onClick={onCriticalClick}
             />
             <StatItem
                 label="Overdue"
@@ -85,6 +101,7 @@ export default function MinimalHealthRow({ stats, className, onSearchClick, onDo
                 icon={FileWarning}
                 color="text-rose-600"
                 description="Expired contracts"
+                onClick={onOverdueClick}
             />
 
             <StatItem

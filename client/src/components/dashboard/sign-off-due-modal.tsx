@@ -1,29 +1,21 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { motion, AnimatePresence } from "framer-motion";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Clock, Ship, Users, ChevronRight, X } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Clock, Ship, Users, X, Search, Eye, Loader2, AlertCircle, Trash2 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo, useDeferredValue, useEffect } from 'react';
 import { getAuthHeaders } from '@/lib/auth';
-
-interface CrewMember {
-    id: string;
-    firstName: string;
-    lastName: string;
-    rank: string;
-    status: string;
-    currentVesselId: string | null;
-    activeContract?: {
-        id: string;
-        startDate: string;
-        endDate: string;
-        status: string;
-    };
-}
-
-interface Vessel {
-    id: string;
-    name: string;
-}
+import { CrewMemberWithDetails, Document, Vessel } from '@shared/schema';
+import { CrewDetailCard } from '@/components/crew/crew-detail-card';
+import { CrewAvatar } from "@/components/crew/crew-avatar";
+import { useToast } from '@/hooks/use-toast';
+import { formatDate } from '@/lib/utils';
+import DocumentUpload from '@/components/documents/document-upload';
+import EditCrewForm from '@/components/crew/edit-crew-form';
+import SignOnWizardDialog from '@/components/crew/sign-on-wizard-dialog';
 
 interface SignOffDueModalProps {
     isOpen: boolean;
@@ -32,311 +24,661 @@ interface SignOffDueModalProps {
 
 interface VesselGroup {
     vessel: Vessel;
-    contracts: Array<{
-        crewMember: CrewMember;
-        daysRemaining: number;
-    }>;
+    members: CrewMemberWithDetails[];
 }
 
 export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProps) {
-    const { data: crewMembers, isLoading: crewLoading } = useQuery<CrewMember[]>({
+    const { toast } = useToast();
+    const queryClient = useQueryClient();
+    const [searchTerm, setSearchTerm] = useState('');
+    const deferredSearch = useDeferredValue(searchTerm);
+
+    // Upload state
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+    const [selectedCrewForUpload, setSelectedCrewForUpload] = useState<CrewMemberWithDetails | null>(null);
+    const [selectedUploadType, setSelectedUploadType] = useState<string | undefined>(undefined);
+
+    // View state
+    const [showViewDialog, setShowViewDialog] = useState(false);
+    const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMemberWithDetails | null>(null);
+
+    // History state
+    const [showVesselHistoryDialog, setShowVesselHistoryDialog] = useState(false);
+    const [selectedCrewForHistory, setSelectedCrewForHistory] = useState<CrewMemberWithDetails | null>(null);
+
+    // Edit state
+    const [showEditDialog, setShowEditDialog] = useState(false);
+
+    // Sign Off state
+    const [signOffDialogOpen, setSignOffDialogOpen] = useState(false);
+    const [selectedCrewForSignOff, setSelectedCrewForSignOff] = useState<CrewMemberWithDetails | null>(null);
+    const [signOffReason, setSignOffReason] = useState('');
+
+    // Sign On state
+    const [signOnDialogOpen, setSignOnDialogOpen] = useState(false);
+    const [selectedCrewForSignOn, setSelectedCrewForSignOn] = useState<CrewMemberWithDetails | null>(null);
+
+    // Incremental rendering state
+    const [displayCount, setDisplayCount] = useState(10);
+    const BATCH_SIZE = 10;
+
+    useEffect(() => {
+        setDisplayCount(BATCH_SIZE);
+    }, [deferredSearch]);
+
+    // ── Data fetching ──────────────────────────────────────────────────────────
+    const { data: crewMembers = [], isLoading: crewLoading } = useQuery<CrewMemberWithDetails[]>({
         queryKey: ['/api/crew'],
         queryFn: async () => {
-            const response = await fetch('/api/crew', {
-                headers: getAuthHeaders(),
-            });
-            if (!response.ok) throw new Error('Failed to fetch crew');
-            return response.json();
+            const res = await fetch('/api/crew', { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error('Failed to fetch crew');
+            return res.json();
         },
         enabled: isOpen,
     });
 
-    const { data: vessels, isLoading: vesselsLoading } = useQuery<Vessel[]>({
+    const { data: vessels = [], isLoading: vesselsLoading } = useQuery<Vessel[]>({
         queryKey: ['/api/vessels'],
         queryFn: async () => {
-            const response = await fetch('/api/vessels', {
-                headers: getAuthHeaders(),
-            });
-            if (!response.ok) throw new Error('Failed to fetch vessels');
-            return response.json();
+            const res = await fetch('/api/vessels', { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error('Failed to fetch vessels');
+            return res.json();
         },
         enabled: isOpen,
     });
 
-    const getInitials = (firstName: string, lastName: string) => {
-        return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+    const { data: documents = [] } = useQuery<Document[]>({
+        queryKey: ['/api/documents'],
+        queryFn: async () => {
+            const res = await fetch('/api/documents', { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error('Failed to fetch documents');
+            return res.json();
+        },
+        enabled: isOpen,
+    });
+
+    // ── Mutations ──────────────────────────────────────────────────────────────
+    const sendCrewEmailMutation = useMutation({
+        mutationFn: async (member: CrewMemberWithDetails) => {
+            const res = await fetch('/api/email/send-crew-details', {
+                method: 'POST',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({ crewMemberId: member.id }),
+            });
+            if (!res.ok) throw new Error('Failed to send email');
+            return res.json();
+        },
+        onSuccess: () => toast({ title: 'Email Sent', description: 'Crew update email sent successfully.' }),
+        onError: (err: any) => toast({ title: 'Email Failed', description: err.message, variant: 'destructive' }),
+    });
+
+    const signOffMutation = useMutation({
+        mutationFn: async ({ crewId, reason }: { crewId: string; reason: string }) => {
+            const member = crewMembers.find((m) => m.id === crewId);
+            const res = await fetch(`/api/crew/${crewId}`, {
+                method: 'PUT',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    currentVesselId: null,
+                    lastVesselId: member?.currentVesselId || null,
+                    status: 'onShore',
+                    signOffDate: new Date().toISOString(),
+                    statusChangeReason: reason,
+                }),
+            });
+            if (!res.ok) throw new Error('Failed to sign off crew member');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/vessels'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+            setSignOffDialogOpen(false);
+            setSelectedCrewForSignOff(null);
+            toast({ title: 'Success', description: 'Crew member signed off successfully' });
+        },
+        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
+    });
+
+    const signOnMutation = useMutation({
+        mutationFn: async (data: any) => {
+            if (!selectedCrewForSignOn) throw new Error('No crew member selected');
+            // Update crew status to onBoard
+            const crewRes = await fetch(`/api/crew/${selectedCrewForSignOn.id}`, {
+                method: 'PUT',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    currentVesselId: data.vesselId,
+                    status: 'onBoard',
+                    statusChangeReason: data.reason,
+                    ...(data.profileUpdates || {}),
+                }),
+            });
+            if (!crewRes.ok) throw new Error('Failed to update crew status');
+
+            // Create new contract
+            const durationDays = Math.ceil((new Date(data.endDate).getTime() - new Date(data.startDate).getTime()) / (1000 * 60 * 60 * 24));
+            const contractRes = await fetch('/api/contracts', {
+                method: 'POST',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    crewMemberId: selectedCrewForSignOn.id,
+                    vesselId: data.vesselId,
+                    startDate: data.startDate,
+                    endDate: data.endDate,
+                    durationDays: durationDays,
+                    status: 'active',
+                    reason: data.reason,
+                }),
+            });
+            if (!contractRes.ok) throw new Error('Failed to create contract');
+            return contractRes.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/vessels'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/contracts'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+            setSignOnDialogOpen(false);
+            setSelectedCrewForSignOn(null);
+            toast({ title: 'Success', description: 'Crew member signed on successfully' });
+        },
+        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
+    });
+
+
+    const deleteDocumentMutation = useMutation({
+        mutationFn: async (documentId: string) => {
+            const res = await fetch(`/api/documents/${documentId}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders(),
+            });
+            if (!res.ok) throw new Error('Failed to delete document');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+            toast({ title: 'Success', description: 'Document deleted successfully' });
+        },
+        onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
+    });
+
+    // ── Handlers ───────────────────────────────────────────────────────────────
+    const handleUpload = (member: CrewMemberWithDetails, type: string) => {
+        setSelectedCrewForUpload(member);
+        setSelectedUploadType(type);
+        setIsUploadModalOpen(true);
     };
 
-    const formatMockupDate = (date: Date | string | null | undefined): string => {
-        if (!date) return '---';
-        const d = typeof date === 'string' ? new Date(date) : date;
-        if (isNaN(d.getTime())) return '---';
-
-        const day = d.getUTCDate().toString().padStart(2, '0');
-        const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-        const month = months[d.getUTCMonth()];
-        const year = d.getUTCFullYear();
-
-        return `${day} ${month} ${year}`;
+    const handleDownload = async (crewId: string, crewName: string) => {
+        try {
+            const res = await fetch(`/api/crew/${crewId}/documents/download`, { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error('Download failed');
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const link = window.document.createElement('a');
+            link.href = url;
+            link.download = `Documents_${crewName.replace(/\s+/g, '_')}.zip`;
+            window.document.body.appendChild(link);
+            link.click();
+            window.document.body.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch {
+            toast({ title: 'Download Failed', description: 'Could not download documents zip.', variant: 'destructive' });
+        }
     };
 
-    const getContractDaysRemaining = (member: CrewMember) => {
-        if (!member.activeContract) return 0;
+    const handleViewAOA = async (m: CrewMemberWithDetails) => {
+        if (m.activeContract?.filePath) {
+            try {
+                const res = await fetch(`/api/contracts/${m.activeContract.id}/view`, { headers: getAuthHeaders() });
+                if (!res.ok) throw new Error('Failed to fetch document');
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                window.open(url, '_blank');
+                setTimeout(() => window.URL.revokeObjectURL(url), 100);
+            } catch {
+                toast({ title: 'Error', description: 'Failed to open AOA document', variant: 'destructive' });
+            }
+        } else {
+            toast({ title: 'Not Available', description: 'No AOA document file found for this contract.' });
+        }
+    };
+
+    const handleDeleteDocument = (docId: string, type: string) => {
+        if (window.confirm(`Are you sure you want to delete this ${type.toUpperCase()} document?`)) {
+            deleteDocumentMutation.mutate(docId);
+        }
+    };
+
+    const { data: rotations = [] } = useQuery({
+        queryKey: ['/api/rotations'],
+        queryFn: async () => {
+            const res = await fetch('/api/rotations', { headers: getAuthHeaders() });
+            if (!res.ok) throw new Error('Failed to fetch rotations');
+            return res.json();
+        },
+        enabled: isOpen,
+    });
+
+    const getVesselHistory = (crewMemberId: string) => {
+        return rotations
+            .filter((r: any) => r.crewMemberId === crewMemberId && r.status === 'completed')
+            .sort((a: any, b: any) => new Date(b.leaveDate).getTime() - new Date(a.leaveDate).getTime());
+    };
+
+    // ── Vessel groups (crew expiring within 45 days) ───────────────────────────
+    const vesselGroups: VesselGroup[] = useMemo(() => {
+        if (!crewMembers.length || !vessels.length) return [];
 
         const now = new Date();
-        const endDate = new Date(member.activeContract.endDate);
-        const daysDiff = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+        const cutoff = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-        return daysDiff;
-    };
-
-    // Group contracts by vessel
-    const vesselGroups: VesselGroup[] = [];
-
-    if (crewMembers && vessels) {
-        const now = new Date();
-        const fortyFiveDaysFromNow = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
-
-        // Filter crew members with contracts expiring within 45 days
-        const expiringContracts = crewMembers
-            .filter(member => {
-                if (!member.activeContract) return false;
-                const endDate = new Date(member.activeContract.endDate);
-                return endDate > now && endDate <= fortyFiveDaysFromNow;
-            })
-            .map(member => ({
-                crewMember: member,
-                daysRemaining: getContractDaysRemaining(member)
-            }));
-
-        // Group by vessel
-        const vesselMap = new Map<string, Array<{ crewMember: CrewMember; daysRemaining: number }>>();
-
-        expiringContracts.forEach(contract => {
-            const vesselId = contract.crewMember.currentVesselId;
-            if (!vesselId) return;
-
-            if (!vesselMap.has(vesselId)) {
-                vesselMap.set(vesselId, []);
-            }
-            vesselMap.get(vesselId)!.push(contract);
+        const expiring = crewMembers.filter((m) => {
+            if (!m.activeContract) return false;
+            const end = new Date(m.activeContract.endDate);
+            return end > now && end <= cutoff;
         });
 
-        // Convert to array and sort
-        vessels.forEach(vessel => {
-            const contracts = vesselMap.get(vessel.id);
-            if (contracts && contracts.length > 0) {
-                // Sort contracts by days remaining (urgent first)
-                contracts.sort((a, b) => a.daysRemaining - b.daysRemaining);
-                vesselGroups.push({ vessel, contracts });
+        const map = new Map<string, CrewMemberWithDetails[]>();
+        expiring.forEach((m) => {
+            const vid = m.currentVesselId;
+            if (!vid) return;
+            if (!map.has(vid)) map.set(vid, []);
+            map.get(vid)!.push(m);
+        });
+
+        const groups: VesselGroup[] = [];
+        vessels.forEach((vessel) => {
+            const members = map.get(vessel.id);
+            if (members?.length) {
+                members.sort((a, b) =>
+                    new Date(a.activeContract!.endDate).getTime() - new Date(b.activeContract!.endDate).getTime()
+                );
+                groups.push({ vessel, members });
             }
         });
 
-        // Sort vessels by name
-        vesselGroups.sort((a, b) => a.vessel.name.localeCompare(b.vessel.name));
-    }
+        return groups.sort((a, b) => b.members.length - a.members.length);
+    }, [crewMembers, vessels]);
 
-    const totalContracts = vesselGroups.reduce((sum, group) => sum + group.contracts.length, 0);
+    // ── Search filter ──────────────────────────────────────────────────────────
+    const filteredGroups = useMemo(() => {
+        if (!deferredSearch.trim()) return vesselGroups;
+        const s = deferredSearch.toLowerCase();
+        return vesselGroups
+            .map((g) => ({
+                ...g,
+                members: g.members.filter((m) => {
+                    const full = `${m.firstName} ${m.lastName}`.toLowerCase();
+                    return (
+                        m.firstName.toLowerCase().includes(s) ||
+                        m.lastName.toLowerCase().includes(s) ||
+                        m.rank.toLowerCase().includes(s) ||
+                        full.includes(s)
+                    );
+                }),
+            }))
+            .filter((g) => g.members.length > 0);
+    }, [vesselGroups, deferredSearch]);
 
+    const totalContracts = vesselGroups.reduce((sum, g) => sum + g.members.length, 0);
+
+    // ── Render ─────────────────────────────────────────────────────────────────
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-[95vw] w-[1000px] max-h-[90vh] border-white/10 p-0 overflow-hidden bg-[#050508] flex flex-col shadow-[0_0_80px_rgba(0,0,0,0.8)]">
-                {/* Space/Nebula Background Wrapper */}
-                <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-                    {/* Dark gradient base */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#020205] via-[#080812] to-[#020205] opacity-100" />
-
-                    {/* Nebula clouds */}
-                    <div className="absolute top-[-20%] left-[-10%] w-[80%] h-[80%] bg-indigo-600/10 blur-[130px] rounded-full" />
-                    <div className="absolute bottom-[-20%] right-[-10%] w-[70%] h-[70%] bg-purple-600/10 blur-[130px] rounded-full" />
-                    <div className="absolute top-[30%] right-[20%] w-[50%] h-[50%] bg-blue-600/5 blur-[100px] rounded-full" />
-
-                    {/* Starfield / Grid precision background */}
-                    <div
-                        className="absolute inset-0 opacity-[0.15]"
-                        style={{
-                            backgroundImage: `radial-gradient(circle at 1px 1px, rgba(255,255,255,0.4) 1px, transparent 1px)`,
-                            backgroundSize: '40px 40px',
-                        }}
-                    />
-                </div>
-
-                <div className="relative z-10 h-full flex flex-col">
-                    {/* Header Section */}
-                    <div className="p-8 pb-6 border-b border-white/5 flex items-center justify-between">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-4">
-                                <div className="p-2.5 bg-indigo-500/10 rounded-xl border border-indigo-500/20 shadow-[0_0_15px_rgba(99,102,241,0.2)]">
-                                    <Clock className="h-6 w-6 text-indigo-400" />
+        <>
+            <Dialog open={isOpen} onOpenChange={onClose}>
+                <DialogContent
+                    className="max-w-5xl w-full max-h-[90vh] border-slate-200 p-0 overflow-y-auto bg-white shadow-[0_20px_60px_rgba(0,0,0,0.1)] rounded-[2rem] custom-scrollbar"
+                    onScroll={(e) => {
+                        const target = e.currentTarget;
+                        if (target.scrollHeight - target.scrollTop - target.clientHeight < 100) {
+                            const totalFiltered = filteredGroups.reduce((sum, g) => sum + g.members.length, 0);
+                            if (displayCount < totalFiltered) {
+                                setDisplayCount(prev => prev + BATCH_SIZE);
+                            }
+                        }
+                    }}
+                >
+                    <div className="p-3 space-y-2">
+                        {/* ── Header ── */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 md:pr-8 mb-6">
+                            <div className="space-y-0.5">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="p-1.5 bg-blue-50 rounded-lg">
+                                        <Clock className="h-4 w-4 text-blue-500" />
+                                    </div>
+                                    <div className="flex items-baseline gap-2">
+                                        <h2 className="text-xl font-bold tracking-tight text-[#1E293B]">Sign Off Due Contracts</h2>
+                                        <span className="text-slate-300">|</span>
+                                        <p className="text-slate-400 text-xs font-semibold">
+                                            {totalContracts} {totalContracts === 1 ? 'contract' : 'contracts'} expiring within 30 days
+                                        </p>
+                                    </div>
                                 </div>
-                                <h2 className="text-2xl font-bold tracking-[0.02em] text-white">Sign Off Due Contracts</h2>
                             </div>
-                            <p className="text-gray-400 font-medium tracking-wide text-sm pl-[52px]">
-                                {totalContracts} {totalContracts === 1 ? 'contract' : 'contracts'} expiring within 45 days
-                            </p>
+                            <div className="relative w-full md:w-[240px]">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                <Input
+                                    placeholder="Search crew members..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-9 pr-8 bg-[#F1F5F9] border-0 focus:ring-1 focus:ring-blue-500/20 h-8 rounded-lg text-sm placeholder:text-slate-400 border-transparent shadow-none"
+                                />
+                                {searchTerm && (
+                                    <button
+                                        onClick={() => setSearchTerm('')}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 hover:bg-slate-200 rounded-full transition-colors text-slate-400"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                )}
+                            </div>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="p-2 rounded-full hover:bg-white/5 transition-colors text-gray-500 hover:text-white"
-                        >
-                            <X className="h-6 w-6" />
-                        </button>
-                    </div>
 
-                    <div className="flex-1 overflow-y-auto px-8 py-6 custom-scrollbar">
-                        <div className="space-y-12">
+                        {/* ── Content ── */}
+                        <div className="space-y-2">
                             {crewLoading || vesselsLoading ? (
-                                <div className="flex flex-col items-center justify-center py-24 bg-white/[0.02] rounded-[2rem] border border-white/5">
-                                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-500 opacity-60"></div>
-                                    <p className="text-gray-500 font-bold tracking-[0.3em] uppercase text-[10px] mt-6">Initializing Pipeline...</p>
+                                <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 opacity-60" />
                                 </div>
                             ) : vesselGroups.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center py-24 bg-white/[0.02] rounded-[2rem] border border-white/5 backdrop-blur-md">
-                                    <div className="w-16 h-16 rounded-full bg-indigo-500/5 flex items-center justify-center mb-6">
-                                        <Users className="h-8 w-8 text-indigo-500/20" />
-                                    </div>
-                                    <p className="text-gray-500 font-bold tracking-[0.4em] uppercase text-[10px] text-center px-4 max-w-sm">No critical data requiring immediate sign-off awareness.</p>
+                                <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                                    <p className="text-slate-500 font-bold text-xs">No critical data found.</p>
+                                </div>
+                            ) : filteredGroups.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                                    <p className="text-slate-500 font-bold text-xs">No matches found.</p>
                                 </div>
                             ) : (
-                                vesselGroups.map(({ vessel, contracts }) => (
-                                    <div key={vessel.id} className="space-y-6">
-                                        {/* Vessel Tab Style Header */}
-                                        <div className="flex items-center">
-                                            <div className="flex items-center space-x-3 bg-white/[0.03] px-5 py-2.5 rounded-t-2xl border-x border-t border-white/10 backdrop-blur-3xl shadow-xl">
-                                                <Ship className="h-4 w-4 text-indigo-400" />
-                                                <span className="text-white font-bold tracking-[0.1em] text-xs uppercase">{vessel.name}</span>
-                                                <Badge className="bg-white/10 text-[10px] text-gray-400 border-none font-bold rounded-md px-2 py-0">
-                                                    {contracts.length} {contracts.length === 1 ? 'Contract' : 'Contracts'}
-                                                </Badge>
-                                            </div>
-                                            <div className="flex-1 border-b border-white/10 mb-[1px]" />
+                                filteredGroups.map(({ vessel, members }) => (
+                                    <div key={vessel.id} className="space-y-1.5">
+                                        {/* Vessel header */}
+                                        <div className="flex items-center gap-2">
+                                            <Ship className="h-3.5 w-3.5 text-blue-500" />
+                                            <span className="text-slate-700 font-extrabold text-sm uppercase tracking-wide">{vessel.name}</span>
+                                            <Badge className="bg-blue-50 text-blue-600 text-[9px] border-blue-100 font-bold rounded px-1.5 py-0">
+                                                {members.length} {members.length === 1 ? 'Contract' : 'Contracts'}
+                                            </Badge>
+                                            <div className="flex-1 h-px bg-slate-100" />
                                         </div>
 
-                                        {/* Crew Member Glass Cards */}
-                                        <div className="space-y-4">
-                                            {contracts.map(({ crewMember, daysRemaining }) => {
-                                                const initials = getInitials(crewMember.firstName, crewMember.lastName);
-                                                // Dynamic colors based on urgency
-                                                const glowColor = daysRemaining <= 15 ? 'rgba(239, 68, 68, 0.4)' : daysRemaining <= 30 ? 'rgba(245, 158, 11, 0.4)' : 'rgba(99, 102, 241, 0.4)';
-                                                const accentColor = daysRemaining <= 15 ? 'text-red-400' : daysRemaining <= 30 ? 'text-amber-400' : 'text-indigo-400';
-                                                const strokeColor = daysRemaining <= 15 ? '#ef4444' : daysRemaining <= 30 ? '#f59e0b' : '#6366f1';
-
-                                                return (
-                                                    <div key={crewMember.id} className="relative group overflow-hidden">
-                                                        {/* Outer Glow Axis */}
-                                                        <div className="absolute top-0 bottom-0 left-0 w-[2px] bg-gradient-to-b from-transparent via-indigo-500/40 to-transparent group-hover:via-indigo-500 transition-all duration-700" />
-
-                                                        <div className="flex items-center bg-[#0a0a0f]/80 backdrop-blur-3xl p-6 pl-8 rounded-r-3xl border border-white/5 border-l-0 shadow-2xl group-hover:bg-white/[0.04] transition-all duration-500">
-
-                                                            {/* Profile Identity section */}
-                                                            <div className="flex items-center space-x-6 w-[350px]">
-                                                                <div className="relative">
-                                                                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center relative shadow-inner">
-                                                                        <span className="text-white font-bold text-base tracking-tight">{initials}</span>
-                                                                    </div>
-                                                                    {/* Small dot indicator */}
-                                                                    <div className={`absolute -right-1 bottom-1 w-3 h-3 rounded-full border-2 border-[#0a0a0f]`} style={{ backgroundColor: strokeColor }} />
-                                                                </div>
-                                                                <div className="flex-1 min-w-0">
-                                                                    <h4 className="text-white font-bold uppercase tracking-[0.1em] text-sm leading-tight mb-1 truncate">
-                                                                        {crewMember.firstName} {crewMember.lastName}
-                                                                    </h4>
-                                                                    <p className="text-gray-500 text-[10px] uppercase font-bold tracking-[0.15em]">{crewMember.rank}</p>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Vertical Timeline Divider */}
-                                                            <div className="flex items-center h-20 px-8 relative">
-                                                                <div className="w-[1px] h-full bg-gradient-to-b from-white/20 via-white/5 to-white/20 relative">
-                                                                    {/* Start Node */}
-                                                                    <div className="absolute top-0 -left-[3px] w-2 h-2 rounded-full border border-white/20 bg-[#0a0a0f]" />
-                                                                    {/* End Node */}
-                                                                    <div className="absolute bottom-0 -left-[3px] w-2 h-2 rounded-full border border-white/20 bg-[#0a0a0f]" />
-                                                                </div>
-
-                                                                <div className="flex flex-col justify-between h-full pl-6 py-0">
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[9px] text-gray-600 font-bold tracking-[0.2em] uppercase mb-0.5">Start</span>
-                                                                        <span className="text-[12px] text-gray-300 font-medium tracking-wide italic">
-                                                                            {formatMockupDate(crewMember.activeContract?.startDate)}
-                                                                        </span>
-                                                                    </div>
-                                                                    <div className="flex flex-col">
-                                                                        <span className="text-[9px] text-gray-600 font-bold tracking-[0.2em] uppercase mb-0.5">End</span>
-                                                                        <span className="text-[12px] text-gray-300 font-medium tracking-wide">
-                                                                            {formatMockupDate(crewMember.activeContract?.endDate)}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Circular Progress Display */}
-                                                            <div className="flex-1 flex justify-end">
-                                                                <div className="relative w-32 h-32 flex items-center justify-center">
-                                                                    {/* Circular Background Trace */}
-                                                                    <svg className="absolute inset-0 w-full h-full -rotate-90">
-                                                                        <circle
-                                                                            cx="64" cy="64" r="50"
-                                                                            fill="transparent"
-                                                                            stroke="rgba(255,255,255,0.03)"
-                                                                            strokeWidth="8"
-                                                                        />
-                                                                        {/* Progress Ring */}
-                                                                        <circle
-                                                                            cx="64" cy="64" r="50"
-                                                                            fill="transparent"
-                                                                            stroke={strokeColor}
-                                                                            strokeWidth="4"
-                                                                            strokeDasharray={2 * Math.PI * 50}
-                                                                            strokeDashoffset={2 * Math.PI * 50 * (1 - Math.min(daysRemaining, 45) / 45)}
-                                                                            strokeLinecap="round"
-                                                                            className="transition-all duration-1000 ease-out"
-                                                                        />
-                                                                    </svg>
-
-                                                                    {/* Inner Glow/Shadow Circle */}
-                                                                    <div className="absolute w-[92px] h-[92px] rounded-full bg-black/40 shadow-inner flex items-center justify-center">
-                                                                        <div className="flex flex-col items-center">
-                                                                            <span className={`text-2xl font-bold tracking-tighter ${accentColor}`}>
-                                                                                {daysRemaining}
-                                                                            </span>
-                                                                            <span className="text-[8px] text-gray-500 font-bold tracking-[0.2em] uppercase">Days</span>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Outer Halo Effect */}
-                                                                    <div
-                                                                        className="absolute inset-4 rounded-full opacity-20 blur-xl transition-all duration-500 group-hover:opacity-40"
-                                                                        style={{ backgroundColor: strokeColor }}
-                                                                    />
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Premium Hover Card Shine */}
-                                                            <div className="absolute inset-0 bg-gradient-to-r from-white/[0.02] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
+                                        {/* Crew Detail Cards */}
+                                        <div className="space-y-2">
+                                            <AnimatePresence mode="popLayout">
+                                                {members.slice(0, displayCount).map((member) => (
+                                                    <motion.div
+                                                        key={member.id}
+                                                        initial={{ opacity: 0, y: 5 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        exit={{ opacity: 0, scale: 0.98 }}
+                                                        transition={{ duration: 0.15 }}
+                                                    >
+                                                        <CrewDetailCard
+                                                            member={member}
+                                                            documents={documents}
+                                                            onView={(m) => { setSelectedCrewMember(m); setShowViewDialog(true); }}
+                                                            onEdit={(m) => { setSelectedCrewMember(m); setShowEditDialog(true); }}
+                                                            onVesselHistory={(m) => { setSelectedCrewForHistory(m); setShowVesselHistoryDialog(true); }}
+                                                            onSendMail={(m) => sendCrewEmailMutation.mutate(m)}
+                                                            onDownload={handleDownload}
+                                                            onViewAOA={handleViewAOA}
+                                                            onSignOff={(m) => { setSelectedCrewForSignOff(m); setSignOffReason(''); setSignOffDialogOpen(true); }}
+                                                            onSignOn={(m) => { setSelectedCrewForSignOn(m); setSignOnDialogOpen(true); }}
+                                                            onUpload={handleUpload}
+                                                            onDeleteDocument={handleDeleteDocument}
+                                                            isMailPending={sendCrewEmailMutation.isPending}
+                                                        />
+                                                    </motion.div>
+                                                ))}
+                                            </AnimatePresence>
                                         </div>
                                     </div>
                                 ))
                             )}
+                            {displayCount < filteredGroups.reduce((sum, g) => sum + g.members.length, 0) && (
+                                <div className="flex justify-center p-2">
+                                    <Loader2 className="h-4 w-4 animate-spin text-blue-500/30" />
+                                </div>
+                            )}
                         </div>
                     </div>
+                </DialogContent>
+            </Dialog>
 
-                    <div className="p-8 pb-10 flex items-center justify-center bg-black/40 backdrop-blur-3xl border-t border-white/5">
-                        <Button
-                            onClick={onClose}
-                            className="w-[400px] h-14 bg-white/5 border border-white/10 hover:bg-white/10 text-white rounded-[1.2rem] font-bold text-sm uppercase tracking-[0.25em] transition-all duration-300 hover:tracking-[0.3em] group shadow-2xl relative overflow-hidden"
-                        >
-                            <span className="relative z-10">View All Detailed Analytics</span>
-                            <ChevronRight className="relative z-10 w-4 h-4 ml-3 group-hover:translate-x-1 transition-transform" />
-                            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </Button>
+            {/* ── View Crew Dialog ── */}
+            <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center space-x-2 text-2xl font-bold">
+                            <Eye className="h-6 w-6 text-blue-600" />
+                            <span>Seafarer Details</span>
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {selectedCrewMember && (
+                        <div className="space-y-4 py-3">
+                            <div className="flex items-center space-x-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                                <CrewAvatar
+                                    memberId={selectedCrewMember.id}
+                                    documents={selectedCrewMember.documents}
+                                    firstName={selectedCrewMember.firstName}
+                                    lastName={selectedCrewMember.lastName}
+                                    className="h-16 w-16 border border-white shadow-sm"
+                                />
+                                <div>
+                                    <h2 className="text-xl font-bold text-slate-900">
+                                        {selectedCrewMember.firstName} {selectedCrewMember.lastName}
+                                    </h2>
+                                    <div className="mt-0.5 flex items-center gap-2">
+                                        <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-0 font-bold px-2 py-0.5 text-[10px]">
+                                            {selectedCrewMember.rank}
+                                        </Badge>
+                                        <span className="text-slate-400 text-xs font-medium">{selectedCrewMember.nationality}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                                    <h4 className="font-bold text-slate-900 flex items-center mb-4 text-sm uppercase tracking-wider">
+                                        <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mr-2.5"></div>
+                                        Personal Info
+                                    </h4>
+                                    <div className="space-y-3 text-sm">
+                                        <p className="flex justify-between"><span className="text-slate-500">Nationality:</span> <span className="font-bold">{selectedCrewMember.nationality}</span></p>
+                                        <p className="flex justify-between"><span className="text-slate-500">Date of Birth:</span> <span className="font-bold">{formatDate(selectedCrewMember.dateOfBirth)}</span></p>
+                                        <p className="flex justify-between"><span className="text-slate-500">Email:</span> <span className="font-bold text-blue-600">{(selectedCrewMember as any).email || 'N/A'}</span></p>
+                                        <p className="flex justify-between"><span className="text-slate-500">Phone:</span> <span className="font-bold">{selectedCrewMember.phoneNumber || 'N/A'}</span></p>
+                                    </div>
+                                </div>
+
+                                <div className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm">
+                                    <h4 className="font-bold text-slate-900 flex items-center mb-4 text-sm uppercase tracking-wider">
+                                        <div className="w-1.5 h-1.5 bg-green-600 rounded-full mr-2.5"></div>
+                                        Active Assignment
+                                    </h4>
+                                    <div className="space-y-3 text-sm">
+                                        <p className="flex justify-between items-center"><span className="text-slate-500">Vessel:</span> <span className="font-extrabold text-base text-blue-700">{vessels.find(v => v.id === selectedCrewMember.currentVesselId)?.name || 'Unassigned'}</span></p>
+                                        <p className="flex justify-between"><span className="text-slate-500">Status:</span> <Badge variant="outline" className="font-bold capitalize">{selectedCrewMember.status}</Badge></p>
+                                        {selectedCrewMember.activeContract && (
+                                            <>
+                                                <p className="flex justify-between"><span className="text-slate-500">Signed On:</span> <span className="font-bold">{formatDate(selectedCrewMember.activeContract.startDate)}</span></p>
+                                                <p className="flex justify-between"><span className="text-slate-500">Ending:</span> <span className="font-bold text-orange-600">{formatDate(selectedCrewMember.activeContract.endDate)}</span></p>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end pt-4 border-t border-slate-100">
+                                <Button className="rounded-xl px-8 font-bold" onClick={() => setShowViewDialog(false)}>Close</Button>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Vessel History Dialog ── */}
+            <Dialog open={showVesselHistoryDialog} onOpenChange={setShowVesselHistoryDialog}>
+                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center space-x-2 text-2xl font-bold">
+                            <Ship className="h-6 w-6 text-blue-600" />
+                            <span>Vessel History</span>
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {selectedCrewForHistory && (
+                        <div className="space-y-4 pt-3">
+                            <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                <CrewAvatar
+                                    memberId={selectedCrewForHistory.id}
+                                    documents={selectedCrewForHistory.documents}
+                                    firstName={selectedCrewForHistory.firstName}
+                                    lastName={selectedCrewForHistory.lastName}
+                                    className="h-12 w-12"
+                                />
+                                <div>
+                                    <h3 className="font-bold text-slate-900">{selectedCrewForHistory.firstName} {selectedCrewForHistory.lastName}</h3>
+                                    <p className="text-slate-500 text-sm font-medium">{selectedCrewForHistory.rank}</p>
+                                </div>
+                            </div>
+
+                            {(() => {
+                                const history = getVesselHistory(selectedCrewForHistory.id);
+                                return history.length === 0 ? (
+                                    <div className="text-center py-12 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                                        <Ship className="h-12 w-12 mx-auto mb-4 text-slate-200" />
+                                        <p className="text-slate-500 font-bold">No completed vessel history found</p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">{history.length} completed {history.length === 1 ? 'rotation' : 'rotations'}</p>
+                                        <div className="space-y-3">
+                                            {history.map((record: any, idx: number) => (
+                                                <div key={idx} className="p-5 border border-slate-100 rounded-2xl hover:border-blue-100 hover:bg-blue-50/10 transition-all group">
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="space-y-1">
+                                                            <h4 className="font-bold text-slate-900 flex items-center">
+                                                                <Ship className="h-4 w-4 mr-2 text-blue-500 opacity-50" />
+                                                                {record.vessel.name}
+                                                            </h4>
+                                                            <div className="flex items-center gap-4 text-sm text-slate-500 font-medium">
+                                                                <span>{record.joinDate ? formatDate(record.joinDate) : 'N/A'}</span>
+                                                                <span className="text-slate-300">→</span>
+                                                                <span>{record.leaveDate ? formatDate(record.leaveDate) : 'N/A'}</span>
+                                                            </div>
+                                                        </div>
+                                                        <Badge variant="outline" className="bg-white border-slate-200 text-slate-500 font-bold text-[10px] uppercase">{record.vessel.type}</Badge>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            <div className="flex justify-end pt-4 border-t border-slate-100">
+                                <Button variant="outline" className="rounded-xl px-8 font-bold" onClick={() => { setShowVesselHistoryDialog(false); setSelectedCrewForHistory(null); }}>Close</Button>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Edit Crew Dialog ── */}
+            <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+                <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">
+                    {selectedCrewMember && (
+                        <EditCrewForm
+                            crewMember={selectedCrewMember}
+                            onSuccess={() => {
+                                setShowEditDialog(false);
+                                queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+                            }}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Sign Off Confirmation ── */}
+            <Dialog open={signOffDialogOpen} onOpenChange={setSignOffDialogOpen}>
+                <DialogContent className="max-w-md rounded-2xl">
+                    <div className="p-6 space-y-4">
+                        <h3 className="text-xl font-bold text-slate-900">Confirm Sign Off</h3>
+                        <p className="text-slate-500 text-sm">
+                            Sign off{' '}
+                            <span className="font-bold text-slate-700">
+                                {selectedCrewForSignOff?.firstName} {selectedCrewForSignOff?.lastName}
+                            </span>
+                            ?
+                        </p>
+                        <textarea
+                            className="w-full border border-slate-200 rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                            rows={3}
+                            placeholder="Reason for sign off (required)..."
+                            value={signOffReason}
+                            onChange={(e) => setSignOffReason(e.target.value)}
+                        />
+                        <div className="flex gap-3 justify-end">
+                            <Button variant="outline" onClick={() => setSignOffDialogOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button
+                                className="bg-red-500 hover:bg-red-600 text-white"
+                                disabled={!signOffReason.trim() || signOffMutation.isPending}
+                                onClick={() => {
+                                    if (selectedCrewForSignOff && signOffReason.trim()) {
+                                        signOffMutation.mutate({ crewId: selectedCrewForSignOff.id, reason: signOffReason.trim() });
+                                    }
+                                }}
+                            >
+                                {signOffMutation.isPending ? 'Signing Off...' : 'Confirm Sign Off'}
+                            </Button>
+                        </div>
                     </div>
-                </div>
-            </DialogContent>
-        </Dialog>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Sign On Wizard ── */}
+            {
+                selectedCrewForSignOn && (
+                    <SignOnWizardDialog
+                        open={signOnDialogOpen}
+                        onOpenChange={(open) => {
+                            setSignOnDialogOpen(open);
+                            if (!open) setSelectedCrewForSignOn(null);
+                        }}
+                        crewMember={selectedCrewForSignOn}
+                        vessels={vessels}
+                        onSubmit={(data) => signOnMutation.mutate(data)}
+                        isSubmitting={signOnMutation.isPending}
+                    />
+                )
+            }
+
+            {/* ── Document Upload ── */}
+            <Dialog open={isUploadModalOpen} onOpenChange={(open) => {
+                if (!open) { setIsUploadModalOpen(false); setSelectedCrewForUpload(null); setSelectedUploadType(undefined); }
+            }}>
+                <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">
+                    {selectedCrewForUpload && (
+                        <DocumentUpload
+                            crewMemberId={selectedCrewForUpload.id}
+                            preselectedType={selectedUploadType}
+                            onSuccess={() => {
+                                queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+                                queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+                                setIsUploadModalOpen(false);
+                                setSelectedCrewForUpload(null);
+                                setSelectedUploadType(undefined);
+                            }}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }

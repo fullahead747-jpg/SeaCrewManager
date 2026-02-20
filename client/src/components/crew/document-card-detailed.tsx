@@ -8,7 +8,7 @@ import type { Document } from '@shared/schema';
 
 interface DocumentCardDetailedProps {
     document: Document | null;
-    documentType: 'passport' | 'medical' | 'cdc' | 'coc' | 'photo' | 'nok';
+    documentType: 'passport' | 'medical' | 'cdc' | 'coc' | 'photo' | 'nok' | 'coe' | 'coe-extension';
     allDocuments: Document[];
     onView?: () => void;
     onUpload?: () => void;
@@ -25,6 +25,8 @@ const documentIcons = {
     coc: Award,
     photo: Camera,
     nok: Users,
+    coe: FileText,
+    'coe-extension': FileText,
 };
 
 const documentLabels = {
@@ -34,6 +36,8 @@ const documentLabels = {
     coc: "Certificate of Competency",
     photo: 'Upload Photo',
     nok: 'NOK',
+    coe: 'COE',
+    'coe-extension': 'COE-Extension',
 };
 
 export function DocumentCardDetailed({ document, documentType, allDocuments, onView, onUpload, onViewDocument, onUploadDocument, onEditDocument, onDeleteDocument }: DocumentCardDetailedProps) {
@@ -76,6 +80,16 @@ export function DocumentCardDetailed({ document, documentType, allDocuments, onV
         }
     };
 
+    const getOverriddenStatusInfo = () => {
+        const info = getStatusInfo();
+        if (documentType === 'coe' || documentType === 'coe-extension') {
+            if (document && document.filePath) {
+                return { label: 'Valid', color: 'bg-green-500', textColor: 'text-green-700' };
+            }
+        }
+        return info;
+    };
+
     const formatDate = (date: Date | string | null) => {
         if (!date) return 'N/A';
         const d = new Date(date);
@@ -90,7 +104,7 @@ export function DocumentCardDetailed({ document, documentType, allDocuments, onV
     };
 
     const progress = getProgressPercentage();
-    const status = getStatusInfo();
+    const status = getOverriddenStatusInfo();
 
     return (
         <motion.div

@@ -71,7 +71,7 @@ export const contracts = pgTable("contracts", {
 export const documents = pgTable("documents", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   crewMemberId: varchar("crew_member_id").notNull().references(() => crewMembers.id),
-  type: text("type").notNull(), // 'passport', 'cdc', 'coc', 'medical', 'visa', 'aoa'
+  type: text("type").notNull(), // 'passport', 'cdc', 'coc', 'medical', 'visa', 'aoa', 'photo', 'nok', 'coe', 'coe-extension'
   documentNumber: text("document_number").notNull(),
   issueDate: timestamp("issue_date").notNull(),
   expiryDate: timestamp("expiry_date"), // Nullable for TBD
@@ -103,6 +103,10 @@ export const emailSettings = pgTable("email_settings", {
   recipients: jsonb("recipients").default(['office_staff', 'admin']), // Who receives notifications
   recipientEmail: text("recipient_email").default('admin@offing.biz, management@fullahead.in'), // Primary recipient email address
   emailTemplate: text("email_template"),
+  // Managed Report Toggles
+  criticalEnabled: boolean("critical_enabled").default(true),
+  upcomingEnabled: boolean("upcoming_enabled").default(true),
+  attentionEnabled: boolean("attention_enabled").default(true),
   // Monthly calendar email tracking (persistent across server restarts)
   lastMonthlyEmailMonth: text("last_monthly_email_month"), // YYYY-MM format of last month email was sent
   lastMonthlyEmailMorningSent: timestamp("last_monthly_email_morning_sent"), // Timestamp when morning email was sent

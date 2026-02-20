@@ -255,6 +255,59 @@ const HealthDrillDownModal = memo(({
         },
     });
 
+    const signOnCrewMutation = useMutation({
+        mutationFn: async ({ crewId, reason, vesselId, contractStartDate, contractEndDate, profileUpdates }: {
+            crewId: string;
+            reason: string;
+            vesselId: string;
+            contractStartDate: string;
+            contractEndDate: string;
+            profileUpdates?: any;
+        }) => {
+            const response = await fetch(`/api/crew/${crewId}`, {
+                method: 'PUT',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    status: 'onBoard',
+                    currentVesselId: vesselId,
+                    statusChangeReason: reason,
+                    ...(profileUpdates || {})
+                }),
+            });
+            if (!response.ok) throw new Error('Failed to sign on crew member');
+
+            const durationDays = Math.ceil((new Date(contractEndDate).getTime() - new Date(contractStartDate).getTime()) / (1000 * 60 * 60 * 24));
+            await fetch('/api/contracts', {
+                method: 'POST',
+                headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    crewMemberId: crewId,
+                    vesselId: vesselId,
+                    startDate: contractStartDate,
+                    endDate: contractEndDate,
+                    durationDays: durationDays,
+                    status: 'active',
+                }),
+            });
+
+            return response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/vessels'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/contracts'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/dashboard/drilldown'] });
+            setSignOnDialogOpen(false);
+            setSelectedCrewForSignOn(null);
+            toast({ title: 'Success', description: 'Crew member signed on successfully' });
+        },
+        onError: (error: any) => {
+            toast({ title: 'Error', description: error.message || 'Failed to sign on crew member', variant: 'destructive' });
+        },
+    });
+
+
     const { data: detailData, isLoading, error } = useQuery({
         queryKey: ['/api/dashboard/drilldown', type, categoryKey, vesselId],
         queryFn: async () => {
@@ -434,19 +487,21 @@ const HealthDrillDownModal = memo(({
     return (
         <>
             <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-white/20 shadow-2xl">
-                    <DialogHeader className="p-6 pb-2 border-b border-border/10">
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                            <div>
-                                <DialogTitle className="text-2xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
-                                    {categoryKey === 'global-search' ? 'Search' : (type === 'contract' ? 'Contract Details' : 'Document Details')}
+                <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white border-slate-200 shadow-[0_20px_50px_rgba(0,0,0,0.1)] rounded-[2rem]">
+                    <DialogHeader className="p-6 border-b border-slate-100">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:pr-10">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-3">
+                                    <DialogTitle className="text-2xl font-bold text-[#1E293B] tracking-tight">
+                                        {categoryKey === 'global-search' ? 'Search Results' : (type === 'contract' ? 'Contract Details' : 'Document Details')}
+                                    </DialogTitle>
                                     {categoryKey !== 'global-search' && (
-                                        <Badge className="ml-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 font-bold">
+                                        <Badge className="bg-[#DBEAFE] text-[#2563EB] hover:bg-[#DBEAFE] border-0 font-bold px-4 py-1.5 rounded-full text-xs">
                                             {categoryName}
                                         </Badge>
                                     )}
-                                </DialogTitle>
-                                <DialogDescription className="text-slate-600 dark:text-slate-400 font-medium mt-1">
+                                </div>
+                                <DialogDescription className="text-slate-500 font-bold text-sm max-w-2xl leading-tight">
                                     {categoryKey === 'global-search'
                                         ? 'Search across all crew members in the system by name, rank, or nationality.'
                                         : (type === 'contract'
@@ -454,15 +509,15 @@ const HealthDrillDownModal = memo(({
                                             : `List of documents currently in the "${categoryName}" category.`)}
                                 </DialogDescription>
                             </div>
-                            <div className="relative w-full md:w-72">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <div className="relative w-full md:w-[280px]">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                                 <Input
                                     placeholder="Search crew members..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className={cn(
-                                        "pl-9 pr-9 bg-slate-50 border-slate-200 focus:bg-white transition-all h-9",
-                                        categoryKey === 'global-search' && "border-blue-400 ring-1 ring-blue-400/20"
+                                        "pl-10 pr-10 bg-[#F1F5F9] border-0 focus:ring-2 focus:ring-blue-500/20 transition-all h-10 rounded-xl text-sm font-bold placeholder:text-slate-400 placeholder:font-bold border-transparent",
+                                        categoryKey === 'global-search' && "ring-2 ring-blue-500/10"
                                     )}
                                     autoFocus={categoryKey === 'global-search'}
                                     data-testid="drilldown-search-input"
@@ -470,9 +525,9 @@ const HealthDrillDownModal = memo(({
                                 {searchTerm && (
                                     <button
                                         onClick={() => setSearchTerm("")}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 hover:bg-slate-200 rounded-full transition-colors"
+                                        className="absolute right-5 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200 rounded-full transition-colors text-slate-400"
                                     >
-                                        <X className="h-3 w-3 text-slate-500" />
+                                        <X className="h-4 w-4" />
                                     </button>
                                 )}
                             </div>
@@ -480,7 +535,7 @@ const HealthDrillDownModal = memo(({
                     </DialogHeader>
 
                     <div
-                        className="flex-1 min-h-[400px] max-h-[calc(85vh-180px)] overflow-y-auto custom-scrollbar bg-slate-50/30 dark:bg-black/20 p-4"
+                        className="flex-1 min-h-[500px] max-h-[calc(90vh-140px)] overflow-y-auto custom-scrollbar bg-slate-50/50 p-6"
                         onScroll={(e) => {
                             const target = e.currentTarget;
                             if (target.scrollHeight - target.scrollTop - target.clientHeight < 100) {
@@ -580,7 +635,7 @@ const HealthDrillDownModal = memo(({
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {/* Personal Information */}
                                 <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                                    <h4 className="font-medium text-blue-900 dark:text-blue-100 flex items-center mb-3">
+                                    <h4 className="font-medium text-blue-900 flex items-center mb-3">
                                         <div className="w-2 h-2 bg-blue-600 rounded-full mr-3"></div>
                                         Personal Information
                                     </h4>
@@ -591,7 +646,7 @@ const HealthDrillDownModal = memo(({
                                             <p><span className="font-medium">Phone:</span>{' '}
                                                 <a
                                                     href={`tel:${selectedCrewMember.phoneNumber}`}
-                                                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+                                                    className="text-blue-600 hover:text-blue-800 underline"
                                                 >
                                                     {selectedCrewMember.phoneNumber}
                                                 </a>
@@ -601,7 +656,7 @@ const HealthDrillDownModal = memo(({
                                             <p><span className="font-medium">Email:</span>{' '}
                                                 <a
                                                     href={`mailto:${(selectedCrewMember as any).email}`}
-                                                    className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+                                                    className="text-blue-600 hover:text-blue-800 underline"
                                                 >
                                                     {(selectedCrewMember as any).email}
                                                 </a>
@@ -611,21 +666,21 @@ const HealthDrillDownModal = memo(({
                                 </div>
 
                                 {/* Professional Information */}
-                                <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
-                                    <h4 className="font-medium text-green-900 dark:text-green-100 flex items-center mb-3">
+                                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                                    <h4 className="font-medium text-green-900 flex items-center mb-3">
                                         <div className="w-2 h-2 bg-green-600 rounded-full mr-3"></div>
                                         Professional Information
                                     </h4>
                                     <div className="text-sm space-y-2">
-                                        <p><span className="font-medium">Current Vessel:</span> {(selectedCrewMember.currentVessel?.name as string) || 'Not assigned'}</p>
+                                        <p className="flex justify-between items-center"><span className="font-medium text-slate-500">Current Vessel:</span> <span className="font-extrabold text-base text-blue-700">{(selectedCrewMember.currentVessel?.name as string) || 'Not assigned'}</span></p>
                                         <p><span className="font-medium">Status:</span> {selectedCrewMember.status as string}</p>
                                     </div>
                                 </div>
 
                                 {/* Emergency Contact / Next of Kin */}
                                 {!!selectedCrewMember.emergencyContact && (
-                                    <div className="p-4 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg">
-                                        <h4 className="font-medium text-orange-900 dark:text-orange-100 flex items-center mb-3">
+                                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                                        <h4 className="font-medium text-orange-900 flex items-center mb-3">
                                             <div className="w-2 h-2 bg-orange-600 rounded-full mr-3"></div>
                                             Next of Kin (NOK)
                                         </h4>
@@ -636,7 +691,7 @@ const HealthDrillDownModal = memo(({
                                                 {(selectedCrewMember.emergencyContact as any).phone ? (
                                                     <a
                                                         href={`tel:${(selectedCrewMember.emergencyContact as any).phone}`}
-                                                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 underline"
+                                                        className="text-blue-600 hover:text-blue-800 underline"
                                                     >
                                                         {(selectedCrewMember.emergencyContact as any).phone}
                                                     </a>
@@ -652,8 +707,8 @@ const HealthDrillDownModal = memo(({
                                 {(() => {
                                     const passport = selectedCrewMember.documents?.find(d => d.type === 'passport');
                                     return passport ? (
-                                        <div className="p-4 bg-indigo-50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 rounded-lg">
-                                            <h4 className="font-medium text-indigo-900 dark:text-indigo-100 flex items-center mb-3">
+                                        <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                            <h4 className="font-medium text-indigo-900 flex items-center mb-3">
                                                 <div className="w-2 h-2 bg-indigo-600 rounded-full mr-3"></div>
                                                 Passport Details
                                             </h4>
@@ -859,21 +914,25 @@ const HealthDrillDownModal = memo(({
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={signOnDialogOpen} onOpenChange={setSignOnDialogOpen}>
-                <DialogContent className="max-w-4xl max-h-[98vh] p-0 border-0 bg-transparent shadow-none">
-                    {selectedCrewForSignOn && (
-                        <SignOnWizardDialog
-                            member={selectedCrewForSignOn}
-                            onClose={() => setSignOnDialogOpen(false)}
-                            onSuccess={() => {
-                                setSignOnDialogOpen(false);
-                                queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
-                                queryClient.invalidateQueries({ queryKey: ['/api/dashboard/drilldown'] });
-                            }}
-                        />
-                    )}
-                </DialogContent>
-            </Dialog>
+            {signOnDialogOpen && selectedCrewForSignOn && (
+                <SignOnWizardDialog
+                    open={signOnDialogOpen}
+                    onOpenChange={setSignOnDialogOpen}
+                    crewMember={selectedCrewForSignOn}
+                    vessels={vessels}
+                    onSubmit={(data) => {
+                        signOnCrewMutation.mutate({
+                            crewId: selectedCrewForSignOn.id,
+                            reason: data.reason,
+                            vesselId: data.vesselId,
+                            contractStartDate: data.startDate,
+                            contractEndDate: data.endDate,
+                            profileUpdates: data.profileUpdates,
+                        });
+                    }}
+                    isSubmitting={signOnCrewMutation.isPending}
+                />
+            )}
 
             <Dialog open={isUploadModalOpen} onOpenChange={setIsUploadModalOpen}>
                 <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">

@@ -455,11 +455,11 @@ export default function Dashboard() {
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Page Header - Tighter & Smaller */}
-      <div className="mb-4">
+      <div className="mb-3">
         <h2 className="text-xl font-bold text-foreground tracking-tight">
           Fleet Dashboard
         </h2>
-        <p className="text-xs text-secondary-foreground opacity-80">
+        <p className="text-xs text-secondary-foreground opacity-70">
           {user?.role === 'admin' ? 'Overview of your maritime operations and crew status' :
             'Manage crew data entry and monitor document compliance'}
         </p>
@@ -470,6 +470,13 @@ export default function Dashboard() {
         <MinimalHealthRow
           stats={stats}
           className="mb-4"
+          onOnBoardClick={() => handleDrillDown('contract', 'on-board', 'Crew On Board')}
+          onVesselsClick={() => {
+            const element = document.getElementById('vessels-section');
+            element?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          onCriticalClick={() => setShowSignOffDueModal(true)}
+          onOverdueClick={() => handleDrillDown('contract', 'overdue', 'Expired Contracts')}
           onSearchClick={() => handleDrillDown('contract', 'global-search', 'Search')}
           onDownloadClick={exportCrewByVessel}
         />
@@ -488,7 +495,7 @@ export default function Dashboard() {
 
       {/* Vessel Overview Section */}
       {(user?.role === 'admin' || user?.role === 'office_staff') && (
-        <div className="mb-8">
+        <div className="mb-8" id="vessels-section">
           <div className="bg-card border border-border rounded-xl shadow-sm">
             <div className="p-6">
               <Suspense fallback={<div className="h-[400px] flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary/50" /></div>}>

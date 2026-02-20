@@ -108,7 +108,7 @@ export class CompliancePolicyService {
             now.setHours(0, 0, 0, 0);
 
             for (const doc of crewDocs) {
-                if (!doc.expiryDate) continue;
+                if (!doc.expiryDate || doc.type === 'coe' || doc.type === 'coe-extension') continue;
 
                 const expiry = new Date(doc.expiryDate);
                 if (expiry < now) {

@@ -4,6 +4,7 @@ import { SMTPEmailService } from './smtp-email-service';
 import { pdfGeneratorService } from './pdf-generator';
 import { weeklySummaryEmailService } from './weekly-summary-email-service';
 import { documentMonitoringService } from './document-monitoring-service';
+import { managedReportService } from './managed-report-service';
 
 interface ContractEvent {
   id: string;
@@ -19,39 +20,94 @@ interface ContractEvent {
 }
 
 export class BackgroundScheduler {
+  private static instance: BackgroundScheduler;
   private intervalId: NodeJS.Timeout | null = null;
-  private isRunning = false;
+  private isProcessing: boolean = false;
+  private isRunning: boolean = false;
+  private lastRunDate: string | null = null;
+  private lastReportSentDate: string | null = null; // Track managed reports
   private readonly HOUR_IN_MS = 60 * 60 * 1000; // 1 hour in milliseconds
 
-  constructor() {
+  private constructor() {
     console.log('🕐 Background scheduler initialized');
+    this.start();
+  }
+
+  public static getInstance(): BackgroundScheduler {
+    if (!BackgroundScheduler.instance) {
+      BackgroundScheduler.instance = new BackgroundScheduler();
+    }
+    return BackgroundScheduler.instance;
   }
 
   /**
    * Start the background scheduler to run every hour
    */
   start(): void {
-    if (this.isRunning) {
+    if (this.intervalId) {
       console.log('⚠️  Background scheduler is already running');
       return;
     }
 
-    console.log('🚀 Starting background notification scheduler...');
+    console.log('🚀 Starting background notification scheduler (v2.4)...');
 
     // Run immediately on startup
-    this.runNotificationCheck().catch(error => {
-      console.error('❌ Error in initial notification check:', error);
+    this.runScheduledTasks().catch(error => {
+      console.error('❌ Error in initial scheduled tasks:', error);
     });
 
     // Then schedule to run every hour
     this.intervalId = setInterval(() => {
-      this.runNotificationCheck().catch(error => {
-        console.error('❌ Error in scheduled notification check:', error);
+      this.runScheduledTasks().catch(error => {
+        console.error('❌ Error in scheduled tasks:', error);
       });
     }, this.HOUR_IN_MS);
 
     this.isRunning = true;
+    this.isProcessing = false; // Ensure this is reset
     console.log('✅ Background scheduler started - will check for notifications every hour');
+  }
+
+  /**
+   * Run all scheduled tasks (hourly notifications, daily reports, etc.)
+   */
+  private async runScheduledTasks() {
+    if (this.isProcessing) return;
+    this.isProcessing = true;
+
+    try {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const hour = now.getHours();
+
+      console.log(`⏰ Running scheduled tasks at: ${now.toLocaleString()}`);
+
+      // 1. Hourly/General Notifications
+      await this.runNotificationCheck();
+
+      // 2. Daily Report at 18:30 (6:30 PM)
+      // Note: Since this runs every hour, it will trigger when hour is 18.
+      if (hour === 18 && this.lastReportSentDate !== dateStr) {
+        console.log('📊 Triggering daily managed reports (18:30)...');
+        const reportResult = await managedReportService.generateAndSendReports();
+        if (reportResult.success) {
+          console.log(`✅ Managed reports sent: ${reportResult.sent.join(', ')}`);
+          this.lastReportSentDate = dateStr;
+        } else {
+          console.error(`❌ Failed to send managed reports: ${reportResult.error}`);
+        }
+      }
+
+      // 3. Daily initialization (if needed)
+      if (this.lastRunDate !== dateStr) {
+        this.lastRunDate = dateStr;
+      }
+
+    } catch (error) {
+      console.error('❌ Error in background scheduler:', error);
+    } finally {
+      this.isProcessing = false;
+    }
   }
 
   /**

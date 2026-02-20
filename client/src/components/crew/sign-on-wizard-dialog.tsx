@@ -83,7 +83,7 @@ export default function SignOnWizardDialog({
     open,
     onOpenChange,
     crewMember,
-    vessels,
+    vessels = [],
     onSubmit,
     isSubmitting
 }: SignOnWizardDialogProps) {
@@ -141,6 +141,12 @@ export default function SignOnWizardDialog({
     const coc = documents.find((d: any) => d.type === 'coc');
     const medical = documents.find((d: any) => d.type === 'medical');
 
+    const isOfficer = (rank: string | null | undefined): boolean => {
+        if (!rank) return false;
+        const officerRanks = ['captain', 'master', 'chief officer', 'second officer', 'third officer', 'chief engineer', 'second engineer', 'third engineer', 'fourth engineer', 'officer', 'mate'];
+        return officerRanks.some(r => rank.toLowerCase().includes(r));
+    };
+
     // Document status helper
     const getDocumentStatus = (doc: any, contractEndDate?: string): DocumentStatus => {
         if (!doc || !doc.filePath) return 'missing';
@@ -194,11 +200,6 @@ export default function SignOnWizardDialog({
 
     const hasBlockedDocs = getBlockers().length > 0;
 
-    const isOfficer = (rank: string | null | undefined): boolean => {
-        if (!rank) return false;
-        const officerRanks = ['captain', 'master', 'chief officer', 'second officer', 'third officer', 'chief engineer', 'second engineer', 'third engineer', 'fourth engineer', 'officer', 'mate'];
-        return officerRanks.some(r => rank.toLowerCase().includes(r));
-    };
 
     // Check for runway alerts on critical documents
     const hasRunwayAlertDocs = ['passport', 'cdc', 'medical'].some(type => {
@@ -718,7 +719,9 @@ export default function SignOnWizardDialog({
                                         { type: 'passport', doc: passport, label: 'Passport', icon: '🛂' },
                                         { type: 'cdc', doc: cdc, label: 'CDC (Continuous Discharge Certificate)', icon: '📋' },
                                         { type: 'coc', doc: coc, label: 'COC (Certificate of Competency)', icon: '📜' },
-                                        { type: 'medical', doc: medical, label: 'Medical Certificate', icon: '🏥' }
+                                        { type: 'medical', doc: medical, label: 'Medical Certificate', icon: '🏥' },
+                                        { type: 'coe', doc: documents.find((d: any) => d.type === 'coe'), label: 'COE', icon: '📄' },
+                                        { type: 'coe-extension', doc: documents.find((d: any) => d.type === 'coe-extension'), label: 'COE-Extension', icon: '📄' }
                                     ].map(({ type, doc, label, icon }) => {
                                         const status = getDocumentStatus(doc, endDate);
                                         const config = statusConfig[status];

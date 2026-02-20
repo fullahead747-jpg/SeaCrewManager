@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import {
     Eye, Edit, History, LogOut, LogIn,
     FileText, Download, Upload, Mail, ChevronDown, Trash2,
-    CheckCircle2, AlertCircle
+    CheckCircle2, AlertCircle, UserCog, Check, FileDown
 } from 'lucide-react';
 import { CrewMemberWithDetails, Document } from '@shared/schema';
 import { formatDate } from '@/lib/utils';
@@ -83,13 +83,21 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
 
     const getDocTypeLabel = React.useCallback((type: string) => {
         const labels: Record<string, string> = {
-            passport: 'Passport', cdc: 'CDC', coc: 'COC', medical: 'Medical', aoa: 'AOA', photo: 'Photo', nok: 'NOK'
+            passport: 'Passport',
+            cdc: 'CDC',
+            coc: 'COC',
+            medical: 'Medical',
+            aoa: 'AOA',
+            photo: 'Photo',
+            nok: 'NOK',
+            coe: 'COE',
+            'coe-extension': 'COE-Extension'
         };
         return labels[type] || type.toUpperCase();
     }, []);
 
     const docStatuses = React.useMemo(() => {
-        const TRACKED_DOC_TYPES = ['medical', 'cdc', 'coc', 'aoa', 'photo', 'nok', 'passport'] as const;
+        const TRACKED_DOC_TYPES = ['medical', 'cdc', 'coc', 'aoa', 'photo', 'nok', 'passport', 'coe', 'coe-extension'] as const;
         const crewDocs = documents.filter(doc => doc.crewMemberId === member.id);
 
         return TRACKED_DOC_TYPES.map(type => {
@@ -106,13 +114,19 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                     const expiryDate = contract.endDate ? new Date(contract.endDate) : null;
                     const daysUntil = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
                     let status: any = 'valid';
+                    const threshold = 30; // AOA is always 30 days
                     if (daysUntil !== null && daysUntil < 0) status = 'expired';
-                    else if (daysUntil !== null && daysUntil <= 30) status = 'expiring';
+                    else if (daysUntil !== null && daysUntil <= threshold) status = 'expiring';
                     return { type, status, expiryDate, daysUntil, docId: contract.id, filePath: contract.filePath, isContract: true };
                 }
             }
 
             if (!doc) return { type, status: 'missing' as const, expiryDate: null, daysUntil: null, docId: null, filePath: null, isTbd: false };
+
+            // Bypass expiry logic for COE and COE-Extension
+            if (type === 'coe' || type === 'coe-extension') {
+                return { type, status: 'valid' as const, expiryDate: doc.expiryDate ? new Date(doc.expiryDate) : null, daysUntil: null, docId: doc.id, filePath: doc.filePath, isTbd: doc.expiryDate === null };
+            }
 
             const expiryDate = doc.expiryDate ? new Date(doc.expiryDate) : null;
             const isTbd = doc.expiryDate === null;
@@ -120,8 +134,9 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
 
             let status: any = 'valid';
             if (expiryDate) {
+                const threshold = type === 'aoa' ? 30 : 60;
                 if (daysUntil !== null && daysUntil < 0) status = 'expired';
-                else if (daysUntil !== null && daysUntil <= 30) status = 'expiring';
+                else if (daysUntil !== null && daysUntil <= threshold) status = 'expiring';
             }
 
             return { type, status, expiryDate, daysUntil, docId: doc.id, filePath: doc.filePath, isTbd };
@@ -129,13 +144,18 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
     }, [member.id, member.activeContract, documents, now]);
 
     const stats = React.useMemo(() => {
-        const validCount = docStatuses.filter(d => d.status === 'valid').length;
-        const expiringCount = docStatuses.filter(d => d.status === 'expiring').length;
-        const expiredCount = docStatuses.filter(d => d.status === 'expired' || d.status === 'missing').length;
-        return { validCount, expiringCount, expiredCount };
+        // Only count compliance documents for Valid/Expiring/Expired
+        const complianceDocs = docStatuses.filter(d => d.type !== 'photo' && d.type !== 'nok');
+
+        const validCount = complianceDocs.filter(d => d.status === 'valid').length;
+        const expiringCount = complianceDocs.filter(d => d.status === 'expiring').length;
+        const expiredCount = complianceDocs.filter(d => d.status === 'expired').length;
+        const pendingCount = docStatuses.filter(d => d.status === 'missing').length;
+
+        return { validCount, expiringCount, expiredCount, pendingCount };
     }, [docStatuses]);
 
-    const { validCount, expiringCount, expiredCount } = stats;
+    const { validCount, expiringCount, expiredCount, pendingCount } = stats;
 
     const handleDocClick = React.useCallback(async (doc: any) => {
         if (!doc.filePath || !doc.docId) {
@@ -156,220 +176,242 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
     }, [toast]);
 
     return (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col md:flex-row min-h-[260px]">
-            {/* Left Pane - Profile Information */}
-            <div className="flex-1 p-3 border-r border-slate-100 bg-[#FAFAFA]">
-                <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-4">
-                        <CrewAvatar
-                            memberId={member.id}
-                            documents={documents}
-                            firstName={member.firstName}
-                            lastName={member.lastName}
-                            className="h-11 w-11 border-2 border-white shadow-md"
-                        />
-                        <div>
-                            <h3 className="text-base font-bold text-slate-800 tracking-tight leading-none mb-1">
-                                {member.firstName} {member.lastName}
-                            </h3>
-                            <p className="text-slate-400 font-medium text-[10px]">{member.nationality || 'Nationality'}</p>
-                        </div>
-                    </div>
-                    <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 px-3 py-1 rounded-full text-[10px] font-semibold shadow-sm">
-                        {member.status === 'onBoard' ? 'On Board' : 'On Shore'}
-                    </Badge>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                    <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Rank</span>
-                        <p className="text-[13px] font-semibold text-slate-700">{member.rank}</p>
-                    </div>
-                    <div className="bg-white p-2.5 rounded-lg border border-slate-100 shadow-sm">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-0.5">Vessel</span>
-                        <p className="text-[13px] font-semibold text-slate-700">{member.currentVessel?.name || 'Not assigned'}</p>
-                    </div>
-                </div>
-
-                <div className="mb-3">
-                    <div className="flex justify-between items-center text-[11px] font-semibold mb-2">
-                        <span className="text-slate-500">{formatShortDate(startDate)} – {formatShortDate(endDate)}</span>
-                        <span className="text-slate-400">{formatShortDate(endDate)}</span>
-                    </div>
-                    <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-2">
-                        <div
-                            className="bg-sky-500 h-full transition-all duration-500"
-                            style={{ width: `${progressPercent}%` }}
-                        />
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Contract</span>
-                        <div className="flex items-center gap-2 text-[11px] font-semibold text-slate-600">
-                            <FileText className="h-3 w-3" />
-                            <span>{formatShortDate(startDate)} – {formatShortDate(endDate)}</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-slate-100">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-lg h-8 text-[11px] font-semibold text-slate-700 border-slate-200 hover:bg-slate-50 px-2"
-                        onClick={() => onView(member)}
-                    >
-                        <Eye className="h-3 w-3 mr-1.5" /> View Profile
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-lg h-8 text-[11px] font-semibold text-slate-700 border-slate-200 hover:bg-slate-50 px-2"
-                        onClick={() => onEdit(member)}
-                    >
-                        <Edit className="h-3 w-3 mr-1.5" /> Edit Profile
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="rounded-lg h-8 text-[11px] font-semibold text-slate-700 border-slate-200 hover:bg-slate-50 px-2 font-inter"
-                        onClick={() => onVesselHistory(member)}
-                    >
-                        <History className="h-3 w-3 mr-1.5" /> History
-                    </Button>
-                    {member.status === 'onBoard' ? (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-lg h-8 text-[11px] font-semibold text-red-600 border-red-100 hover:bg-red-50 px-2"
-                            onClick={() => onSignOff?.(member)}
-                        >
-                            <LogOut className="h-3 w-3 mr-1.5 rotate-180" /> Sign Off
-                        </Button>
-                    ) : (
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-lg h-8 text-[11px] font-semibold text-emerald-600 border-emerald-100 hover:bg-emerald-50 px-2"
-                            onClick={() => onSignOn?.(member)}
-                        >
-                            <LogIn className="h-3 w-3 mr-1.5" /> Sign On
-                        </Button>
-                    )}
-                </div>
-            </div>
-
-            {/* Right Pane - Document Intelligence */}
-            <div className="flex-1 p-3 bg-white">
-                <div className="mb-2">
-                    <h4 className="text-base font-bold text-slate-800 mb-0.5">Document Intelligence</h4>
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold">
-                        <span className="text-slate-400">{docStatuses.length} Docs</span>
-                        <span className="text-slate-200">•</span>
-                        <span className="text-emerald-500 font-bold">{validCount} Valid</span>
-                        <span className="text-slate-200">•</span>
-                        <span className="text-amber-500 font-bold">{expiringCount} Expiring</span>
-                        <span className="text-slate-200">•</span>
-                        <span className="text-rose-500 font-bold">{expiredCount} Expired</span>
-                    </div>
-                </div>
-
-                <div className="space-y-1">
-                    {docStatuses.map((doc) => (
-                        <div key={doc.type} className="flex items-center justify-between group">
-                            <div className="flex items-center gap-3">
-                                {doc.status === 'valid' ? (
-                                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                                ) : doc.status === 'expiring' ? (
-                                    <AlertCircle className="h-4 w-4 text-amber-500" />
-                                ) : (
-                                    <AlertCircle className="h-4 w-4 text-rose-500" />
-                                )}
-                                <span className="text-xs font-semibold text-slate-700">{getDocTypeLabel(doc.type)}</span>
+        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden mb-6">
+            <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
+                {/* Left Column: Identity & Info */}
+                <div className="lg:w-[48%] p-3">
+                    {/* Header Identity Section */}
+                    <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300">
+                                <CrewAvatar
+                                    memberId={member.id}
+                                    documents={documents}
+                                    firstName={member.firstName}
+                                    lastName={member.lastName}
+                                    className="h-10 w-10 border border-white shadow-sm"
+                                />
                             </div>
+                            <div>
+                                <h3 className="text-sm font-extrabold text-[#1E293B] leading-tight uppercase tracking-tight">
+                                    {member.firstName} {member.lastName}
+                                </h3>
+                                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">
+                                    {member.nationality || 'INDIAN'}
+                                </p>
+                            </div>
+                        </div>
+                        <Badge className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold border-0 ${member.status === 'onBoard'
+                            ? 'bg-blue-500 text-white'
+                            : 'bg-[#10B981] text-white'
+                            }`}>
+                            {member.status === 'onBoard' ? 'On Board' : 'On Shore'}
+                        </Badge>
+                    </div>
 
-                            <div className="flex items-center bg-slate-50/30 rounded-lg p-0.5">
-                                {doc.isTbd && !doc.filePath ? (
-                                    <div className="flex items-center px-3 py-1 bg-amber-50 border border-amber-100 rounded-md">
-                                        <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">TBD</span>
-                                    </div>
-                                ) : doc.status === 'missing' || !doc.filePath ? (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-7 text-[10px] font-bold text-blue-600 hover:bg-blue-50 px-2.5 bg-blue-50/50 border border-blue-100/50 rounded-md"
-                                        onClick={() => onUpload?.(member, doc.type)}
-                                    >
-                                        <Upload className="h-2.5 w-2.5 mr-1" /> Upload Document
-                                    </Button>
-                                ) : (
-                                    <>
-                                        {doc.status === 'expiring' && (
-                                            <span className="text-[10px] font-bold text-amber-500 px-2">Expiring</span>
-                                        )}
-                                        <div className="flex items-center gap-0.5">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-7 w-14 text-[10px] text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md"
-                                                onClick={() => handleDocClick(doc)}
-                                            >
-                                                <Eye className="h-3 w-3 mr-0.5" /> View
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-7 px-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md"
-                                                onClick={() => onDownload(doc.docId!, doc.type)}
-                                            >
-                                                <Download className="h-3 w-3" />
-                                            </Button>
-                                            {doc.type === 'nok' ? (
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            className="h-7 px-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md"
-                                                        >
-                                                            <Mail className="h-3 w-3 mr-0.5" />
-                                                            <ChevronDown className="h-2.5 w-2.5" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent align="end" className="w-48">
-                                                        <DropdownMenuItem onClick={() => onSendMail(member)} className="text-[11px] font-medium cursor-pointer">
-                                                            Email Emergency Contact
-                                                        </DropdownMenuItem>
-                                                        <DropdownMenuItem className="text-[11px] font-medium cursor-pointer">
-                                                            Email Agency
-                                                        </DropdownMenuItem>
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
+                    {/* Rank & Vessel Boxes */}
+                    <div className="grid grid-cols-2 gap-2 mb-1.5">
+                        <div className="bg-white border border-slate-100 rounded-lg p-1.5 shadow-sm">
+                            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5">Rank</p>
+                            <p className="text-[#1E293B] font-bold text-sm">{member.rank}</p>
+                        </div>
+                        <div className="bg-white border border-slate-100 rounded-lg p-1.5 shadow-sm">
+                            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5">Vessel</p>
+                            <p className="text-[#1E293B] font-extrabold text-base">{member.currentVessel?.name || 'Not assigned'}</p>
+                        </div>
+                    </div>
+
+                    {/* Timeline & Contract Section */}
+                    <div className="mb-4">
+                        <div className="flex justify-between items-end mb-1">
+                            <span className="text-[11px] font-bold text-slate-500">
+                                {formatShortDate(startDate)} – {formatShortDate(endDate)}
+                            </span>
+                            <div className="flex flex-col items-end">
+                                <span className="text-[10px] font-bold text-slate-400">
+                                    {formatShortDate(endDate, 'MMM d')}
+                                </span>
+                                {contractStats.remainingDays > 0 && (
+                                    <span className="text-[9px] font-black text-blue-600 uppercase tracking-tighter bg-blue-50 px-1 rounded">
+                                        {contractStats.remainingDays} Days Left
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="h-1 w-full bg-slate-50 rounded-full overflow-hidden mb-2 relative">
+                            {/* Visual Progress Indication */}
+                            <div className="absolute top-0 left-0 bottom-0 bg-[#3B82F6] w-3/4 rounded-full" />
+                        </div>
+
+                        <div className="pt-1.5 border-t border-slate-100">
+                            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5">Contract</p>
+                            <div className="flex items-center gap-1.5">
+                                <FileText className="h-2.5 w-2.5 text-slate-400" />
+                                <span className="text-[11px] font-bold text-slate-700">
+                                    {formatShortDate(startDate)} – {formatShortDate(endDate)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Action Buttons Grid */}
+                    <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-slate-100">
+                        <Button
+                            variant="outline"
+                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-bold text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            onClick={() => onView(member)}
+                        >
+                            <Eye className="h-3 w-3 mr-1" /> View
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-bold text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            onClick={() => onEdit(member)}
+                        >
+                            <UserCog className="h-3 w-3 mr-1" /> Edit
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-bold text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            onClick={() => onVesselHistory(member)}
+                        >
+                            <History className="h-3 w-3 mr-1" /> History
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-bold text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            onClick={() => onSendMail(member)}
+                            disabled={isMailPending}
+                        >
+                            <Mail className="h-3 w-3 mr-1" /> Mail
+                        </Button>
+                        <Button
+                            variant="outline"
+                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-bold text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            onClick={() => onDownload(member.id, `${member.firstName} ${member.lastName}`)}
+                        >
+                            <Download className="h-3 w-3 mr-1" /> Download
+                        </Button>
+                        {member.status === 'onBoard' ? (
+                            <Button
+                                className="h-7.5 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 rounded-lg font-bold text-[9px] uppercase tracking-tight shadow-sm"
+                                onClick={() => onSignOff?.(member)}
+                            >
+                                <LogOut className="h-3 w-3 mr-1 rotate-180" /> Sign Off
+                            </Button>
+                        ) : (
+                            <Button
+                                className="h-7.5 bg-[#F0FDF4] text-[#16A34A] border border-[#DCFCE7] hover:bg-[#DCFCE7] rounded-lg font-bold text-[9px] uppercase tracking-tight shadow-sm"
+                                onClick={() => onSignOn?.(member)}
+                            >
+                                <LogIn className="h-3 w-3 mr-1" /> Sign On
+                            </Button>
+                        )}
+                    </div>
+                </div>
+
+                <div className="lg:w-[52%] p-3 bg-white">
+                    <div className="flex flex-col h-full">
+                        <div className="mb-1.5">
+                            <h4 className="text-base font-bold text-slate-900 uppercase tracking-tight mb-0.5">Documents</h4>
+                            <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                                <span className="text-slate-400">{docStatuses.length} Docs</span>
+                                <span className="text-slate-200">•</span>
+                                <span className="text-[#10B981]">{validCount} Valid</span>
+                                <span className="text-slate-200">•</span>
+                                <span className="text-[#F59E0B]">{expiringCount} Expiring</span>
+                                <span className="text-slate-200">•</span>
+                                <span className="text-[#EF4444]">{expiredCount} Expired</span>
+                                <span className="text-slate-200">•</span>
+                                <span className="text-[#EF4444]">{pendingCount} Pending</span>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 space-y-0.5">
+                            {docStatuses.map((doc) => {
+                                const isInvalid = doc.status === 'missing' || doc.status === 'expired';
+                                return (
+                                    <div key={doc.type} className="flex items-center justify-between py-1">
+                                        <div className="flex items-center gap-4">
+                                            {isInvalid ? (
+                                                <div className="w-3.5 h-3.5 rounded-full bg-white border border-[#EF4444] flex items-center justify-center">
+                                                    <span className="text-[#EF4444] text-[7px] font-black">!</span>
+                                                </div>
                                             ) : (
+                                                <div className="w-3.5 h-3.5 rounded-full bg-white border border-[#10B981] flex items-center justify-center">
+                                                    <Check className="h-2 w-2 text-[#10B981] stroke-[4]" />
+                                                </div>
+                                            )}
+                                            <span className="text-xs font-bold text-slate-700 uppercase tracking-tight">
+                                                {getDocTypeLabel(doc.type)}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center gap-1">
+                                            {doc.status === 'missing' && (
+                                                <span className="text-[#EF4444] text-[9px] font-bold bg-red-50 px-1 py-0.5 rounded mr-1">PENDING</span>
+                                            )}
+                                            {doc.status === 'expired' && (
+                                                <span className="text-[#EF4444] text-[9px] font-bold bg-red-50 px-1 py-0.5 rounded mr-1">EXPIRED</span>
+                                            )}
+                                            {doc.status === 'expiring' && (
+                                                <span className="text-[#F59E0B] text-[9px] font-bold bg-orange-50 px-1 py-0.5 rounded mr-1">EXPIRING</span>
+                                            )}
+
+                                            {isInvalid ? (
                                                 <Button
-                                                    variant="ghost"
                                                     size="sm"
-                                                    className="h-7 px-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md"
-                                                    onClick={() => onSendMail(member)}
+                                                    variant="ghost"
+                                                    className="h-7 px-2.5 bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE] rounded-lg font-bold text-[10px] transition-colors"
+                                                    onClick={() => onUpload?.(member, doc.type)}
                                                 >
-                                                    <Mail className="h-3 w-3" />
+                                                    <Upload className="h-2.5 w-2.5 mr-1" />
+                                                    Upload
                                                 </Button>
+                                            ) : (
+                                                <div className="flex items-center gap-1">
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-7 w-7 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md"
+                                                        onClick={() => handleDocClick(doc)}
+                                                    >
+                                                        <Eye className="h-3 w-3" />
+                                                    </Button>
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-7 w-7 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md"
+                                                        onClick={() => onDownload(doc.docId!, doc.type)}
+                                                    >
+                                                        <FileDown className="h-3 w-3" />
+                                                    </Button>
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-7 w-7 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md"
+                                                        onClick={() => onSendMail(member)}
+                                                    >
+                                                        <Mail className="h-3 w-3" />
+                                                    </Button>
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md"
+                                                        onClick={() => onDeleteDocument?.(doc.docId!, doc.type)}
+                                                    >
+                                                        <Trash2 className="h-3 w-3" />
+                                                    </Button>
+                                                </div>
                                             )}
                                         </div>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-7 px-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-md ml-0.5"
-                                            onClick={() => onDeleteDocument?.(doc.docId!, doc.type)}
-                                        >
-                                            <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                    </>
-                                )}
-                            </div>
+                                    </div>
+                                );
+                            })}
                         </div>
-                    ))}
+                    </div>
                 </div>
             </div>
-        </div>
+        </div >
     );
 });

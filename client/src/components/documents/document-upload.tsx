@@ -46,6 +46,8 @@ const documentTypes = [
   { value: 'aoa', label: 'AOA (Articles of Agreement)' },
   { value: 'photo', label: 'Photo' },
   { value: 'nok', label: 'NOK' },
+  { value: 'coe', label: 'COE' },
+  { value: 'coe-extension', label: 'COE-Extension' },
 ];
 
 export default function DocumentUpload({ crewMemberId, document, preselectedType, onSuccess }: DocumentUploadProps) {

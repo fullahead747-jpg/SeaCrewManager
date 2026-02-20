@@ -152,7 +152,7 @@ const CrewTable = React.memo(() => {
   });
 
   // Document types to track in crew overview
-  const TRACKED_DOC_TYPES = ['passport', 'cdc', 'coc', 'medical', 'aoa', 'photo', 'nok'] as const;
+  const TRACKED_DOC_TYPES = ['passport', 'cdc', 'coc', 'medical', 'aoa', 'photo', 'nok', 'coe', 'coe-extension'] as const;
 
   // Get document expiry status for a crew member
   const getCrewDocumentExpiry = (member: any) => {
@@ -199,6 +199,11 @@ const CrewTable = React.memo(() => {
 
       if (!doc) {
         return { type, status: 'missing' as const, expiryDate: null, daysUntil: null, docId: null, filePath: null };
+      }
+
+      // Bypass expiry logic for COE and COE-Extension
+      if (type === 'coe' || type === 'coe-extension') {
+        return { type, status: 'valid' as const, expiryDate: doc.expiryDate ? new Date(doc.expiryDate) : null, daysUntil: null, docId: doc.id, filePath: doc.filePath };
       }
 
       // Handle documents without expiry dates (like Photo/NOK) or TBD
@@ -264,7 +269,9 @@ const CrewTable = React.memo(() => {
       medical: 'Med',
       aoa: 'AOA',
       photo: 'Photo',
-      nok: 'NOK'
+      nok: 'NOK',
+      coe: 'COE',
+      'coe-extension': 'COE-Ext'
     };
     return labels[type] || type.toUpperCase();
   };

@@ -25,6 +25,9 @@ export async function updateDocumentStatuses() {
         let notificationsSent = 0;
 
         for (const doc of allDocuments) {
+            // Skip COE and COE-Extension as per requirement (only Missing or Valid)
+            if (doc.type === 'coe' || doc.type === 'coe-extension') continue;
+
             // Calculate current status
             const statusResult = documentStatusService.calculateDocumentStatus(
                 doc.expiryDate,
