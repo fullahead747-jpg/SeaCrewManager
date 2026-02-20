@@ -61,7 +61,7 @@ app.use((req, res, next) => {
     console.error('Error:', err);
   });
 
-  if (process.env.NODE_ENV === "development") {
+  if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
