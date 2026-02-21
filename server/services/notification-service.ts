@@ -168,8 +168,11 @@ export class NotificationService {
 
   private async sendWhatsAppNotification(event: UpcomingEvent, daysUntilEvent: number, now: Date): Promise<void> {
     // Check if WhatsApp notifications are disabled via environment variable
-    if (process.env.DISABLE_WHATSAPP_NOTIFICATIONS === 'true') {
-      console.log('📱 WhatsApp notifications disabled via DISABLE_WHATSAPP_NOTIFICATIONS flag - skipping');
+    const isOff = process.env.WHATSAPP_NOTIFICATIONS === 'OFF';
+    const isDisabledLegacy = process.env.DISABLE_WHATSAPP_NOTIFICATIONS === 'true';
+
+    if (isOff || isDisabledLegacy) {
+      console.log(`📱 WhatsApp notifications ${isOff ? 'OFF' : 'disabled via legacy flag'} - skipping`);
       return;
     }
 
@@ -256,8 +259,11 @@ export class NotificationService {
 
   private async sendEmailNotification(event: UpcomingEvent, daysUntilEvent: number, now: Date, emailSettings: any): Promise<void> {
     // Check if email notifications are disabled via environment variable
-    if (process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true') {
-      console.log('📧 Email notifications disabled via DISABLE_EMAIL_NOTIFICATIONS flag - skipping');
+    const isOff = process.env.EMAIL_NOTIFICATIONS === 'OFF';
+    const isDisabledLegacy = process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true';
+
+    if (isOff || isDisabledLegacy) {
+      console.log(`📧 Email notifications ${isOff ? 'OFF' : 'disabled via legacy flag'} - skipping`);
       return;
     }
 
@@ -441,8 +447,11 @@ export class NotificationService {
   ): Promise<boolean> {
     try {
       // Check if email notifications are disabled via environment variable
-      if (process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true') {
-        console.log('📧 Email notifications disabled via DISABLE_EMAIL_NOTIFICATIONS flag - skipping immediate document alert');
+      const isOff = process.env.EMAIL_NOTIFICATIONS === 'OFF';
+      const isDisabledLegacy = process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true';
+
+      if (isOff || isDisabledLegacy) {
+        console.log(`📧 Email notifications ${isOff ? 'OFF' : 'disabled via legacy flag'} - skipping immediate document alert`);
         return false;
       }
 
@@ -589,8 +598,11 @@ export class NotificationService {
   ): Promise<boolean> {
     try {
       // Check if email notifications are disabled via environment variable
-      if (process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true') {
-        console.log('📧 Email notifications disabled via DISABLE_EMAIL_NOTIFICATIONS flag - skipping immediate contract alert');
+      const isOff = process.env.EMAIL_NOTIFICATIONS === 'OFF';
+      const isDisabledLegacy = process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true';
+
+      if (isOff || isDisabledLegacy) {
+        console.log(`📧 Email notifications ${isOff ? 'OFF' : 'disabled via legacy flag'} - skipping immediate contract alert`);
         return false;
       }
 

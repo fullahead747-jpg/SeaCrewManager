@@ -60,8 +60,10 @@ This application requires the following environment variables to be configured i
 #### Optional
 - `GMAIL_USER` - Gmail address for email notifications
 - `GMAIL_APP_PASSWORD` - Gmail app password for SMTP
-- `DISABLE_EMAIL_NOTIFICATIONS` - Set to `true` to disable email features
-- `DISABLE_WHATSAPP_NOTIFICATIONS` - Set to `true` to disable WhatsApp features
+- `WHATSAPP_NOTIFICATIONS` - Set to `ON` or `OFF` (Default: `ON`)
+- `EMAIL_NOTIFICATIONS` - Set to `ON` or `OFF` (Default: `ON`)
+- `DISABLE_EMAIL_NOTIFICATIONS` - (Legacy) Set to `true` to disable email features
+- `DISABLE_WHATSAPP_NOTIFICATIONS` - (Legacy) Set to `true` to disable WhatsApp features
 
 ### Database Setup
 

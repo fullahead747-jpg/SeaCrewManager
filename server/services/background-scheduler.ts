@@ -209,8 +209,11 @@ export class BackgroundScheduler {
    * Check if it's Monday at 9 AM and send the weekly summary email
    */
   private async checkAndSendWeeklySummaryEmail(): Promise<void> {
-    if (process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true') {
-      console.log('📧 Email notifications disabled via DISABLE_EMAIL_NOTIFICATIONS flag - skipping weekly summary');
+    const isOff = process.env.EMAIL_NOTIFICATIONS === 'OFF';
+    const isDisabledLegacy = process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true';
+
+    if (isOff || isDisabledLegacy) {
+      console.log(`📧 Email notifications ${isOff ? 'OFF' : 'disabled via legacy flag'} - skipping weekly summary`);
       return;
     }
 
@@ -256,8 +259,11 @@ export class BackgroundScheduler {
    * Check if it's 8 AM and send the daily compliance digest email
    */
   private async checkAndSendDailyComplianceDigest(): Promise<void> {
-    if (process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true') {
-      console.log('📧 Email notifications disabled - skipping daily compliance digest');
+    const isOff = process.env.EMAIL_NOTIFICATIONS === 'OFF';
+    const isDisabledLegacy = process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true';
+
+    if (isOff || isDisabledLegacy) {
+      console.log(`📧 Email notifications ${isOff ? 'OFF' : 'disabled via legacy flag'} - skipping daily compliance digest`);
       return;
     }
 
@@ -302,8 +308,11 @@ export class BackgroundScheduler {
    * Check if it's the 1st of the month at 9 AM or 6 PM and send the monthly calendar summary email
    */
   private async checkAndSendMonthlyCalendarEmail(): Promise<void> {
-    if (process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true') {
-      console.log('📧 Email notifications disabled - skipping monthly calendar');
+    const isOff = process.env.EMAIL_NOTIFICATIONS === 'OFF';
+    const isDisabledLegacy = process.env.DISABLE_EMAIL_NOTIFICATIONS === 'true';
+
+    if (isOff || isDisabledLegacy) {
+      console.log(`📧 Email notifications ${isOff ? 'OFF' : 'disabled via legacy flag'} - skipping monthly calendar`);
       return;
     }
 
