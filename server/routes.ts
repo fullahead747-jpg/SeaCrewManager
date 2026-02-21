@@ -40,6 +40,7 @@ import * as path from 'path';
 import multer from 'multer';
 import { generateVesselPDFBuffer, generateFleetPDFBuffer } from "./utils/vessel-pdf-generator";
 import { smtpEmailService } from "./services/smtp-email-service";
+import { initializeBaileys } from "./baileys-init";
 
 // Extend Express Request type to include user
 declare global {
@@ -81,6 +82,10 @@ function formatDateForDisplay(date: string | Date | null | undefined): string {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize Baileys WhatsApp bot on startup
+  initializeBaileys().catch(err => {
+    console.error('❌ Failed to initialize Baileys on startup:', err);
+  });
 
   // Static file serving for uploaded documents
   const uploadsDir = path.join(process.cwd(), 'uploads');

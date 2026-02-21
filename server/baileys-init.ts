@@ -20,7 +20,7 @@ export async function initializeBaileys() {
         }
 
         // Create Baileys provider
-        baileysProvider = new BaileysWhatsAppProvider('./baileys_auth_info');
+        baileysProvider = new BaileysWhatsAppProvider('./baileys_auth');
 
         // Initialize with message handler
         await baileysProvider.initialize((message: WAMessage) => {
