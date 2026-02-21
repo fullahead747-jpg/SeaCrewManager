@@ -85,16 +85,42 @@ export class BackgroundScheduler {
       // 1. Hourly/General Notifications
       await this.runNotificationCheck();
 
-      // 2. Daily Report at 18:30 (6:30 PM)
-      // Note: Since this runs every hour, it will trigger when hour is 18.
-      if (hour === 18 && this.lastReportSentDate !== dateStr) {
-        console.log('📊 Triggering daily managed reports (18:30)...');
-        const reportResult = await managedReportService.generateAndSendReports();
-        if (reportResult.success) {
-          console.log(`✅ Managed reports sent: ${reportResult.sent.join(', ')}`);
-          this.lastReportSentDate = dateStr;
-        } else {
-          console.error(`❌ Failed to send managed reports: ${reportResult.error}`);
+      // 2. Scheduled Managed Reports
+      // Monday at 9:00 AM and Friday at 6:00 PM (18:00)
+      const dayOfWeek = now.getDay();
+      const isMondayMorning = dayOfWeek === 1 && hour === 9;
+      const isFridayEvening = dayOfWeek === 5 && hour === 18;
+
+      if (isMondayMorning || isFridayEvening) {
+        const reportType = isMondayMorning ? 'monday_morning_report' : 'friday_evening_report';
+        const alreadySent = await storage.hasNotificationBeenSentToday(
+          `managed-report-${reportType}`,
+          'managed_report',
+          'email',
+          dateStr
+        );
+
+        if (!alreadySent && this.lastReportSentDate !== `${dateStr}-H${hour}`) {
+          console.log(`📊 Triggering scheduled managed reports (${isMondayMorning ? 'Mon 9AM' : 'Fri 6PM'})...`);
+          const reportResult = await managedReportService.generateAndSendReports();
+          if (reportResult.success) {
+            this.lastReportSentDate = `${dateStr}-H${hour}`;
+            console.log(`✅ Managed reports sent: ${reportResult.sent.join(', ')}`);
+
+            // Log a persistent "pulse" notification to mark this window as completed
+            await storage.logNotification({
+              eventId: `managed-report-${reportType}`,
+              eventType: 'managed_report',
+              eventDate: now,
+              notificationDate: now,
+              daysBeforeEvent: 0,
+              provider: 'system',
+              success: true,
+              metadata: { sentCategories: reportResult.sent }
+            });
+          } else {
+            console.error(`❌ Failed to send managed reports: ${reportResult.error}`);
+          }
         }
       }
 
@@ -471,9 +497,14 @@ export class BackgroundScheduler {
         </div>
       </div>`;
 
-    let pdfBuffer: Buffer | null = null;
+    // Map local ContractEvent to PDFGenerator's expected format (which uses status instead of type)
+    const pdfEvents = events.map(e => ({
+      ...e,
+      status: e.type === 'contract_expired' ? 'overdue' : 'critical'
+    })) as any[];
+
     try {
-      pdfBuffer = await pdfGeneratorService.generateCalendarPDF(month, events);
+      pdfBuffer = await pdfGeneratorService.generateCalendarPDF(month, pdfEvents);
     } catch (error) {
       console.error('⚠️ Failed to generate PDF:', error);
     }

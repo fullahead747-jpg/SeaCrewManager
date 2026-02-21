@@ -52,6 +52,15 @@ export class ManagedReportService {
         sent: [] as string[]
       };
 
+      await storage.logActivity({
+        type: 'System',
+        action: 'execute',
+        description: 'Generating automated managed reports...',
+        username: 'system',
+        userRole: 'admin',
+        severity: 'info'
+      });
+
       const settings = await storage.getEmailSettings();
       const recipientEmail = settings?.recipientEmail || process.env.REPORT_RECIPIENT_EMAIL || process.env.GMAIL_USER || 'management@fullahead.in';
 
@@ -59,24 +68,106 @@ export class ManagedReportService {
       if (categories.critical.length > 0 && (settings?.criticalEnabled ?? true)) {
         await this.sendCategoryEmail(recipientEmail, 'Critical', '#ef4444', categories.critical);
         results.sent.push('Critical');
+
+        await storage.logActivity({
+          type: 'Notification',
+          action: 'send',
+          description: `Critical Crew Report sent to ${recipientEmail} (${categories.critical.length} members)`,
+          username: 'system',
+          userRole: 'admin',
+          severity: 'info'
+        });
+
+        await storage.logNotification({
+          eventId: 'managed-report-critical',
+          eventType: 'managed_report',
+          eventDate: now,
+          notificationDate: now,
+          daysBeforeEvent: 0,
+          provider: 'email',
+          success: true,
+          metadata: { category: 'Critical', count: categories.critical.length, recipient: recipientEmail }
+        });
       }
 
       // Send Upcoming Report
       if (categories.upcoming.length > 0 && (settings?.upcomingEnabled ?? true)) {
         await this.sendCategoryEmail(recipientEmail, 'Upcoming', '#f97316', categories.upcoming);
         results.sent.push('Upcoming');
+
+        await storage.logActivity({
+          type: 'Notification',
+          action: 'send',
+          description: `Upcoming Crew Report sent to ${recipientEmail} (${categories.upcoming.length} members)`,
+          username: 'system',
+          userRole: 'admin',
+          severity: 'info'
+        });
+
+        await storage.logNotification({
+          eventId: 'managed-report-upcoming',
+          eventType: 'managed_report',
+          eventDate: now,
+          notificationDate: now,
+          daysBeforeEvent: 0,
+          provider: 'email',
+          success: true,
+          metadata: { category: 'Upcoming', count: categories.upcoming.length, recipient: recipientEmail }
+        });
       }
 
       // Send Attention Report
       if (categories.attention.length > 0 && (settings?.attentionEnabled ?? true)) {
         await this.sendCategoryEmail(recipientEmail, 'Attention', '#eab308', categories.attention);
         results.sent.push('Attention');
+
+        await storage.logActivity({
+          type: 'Notification',
+          action: 'send',
+          description: `Attention Crew Report sent to ${recipientEmail} (${categories.attention.length} members)`,
+          username: 'system',
+          userRole: 'admin',
+          severity: 'info'
+        });
+
+        await storage.logNotification({
+          eventId: 'managed-report-attention',
+          eventType: 'managed_report',
+          eventDate: now,
+          notificationDate: now,
+          daysBeforeEvent: 0,
+          provider: 'email',
+          success: true,
+          metadata: { category: 'Attention', count: categories.attention.length, recipient: recipientEmail }
+        });
+      }
+
+      if (results.sent.length === 0) {
+        await storage.logActivity({
+          type: 'System',
+          action: 'execute',
+          description: 'Managed reports processed: No reports needed (no matches or disabled).',
+          username: 'system',
+          userRole: 'admin',
+          severity: 'info'
+        });
       }
 
       return results;
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error generating managed reports:', error);
-      return { success: false, sent: [], error: error instanceof Error ? error.message : String(error) };
+
+      await storage.logActivity({
+        type: 'System',
+        action: 'error',
+        description: `Failed to generate managed reports: ${errorMessage}`,
+        username: 'system',
+        userRole: 'admin',
+        severity: 'error'
+      });
+
+      return { success: false, sent: [], error: errorMessage };
     }
   }
 
