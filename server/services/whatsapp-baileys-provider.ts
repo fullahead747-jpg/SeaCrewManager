@@ -7,6 +7,9 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import P from 'pino';
+import fs from 'fs';
+import path from 'path';
+import QRCode from 'qrcode';
 import { storage } from '../storage';
 
 export interface WhatsAppMessage {
@@ -31,8 +34,9 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
     private messageHandler: ((message: WAMessage) => void) | null = null;
     private authDir: string;
     private logger: any;
+    private qrPath = path.join(process.cwd(), 'public', 'baileys_qr.png');
 
-    constructor(authDir: string = './baileys_auth_info') {
+    constructor(authDir: string = './baileys_auth') {
         this.authDir = authDir;
         this.logger = P({ level: 'silent' }); // Silent logger to reduce noise
     }
@@ -53,22 +57,44 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
             const { connection, lastDisconnect, qr } = update;
 
             if (qr) {
-                console.log('📱 QR Code available - use generate_baileys_qr.ts to scan');
+                console.log('📱 QR Code received - generating image...');
+                try {
+                    await QRCode.toFile(this.qrPath, qr);
+                    console.log(`✅ QR Code saved to ${this.qrPath}`);
+                } catch (err) {
+                    console.error('❌ Failed to save QR code image:', err);
+                }
             }
 
             if (connection === 'close') {
-                const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-                console.log('❌ Connection closed. Reconnecting:', shouldReconnect);
+                const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                console.log(`❌ Connection closed (Status: ${statusCode}). Reconnecting: ${shouldReconnect}`);
 
                 if (shouldReconnect) {
                     // Reconnect
                     await this.initialize(this.messageHandler || undefined);
                 } else {
                     this.connected = false;
+                    console.log('⚠️ Session logged out. Clearing auth data to allow fresh login...');
+                    try {
+                        const credsPath = path.join(this.authDir, 'creds.json');
+                        if (fs.existsSync(credsPath)) {
+                            fs.unlinkSync(credsPath);
+                            console.log('🗑️  Auth credentials cleared.');
+                        }
+                    } catch (err) {
+                        console.error('❌ Failed to clear auth data:', err);
+                    }
                 }
             } else if (connection === 'open') {
                 console.log('✅ Baileys WhatsApp connected successfully!');
                 this.connected = true;
+                // Delete QR image when connected
+                if (fs.existsSync(this.qrPath)) {
+                    fs.unlinkSync(this.qrPath);
+                    console.log('🗑️  QR Code image removed as connection is active.');
+                }
             }
         });
 
