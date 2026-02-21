@@ -43,6 +43,7 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
 
     async initialize(onMessage?: (message: WAMessage) => void): Promise<void> {
         this.messageHandler = onMessage || null;
+        console.log(`🔄 Baileys initialization started (AuthDir: ${this.authDir})`);
 
         const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
 
@@ -59,6 +60,11 @@ export class BaileysWhatsAppProvider implements WhatsAppProvider {
             if (qr) {
                 console.log('📱 QR Code received - generating image...');
                 try {
+                    const publicDir = path.dirname(this.qrPath);
+                    if (!fs.existsSync(publicDir)) {
+                        fs.mkdirSync(publicDir, { recursive: true });
+                        console.log(`📁 Created public directory: ${publicDir}`);
+                    }
                     await QRCode.toFile(this.qrPath, qr);
                     console.log(`✅ QR Code saved to ${this.qrPath}`);
                 } catch (err) {
