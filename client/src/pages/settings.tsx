@@ -506,9 +506,9 @@ export default function Settings() {
                     </div>
 
                     <div>
-                      <Label className="text-base font-medium mb-3 block">Daily Managed Reports (18:30)</Label>
+                      <Label className="text-base font-medium mb-3 block">Scheduled Managed Reports</Label>
                       <p className="text-sm text-muted-foreground mb-4">
-                        Enable or disable automated daily reports sent at 6:30 PM.
+                        Enable or disable automated reports sent Monday 9:00 AM and Friday 6:00 PM.
                       </p>
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">

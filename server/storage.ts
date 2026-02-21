@@ -993,7 +993,13 @@ export class DatabaseStorage implements IStorage {
     };
 
     const activeContractMap = new Map();
-    allActiveContracts.forEach(c => activeContractMap.set(c.crewMemberId, c));
+    // Sort all active contracts by createdAt descending so that the latest one is picked first
+    // Since we're using Map.set, the last one processed for a crewMemberId will be the one that stays
+    // Wait, if I want the LATEST one, I should sort by createdAt ASCENDING and let the later ones overwrite earlier ones, 
+    // OR sort DESCENDING and only set if not present. Both work. Let's go with ASCENDING + overwrite.
+    allActiveContracts
+      .sort((a, b) => (new Date(a.createdAt || 0).getTime()) - (new Date(b.createdAt || 0).getTime()))
+      .forEach(c => activeContractMap.set(c.crewMemberId, c));
 
     allOnBoardCrew.forEach(m => {
       const contract = activeContractMap.get(m.id);
