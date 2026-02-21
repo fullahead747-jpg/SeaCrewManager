@@ -1205,16 +1205,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
           const verification = await documentVerificationService.verifyDocument(fullPath, verifyData, cachedData);
-
-          if (!verification.isValid) {
+          if (!verification.isValid && !req.body.forceSave) {
             console.warn(`[STRICT-VALIDATION] Blocked upload due to validation failure`);
+
+            const isDoctorApprovalNumber = documentData.documentNumber?.match(/MAH\/MUM\/\d+\/\d+/i) ||
+              documentData.issuingAuthority?.toUpperCase().includes('DR.');
+
             return res.status(400).json({
               message: "Document validation failed. The entered details do not match the uploaded document.",
+              isValidationError: true,
               details: {
                 matchScore: verification.matchScore,
                 warnings: verification.warnings,
+                isDoctorApprovalNumber,
                 criticalErrors: verification.fieldComparisons
-                  .filter(c => !c.matches && ['documentNumber', 'expiryDate'].includes(c.field))
+                  .filter(c => !c.matches && ['documentNumber', 'expiryDate', 'issueDate'].includes(c.field))
                   .map(c => `${c.displayName}: Expected '${c.existingValue}', OCR found '${c.extractedValue}'`)
               }
             });

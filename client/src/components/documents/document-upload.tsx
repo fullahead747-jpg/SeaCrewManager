@@ -59,6 +59,8 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
   const [pendingData, setPendingData] = useState<DocumentFormData | null>(null);
   const [showReplaceUpload, setShowReplaceUpload] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [validationError, setValidationError] = useState<any>(null);
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
 
   const form = useForm<DocumentFormData>({
     resolver: zodResolver(documentFormSchema),
@@ -144,7 +146,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
   };
 
   const uploadMutation = useMutation({
-    mutationFn: async (data: DocumentFormData) => {
+    mutationFn: async ({ data, forceSave = false }: { data: DocumentFormData, forceSave?: boolean }) => {
       let filePath = document?.filePath || null;
       if (selectedFile) {
         setUploadProgress(25);
@@ -172,6 +174,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
         expiryDate: data.expiryDate ? new Date(data.expiryDate + 'T00:00:00.000Z') : new Date(new Date().setFullYear(new Date().getFullYear() + 10)),
         issuingAuthority: data.issuingAuthority || 'N/A',
         filePath,
+        forceSave,
       };
       const isEditing = !!document;
       const response = isEditing
@@ -197,6 +200,14 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
     onError: (error: any) => {
       setUploadProgress(0);
       console.error("Upload error:", error);
+
+      // Check if this is a validation error that can be overridden
+      if (error.isValidationError) {
+        setValidationError(error.details);
+        setShowValidationDialog(true);
+        return;
+      }
+
       toast({
         title: 'Error',
         description: error.message || 'Failed to upload document',
@@ -211,14 +222,24 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
       setShowConfirmDialog(true);
       return;
     }
-    uploadMutation.mutate(data);
+    setPendingData(data);
+    uploadMutation.mutate({ data });
   };
 
   const confirmUpload = () => {
     if (pendingData) {
-      uploadMutation.mutate(pendingData);
+      uploadMutation.mutate({ data: pendingData });
       setShowConfirmDialog(false);
       setPendingData(null);
+    }
+  };
+
+  const handleForceUpload = () => {
+    if (pendingData) {
+      uploadMutation.mutate({ data: pendingData, forceSave: true });
+      setShowValidationDialog(false);
+      setPendingData(null);
+      setValidationError(null);
     }
   };
 
@@ -643,6 +664,57 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
               className="w-full sm:w-32 bg-blue-600 hover:bg-blue-700 text-white"
             >
               Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Validation Failure Dialog */}
+      <AlertDialog open={showValidationDialog} onOpenChange={setShowValidationDialog}>
+        <AlertDialogContent className="rounded-2xl max-w-md">
+          <AlertDialogHeader>
+            <div className="mx-auto bg-red-100 p-3 rounded-full w-fit mb-2">
+              <AlertCircle className="h-6 w-6 text-red-600" />
+            </div>
+            <AlertDialogTitle className="text-center text-xl text-red-600">Document Validation Failed</AlertDialogTitle>
+            <AlertDialogDescription className="text-center space-y-4">
+              <p>
+                The system detected a mismatch between your entries and the uploaded document.
+              </p>
+
+              {validationError?.isDoctorApprovalNumber && (
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 rounded-md text-amber-800 dark:text-amber-300 text-xs text-left">
+                  <p className="font-semibold mb-1 flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" /> Note on Doctor Approval Numbers
+                  </p>
+                  <p>
+                    Document number <strong>{pendingData?.documentNumber}</strong> looks like a Doctor's Approval Number.
+                    These are shared by many seafarers who visit the same doctor.
+                  </p>
+                </div>
+              )}
+
+              {validationError?.criticalErrors && validationError.criticalErrors.length > 0 && (
+                <div className="text-left bg-muted/50 p-3 rounded-md border border-border text-xs">
+                  <p className="font-semibold mb-2">Detected Discrepancies:</p>
+                  <ul className="list-disc pl-4 space-y-1">
+                    {validationError.criticalErrors.map((err: string, i: number) => (
+                      <li key={i}>{err}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <p className="text-sm font-medium">Are you sure the details you entered are correct according to the physical document?</p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="sm:justify-center flex-col sm:flex-row gap-3 pt-2">
+            <AlertDialogCancel className="w-full sm:w-1/2 mt-0">I'll Double Check</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleForceUpload}
+              className="w-full sm:w-1/2 bg-red-600 hover:bg-red-700 text-white"
+            >
+              Force Upload anyway
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

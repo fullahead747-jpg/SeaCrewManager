@@ -1204,6 +1204,14 @@ export class DocumentVerificationService {
             }
         });
 
+        // Add specialized warning for shared doctor approval numbers
+        const docNumComp = comparisons.find(c => c.field === 'documentNumber');
+        if (docNumComp && !docNumComp.matches && docNumComp.existingValue?.match(/MAH\/MUM\/\d+\/\d+/i)) {
+            warnings.push(
+                `Note: The document number "${docNumComp.existingValue}" appears to be a Doctor's Approval Number, which may be shared by multiple crew members.`
+            );
+        }
+
         if (extracted && extracted.mrzValidation && !extracted.mrzValidation.isValid) {
             warnings.push(`MRZ validation failed: ${extracted.mrzValidation.errors.join(', ')} `);
         }
