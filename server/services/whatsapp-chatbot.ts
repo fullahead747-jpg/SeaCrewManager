@@ -1,5 +1,6 @@
 import type { WhatsAppProvider } from './whatsapp-notification';
 import { storage } from '../storage';
+import { voiceAssistantService } from './voice-assistant-service';
 
 /**
  * WhatsApp Chatbot Service
@@ -398,9 +399,17 @@ Type "help" anytime to see this message.`;
 
                 case 'unknown':
                 default:
-                    console.log('🤖 Chatbot ignored unknown command');
-                    // Ignore unknown commands silently
-                    return;
+                    console.log('🤖 Chatbot using AI fallback for natural language matching...');
+                    // Use Voice Assistant (Groq/AI) as fallback for natural language
+                    if (voiceAssistantService.isAvailable()) {
+                        response = await voiceAssistantService.processQuery(message);
+                        // Convert voice-friendly response to WhatsApp-friendly response if needed
+                        // (Most formatting from VoiceAssistantService is already bold/lists)
+                    } else {
+                        console.log('🤖 AI fallback not available (missing API key)');
+                        return;
+                    }
+                    break;
             }
 
             console.log(`🤖 Chatbot sending response to group ${this.groupId}`);
