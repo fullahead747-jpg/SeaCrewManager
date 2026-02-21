@@ -9,16 +9,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar, Ship, Printer, AlertTriangle, Clock, User, Mail, Loader2, LayoutGrid, LayoutList } from 'lucide-react';
-import { useMutation } from '@tanstack/react-query';
+import { Calendar, Ship, Printer, AlertTriangle, Clock, User, Mail, Loader2, LayoutGrid, LayoutList, Eye, FileDown, PenLine, Download } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { format, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, addDays, differenceInDays } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { CrewDetailCard } from '@/components/crew/crew-detail-card';
+import EditCrewForm from '@/components/crew/edit-crew-form';
+import { CrewMemberWithDetails, Document } from '@shared/schema';
 
 interface ContractEvent {
   id: string;
-  type: 'contract_due' | 'contract_expired';
+  status: 'overdue' | 'critical' | 'upcoming' | 'attention';
   date: Date;
   crewMemberId: string;
   crewMemberName: string;
@@ -32,6 +35,7 @@ interface ContractEvent {
 export default function Scheduling() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedEvents, setSelectedEvents] = useState<ContractEvent[]>([]);
@@ -39,6 +43,73 @@ export default function Scheduling() {
   const [sendToAdditional, setSendToAdditional] = useState(false);
   const [additionalEmail, setAdditionalEmail] = useState('');
   const [viewMode, setViewMode] = useState<'timeline' | 'grid'>('grid');
+
+  // Logic for the 4 action buttons
+  const [showViewDialog, setShowViewDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMemberWithDetails | null>(null);
+
+  const { data: documents = [] } = useQuery<Document[]>({
+    queryKey: ['/api/documents'],
+    queryFn: async () => {
+      const response = await fetch('/api/documents', { headers: getAuthHeaders() });
+      if (!response.ok) throw new Error('Failed to fetch documents');
+      return response.json();
+    }
+  });
+
+  const sendCrewEmailMutation = useMutation({
+    mutationFn: async (member: CrewMemberWithDetails) => {
+      const response = await fetch('/api/email/send-crew-details', {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ crewMemberId: member.id }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to send email' }));
+        throw new Error(errorData.message || 'Failed to send email');
+      }
+      return response.json();
+    },
+    onSuccess: () => toast({ title: 'Email Sent', description: 'Crew update email has been sent successfully.' }),
+    onError: (error: any) => toast({ title: 'Email Failed', description: error.message, variant: 'destructive' }),
+  });
+
+  const handleDownloadCrewDocuments = async (crewId: string, crewName: string) => {
+    try {
+      const response = await fetch(`/api/crew/${crewId}/documents/download`, {
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = window.document.createElement('a');
+      link.href = url;
+      link.download = `Documents_${crewName.replace(/\s+/g, '_')}.zip`;
+      window.document.body.appendChild(link);
+      link.click();
+      window.document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast({ title: 'Download Failed', description: 'Could not download documents zip.', variant: 'destructive' });
+    }
+  };
+
+  const handleViewAction = (crewId: string) => {
+    const member = crewMembers?.find((m: any) => m.id === crewId);
+    if (member) {
+      setSelectedCrewMember(member);
+      setShowViewDialog(true);
+    }
+  };
+
+  const handleEditAction = (crewId: string) => {
+    const member = crewMembers?.find((m: any) => m.id === crewId);
+    if (member) {
+      setSelectedCrewMember(member);
+      setShowEditDialog(true);
+    }
+  };
 
   const sendCalendarEmailMutation = useMutation({
     mutationFn: async (data: { month: string; events: ContractEvent[]; additionalEmail?: string }) => {
@@ -142,36 +213,24 @@ export default function Scheduling() {
     return vessel ? vessel.name : 'Unknown';
   };
 
-  // Generate contract events from contracts data
-  // Contract Due = 45 days before end date
-  // Contract Expired = end date
+  const getContractHealth = (daysUntilExpiry: number): 'overdue' | 'critical' | 'upcoming' | 'attention' => {
+    if (daysUntilExpiry < 0) return 'overdue';
+    if (daysUntilExpiry < 30) return 'critical';
+    if (daysUntilExpiry <= 60) return 'upcoming';
+    return 'attention';
+  };
+
   const contractEvents: ContractEvent[] = (contracts || []).flatMap((contract: any) => {
     const events: ContractEvent[] = [];
     const endDate = new Date(contract.endDate);
     const today = new Date();
     const daysUntilExpiry = differenceInDays(endDate, today);
+    const status = getContractHealth(daysUntilExpiry);
 
-    // Contract Due date (45 days before end date)
-    const dueDate = addDays(endDate, -45);
-
-    // Add Contract Due event for all contracts
+    // Add only one event: Contract Expiration Date
     events.push({
-      id: `${contract.id}-due`,
-      type: 'contract_due',
-      date: dueDate,
-      crewMemberId: contract.crewMemberId,
-      crewMemberName: getCrewMemberName(contract.crewMemberId),
-      vesselId: contract.vesselId,
-      vesselName: getVesselName(contract.vesselId),
-      contractId: contract.id,
-      contractEndDate: endDate,
-      daysUntilExpiry: daysUntilExpiry,
-    });
-
-    // Add Contract Expired event for all contracts
-    events.push({
-      id: `${contract.id}-expired`,
-      type: 'contract_expired',
+      id: contract.id,
+      status: status,
       date: endDate,
       crewMemberId: contract.crewMemberId,
       crewMemberName: getCrewMemberName(contract.crewMemberId),
@@ -194,10 +253,12 @@ export default function Scheduling() {
     return contractEvents.filter(event => isSameDay(event.date, date));
   };
 
-  const getEventColor = (type: string) => {
-    switch (type) {
-      case 'contract_due': return 'bg-warning-amber';
-      case 'contract_expired': return 'bg-red-500';
+  const getEventColor = (status: string) => {
+    switch (status) {
+      case 'overdue': return 'bg-red-500';
+      case 'critical': return 'bg-orange-500';
+      case 'upcoming': return 'bg-yellow-500';
+      case 'attention': return 'bg-blue-500';
       default: return 'bg-gray-500';
     }
   };
@@ -222,8 +283,10 @@ export default function Scheduling() {
   const monthEvents = contractEvents.filter(event => isSameMonth(event.date, currentDate));
 
   // Count stats for current month view
-  const monthDueCount = monthEvents.filter(e => e.type === 'contract_due').length;
-  const monthExpiredCount = monthEvents.filter(e => e.type === 'contract_expired').length;
+  const monthOverdueCount = monthEvents.filter(e => e.status === 'overdue').length;
+  const monthCriticalCount = monthEvents.filter(e => e.status === 'critical').length;
+  const monthUpcomingCount = monthEvents.filter(e => e.status === 'upcoming').length;
+  const monthAttentionCount = monthEvents.filter(e => e.status === 'attention').length;
   const thisMonthCount = monthEvents.length;
 
   return (
@@ -234,8 +297,8 @@ export default function Scheduling() {
           <h2 className="text-2xl font-bold tracking-tight text-foreground mb-1" data-testid="scheduling-title">
             Contract Calendar
           </h2>
-          <p className="text-xs text-muted-foreground">
-            View upcoming contract due dates and expirations
+          <p className="text-xs text-muted-foreground mt-1">
+            View upcoming contract due dates and expirations. Data displayed in this section pertains to the current month only.
           </p>
         </div>
 
@@ -265,60 +328,78 @@ export default function Scheduling() {
         </div>
       </div>
 
-      {/* Quick Stats redesigned to match "neat and clear" screenshot */}
-      <div className="flex flex-wrap items-center gap-y-4 py-2">
-        {/* Due Soon */}
+      {/* Quick Stats */}
+      <div className="flex flex-wrap items-center gap-y-4 py-2 print:hidden">
         <div className="flex items-center gap-4 pr-4 md:pr-8 border-r border-slate-100 dark:border-slate-800 last:border-0 grow md:grow-0">
-          <div className="p-3 rounded-2xl bg-amber-500/10 dark:bg-amber-500/20">
-            <Clock className="h-5 w-5 text-amber-500" />
-          </div>
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-xl md:text-2xl font-bold text-foreground leading-none" data-testid="contracts-due-count">{monthDueCount}</span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Due Soon</span>
-            </div>
-            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">Action required this month</div>
-          </div>
-        </div>
-
-        {/* Expired */}
-        <div className="flex items-center gap-4 px-4 md:px-8 border-r border-slate-100 dark:border-slate-800 last:border-0 grow md:grow-0">
           <div className="p-3 rounded-2xl bg-red-500/10 dark:bg-red-500/20">
             <AlertTriangle className="h-5 w-5 text-red-500" />
           </div>
           <div>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl md:text-2xl font-bold text-foreground leading-none" data-testid="contracts-expired-count">{monthExpiredCount}</span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Expired</span>
+              <span className="text-xl md:text-2xl font-bold text-foreground leading-none">{monthOverdueCount}</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Overdue</span>
             </div>
-            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">Contracts currently overdue</div>
+            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">&lt; 0 Days Left</div>
           </div>
         </div>
 
-        {/* Total */}
+        <div className="flex items-center gap-4 px-4 md:px-8 border-r border-slate-100 dark:border-slate-800 last:border-0 grow md:grow-0">
+          <div className="p-3 rounded-2xl bg-orange-500/10 dark:bg-orange-500/20">
+            <Clock className="h-5 w-5 text-orange-500" />
+          </div>
+          <div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl md:text-2xl font-bold text-foreground leading-none">{monthCriticalCount}</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Critical</span>
+            </div>
+            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">&lt; 30 Days Left</div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4 px-4 md:px-8 border-r border-slate-100 dark:border-slate-800 last:border-0 grow md:grow-0">
+          <div className="p-3 rounded-2xl bg-yellow-500/10 dark:bg-yellow-500/20">
+            <Calendar className="h-5 w-5 text-yellow-500" />
+          </div>
+          <div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-xl md:text-2xl font-bold text-foreground leading-none">{monthUpcomingCount}</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Upcoming</span>
+            </div>
+            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">30 - 60 Days Left</div>
+          </div>
+        </div>
+
         <div className="flex items-center gap-4 px-4 md:px-8 border-r border-slate-100 dark:border-slate-800 last:border-0 grow md:grow-0">
           <div className="p-3 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20">
             <Calendar className="h-5 w-5 text-blue-500" />
           </div>
           <div>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl md:text-2xl font-bold text-foreground leading-none" data-testid="month-events-count">{thisMonthCount}</span>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Total Events</span>
+              <span className="text-xl md:text-2xl font-bold text-foreground leading-none">{monthAttentionCount}</span>
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Attention</span>
             </div>
-            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">Scheduled for this month</div>
+            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">&gt; 60 Days Left</div>
           </div>
         </div>
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-6 text-[11px]">
-        <div className="flex items-center space-x-2">
-          <div className="w-2.5 h-2.5 bg-amber-500 rounded-full ring-2 ring-amber-500/20"></div>
-          <span className="text-muted-foreground/80 font-medium">Sign Off Due (45 days before expiry)</span>
-        </div>
+      <div className="flex flex-wrap items-center gap-6 text-[11px] mb-2 print:hidden">
         <div className="flex items-center space-x-2">
           <div className="w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-red-500/20"></div>
-          <span className="text-muted-foreground/80 font-medium">Contract Expired</span>
+          <span className="text-muted-foreground/80 font-medium">Overdue (&lt; 0 Days)</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="w-2.5 h-2.5 bg-orange-500 rounded-full ring-2 ring-orange-500/20"></div>
+          <span className="text-muted-foreground/80 font-medium">Critical (&lt; 30 Days)</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="w-2.5 h-2.5 bg-yellow-500 rounded-full ring-2 ring-yellow-500/20"></div>
+          <span className="text-muted-foreground/80 font-medium">Upcoming (30-60 Days)</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="w-2.5 h-2.5 bg-blue-500 rounded-full ring-2 ring-blue-500/20"></div>
+          <span className="text-muted-foreground/80 font-medium">Attention (&gt; 60 Days)</span>
         </div>
       </div>
 
@@ -422,13 +503,21 @@ export default function Scheduling() {
                     font-size: 10px;
                     font-weight: 500;
                   }
-                  .print-report .event-badge.due {
-                    background-color: #fef3c7;
-                    color: #92400e;
-                  }
-                  .print-report .event-badge.expired {
+                  .print-report .event-badge.overdue {
                     background-color: #fee2e2;
                     color: #991b1b;
+                  }
+                  .print-report .event-badge.critical {
+                    background-color: #ffedd5;
+                    color: #9a3412;
+                  }
+                  .print-report .event-badge.upcoming {
+                    background-color: #fef9c3;
+                    color: #854d0e;
+                  }
+                  .print-report .event-badge.attention {
+                    background-color: #dbeafe;
+                    color: #1e40af;
                   }
                   .print-footer {
                     margin-top: 20px;
@@ -510,9 +599,9 @@ export default function Scheduling() {
                               key={event.id}
                               className={cn(
                                 'w-1.5 h-1.5 rounded-full shadow-sm',
-                                getEventColor(event.type)
+                                getEventColor(event.status)
                               )}
-                              title={event.type === 'contract_due' ? 'Sign Off Due' : 'Contract Expired'}
+                              title={`${event.status.charAt(0).toUpperCase() + event.status.slice(1)} Contract (${event.daysUntilExpiry} days left)`}
                               data-testid={`event-indicator-${event.id}`}
                             />
                           ))}
@@ -545,8 +634,8 @@ export default function Scheduling() {
                           <td>{event.crewMemberName}</td>
                           <td>{event.vesselName}</td>
                           <td>
-                            <span className={`event-badge ${event.type === 'contract_due' ? 'due' : 'expired'}`}>
-                              {event.type === 'contract_due' ? 'Due Soon' : 'Expired'}
+                            <span className={`event-badge ${event.status}`}>
+                              {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
                             </span>
                           </td>
                           <td>{format(event.date, 'MMM d, yyyy')}</td>
@@ -566,18 +655,21 @@ export default function Scheduling() {
       </Card>
 
       {/* Event Details Modal */}
-      <Dialog open={!!selectedDate} onOpenChange={() => setSelectedDate(null)}>
+      <Dialog open={selectedDate !== null} onOpenChange={(open) => !open && setSelectedDate(null)}>
         <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto print:hidden">
           <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
+            <DialogTitle className="flex items-center space-x-2 font-medium">
               <Calendar className="h-5 w-5 text-primary" />
               <span>
-                Events for {selectedDate && format(selectedDate, 'MMMM d, yyyy')}
+                Events — {selectedDate && format(selectedDate, 'MMMM d, yyyy')}
               </span>
             </DialogTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Showing events falling within {format(currentDate, 'MMMM yyyy')} only.
+            </p>
           </DialogHeader>
 
-          <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-2">
+          <div className="space-y-3">
             {selectedEvents.length === 0 ? (
               <p className="text-muted-foreground text-center py-4">No events on this date</p>
             ) : (
@@ -585,37 +677,91 @@ export default function Scheduling() {
                 <div
                   key={event.id}
                   className={cn(
-                    "p-3 border rounded-lg",
-                    event.type === 'contract_expired'
-                      ? "border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-800"
-                      : "border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800"
+                    "p-4 pr-3 border rounded-xl shadow-sm relative overflow-hidden bg-white dark:bg-slate-900 border-border"
                   )}
                   data-testid={`modal-event-${event.id}`}
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium text-foreground">
-                      {event.type === 'contract_due' ? 'Sign Off Due' : 'Contract Expired'}
-                    </h4>
-                    <Badge className={cn(
-                      "text-white",
-                      event.type === 'contract_expired' ? "bg-red-500" : "bg-warning-amber"
-                    )}>
-                      {event.type === 'contract_due' ? 'SIGN OFF DUE' : 'CONTRACT EXPIRED'}
-                    </Badge>
-                  </div>
+                  <div className={cn(
+                    "absolute left-0 top-0 bottom-0 w-1.5",
+                    event.status === 'overdue' ? "bg-red-500" :
+                      event.status === 'critical' ? "bg-orange-500" :
+                        event.status === 'upcoming' ? "bg-yellow-500" : "bg-blue-500"
+                  )} />
+                  <div className="pl-1.5">
+                    <div className="flex items-start justify-between mb-3">
+                      <h4 className="font-medium text-foreground text-base">
+                        {event.status.charAt(0).toUpperCase() + event.status.slice(1)} Contract
+                      </h4>
+                      <Badge className={cn(
+                        "text-white text-[10px] font-bold tracking-wider px-2.5 py-0.5 rounded-full border-0",
+                        event.status === 'overdue' ? "bg-red-500 hover:bg-red-600" :
+                          event.status === 'critical' ? "bg-orange-500 hover:bg-orange-600" :
+                            event.status === 'upcoming' ? "bg-yellow-500 hover:bg-yellow-600" : "bg-blue-500 hover:bg-blue-600"
+                      )}>
+                        {event.status.toUpperCase()}
+                      </Badge>
+                    </div>
 
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <div className="flex items-center space-x-2">
-                      <User className="h-3 w-3 shrink-0" />
-                      <span className="break-words">Crew Member: {event.crewMemberName}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Ship className="h-3 w-3 shrink-0" />
-                      <span className="break-words">Vessel: {event.vesselName}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-3 w-3 shrink-0" />
-                      <span>Contract End: {format(event.contractEndDate, 'MMM dd, yyyy')}</span>
+                    <div className="flex flex-col space-y-3 mt-2">
+                      <div className="space-y-2 text-sm text-muted-foreground/90 font-medium">
+                        <div className="flex items-center space-x-2.5">
+                          <User className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                          <span className="break-words">Crew: {event.crewMemberName.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase())}</span>
+                        </div>
+                        <div className="flex items-center space-x-2.5">
+                          <Ship className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                          <span className="break-words">Vessel: {event.vesselName.replace(/\w\S*/g, (txt) => txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase())}</span>
+                        </div>
+                        <div className="flex items-center space-x-2.5">
+                          <Calendar className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+                          <span>Contract End: {format(event.contractEndDate, 'MMM dd, yyyy')}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-start mt-2 -ml-2">
+                        <div className="flex items-center space-x-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
+                            onClick={() => handleViewAction(event.crewMemberId)}
+                            title="View Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
+                            onClick={() => {
+                              const member = crewMembers?.find((m: any) => m.id === event.crewMemberId);
+                              if (member) sendCrewEmailMutation.mutate(member);
+                            }}
+                            disabled={sendCrewEmailMutation.isPending}
+                            title="Send Mail"
+                          >
+                            <Mail className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
+                            onClick={() => handleEditAction(event.crewMemberId)}
+                            title="Edit Contract"
+                          >
+                            <PenLine className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md"
+                            onClick={() => handleDownloadCrewDocuments(event.crewMemberId, event.crewMemberName)}
+                            title="Download Documents"
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -697,6 +843,61 @@ export default function Scheduling() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Crew Member Dialog */}
+      <Dialog open={showViewDialog} onOpenChange={setShowViewDialog} >
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto bg-slate-50 p-6 rounded-[2rem]">
+          <DialogTitle className="sr-only">Crew Member Details</DialogTitle>
+          {selectedCrewMember && (
+            <CrewDetailCard
+              member={selectedCrewMember}
+              documents={documents}
+              onView={() => { }}
+              onEdit={() => { setShowViewDialog(false); setShowEditDialog(true); }}
+              onVesselHistory={() => { }}
+              onSendMail={(m) => sendCrewEmailMutation.mutate(m)}
+              onDownload={(id, name) => handleDownloadCrewDocuments(id, name)}
+              onViewAOA={async (m) => {
+                if (m.activeContract?.filePath) {
+                  try {
+                    const response = await fetch(`/api/contracts/${m.activeContract.id}/view`, {
+                      headers: getAuthHeaders(),
+                    });
+                    if (!response.ok) throw new Error('Failed to fetch document');
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    window.open(url, '_blank');
+                    setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                  } catch (error) {
+                    toast({ title: 'Error', description: 'Failed to open AOA document', variant: 'destructive' });
+                  }
+                } else {
+                  toast({ title: 'Not Available', description: 'No AOA document file found for this contract.' });
+                }
+              }}
+              isMailPending={sendCrewEmailMutation.isPending}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Crew Member Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog} >
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Crew Member Details</DialogTitle>
+          </DialogHeader>
+          {selectedCrewMember && (
+            <EditCrewForm
+              crewMember={selectedCrewMember}
+              onSuccess={() => {
+                setShowEditDialog(false);
+                queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div >

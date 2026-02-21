@@ -308,18 +308,22 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
         if (!deferredSearch.trim()) return vesselGroups;
         const s = deferredSearch.toLowerCase();
         return vesselGroups
-            .map((g) => ({
-                ...g,
-                members: g.members.filter((m) => {
-                    const full = `${m.firstName} ${m.lastName}`.toLowerCase();
-                    return (
-                        m.firstName.toLowerCase().includes(s) ||
-                        m.lastName.toLowerCase().includes(s) ||
-                        m.rank.toLowerCase().includes(s) ||
-                        full.includes(s)
-                    );
-                }),
-            }))
+            .map((g) => {
+                const vesselMatch = g.vessel.name.toLowerCase().includes(s);
+                return {
+                    ...g,
+                    members: g.members.filter((m) => {
+                        const full = `${m.firstName} ${m.lastName}`.toLowerCase();
+                        return (
+                            vesselMatch ||
+                            m.firstName.toLowerCase().includes(s) ||
+                            m.lastName.toLowerCase().includes(s) ||
+                            m.rank.toLowerCase().includes(s) ||
+                            full.includes(s)
+                        );
+                    }),
+                };
+            })
             .filter((g) => g.members.length > 0);
     }, [vesselGroups, deferredSearch]);
 
@@ -361,7 +365,7 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
                             <div className="relative w-full md:w-[240px]">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                                 <Input
-                                    placeholder="Search crew members..."
+                                    placeholder="Search crew members / vessels..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="pl-9 pr-8 bg-[#F1F5F9] border-0 focus:ring-1 focus:ring-blue-500/20 h-8 rounded-lg text-sm placeholder:text-slate-400 border-transparent shadow-none"

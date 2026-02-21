@@ -91,7 +91,7 @@ export default function MinimalHealthRow({
                 label="Critical"
                 value={stats.signOffDue30Days || 0}
                 icon={AlertTriangle}
-                color="text-red-500"
+                color="text-orange-500"
                 description="< 30 Days"
                 onClick={onCriticalClick}
             />
@@ -99,7 +99,7 @@ export default function MinimalHealthRow({
                 label="Overdue"
                 value={stats.contractHealth?.overdue || 0}
                 icon={FileWarning}
-                color="text-rose-600"
+                color="text-red-500"
                 description="Expired contracts"
                 onClick={onOverdueClick}
             />

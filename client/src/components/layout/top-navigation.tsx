@@ -11,7 +11,6 @@ interface NavItem {
 const navItems: NavItem[] = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { path: '/scheduling', label: 'Scheduling', icon: Calendar },
-    { path: '/documents', label: 'Documents', icon: FileText },
     { path: '/status-history', label: 'Status History', icon: History },
     { path: '/settings', label: 'Settings', icon: Settings },
 ];

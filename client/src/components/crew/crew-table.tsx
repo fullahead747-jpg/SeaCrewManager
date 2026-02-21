@@ -309,7 +309,8 @@ const CrewTable = React.memo(() => {
   const filteredCrew = crewMembers.filter(member => {
     const matchesSearch = `${member.firstName} ${member.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
       member.nationality.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      member.rank.toLowerCase().includes(searchTerm.toLowerCase());
+      member.rank.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (member.currentVessel as any)?.name?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesVessel = vesselFilter === 'all' || member.currentVesselId === vesselFilter;
 
@@ -1182,7 +1183,7 @@ const CrewTable = React.memo(() => {
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
             <Input
-              placeholder="Search crew members..."
+              placeholder="Search crew members / vessels..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-12 pr-10 h-12 text-base bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:border-blue-500 dark:focus:border-blue-400 rounded-lg"

@@ -339,7 +339,8 @@ const HealthDrillDownModal = memo(({
                 item.lastName?.toLowerCase().includes(search) ||
                 item.rank?.toLowerCase().includes(search) ||
                 item.nationality?.toLowerCase().includes(search) ||
-                fullName.includes(search)
+                fullName.includes(search) ||
+                item.currentVessel?.name?.toLowerCase().includes(search)
             );
         });
     }, [detailData, deferredSearchTerm]);
@@ -556,54 +557,54 @@ const HealthDrillDownModal = memo(({
             <Dialog open={isOpen} onOpenChange={onClose}>
                 <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white border-slate-200 shadow-[0_20px_50px_rgba(0,0,0,0.1)] rounded-[2rem]">
                     <DialogHeader className="p-0 border-b border-slate-100 flex-none">
-                        {/* Row 1: Title & Description */}
-                        <div className="p-6 pb-4">
-                            <div className="flex items-center gap-3 mb-1">
-                                <DialogTitle className="text-[22px] font-bold text-[#1E293B] tracking-tight">
+                        {/* Row 1: Title, Category Badge & Count */}
+                        <div className="px-5 pt-4 pb-3">
+                            <div className="flex items-center gap-2.5">
+                                <DialogTitle className="text-[18px] font-bold text-[#1E293B] tracking-tight leading-none">
                                     {categoryKey === 'global-search' ? 'Search Results' : (type === 'contract' ? 'Contract Details' : 'Document Details')}
                                 </DialogTitle>
                                 {categoryKey !== 'global-search' && (
-                                    <Badge className="bg-[#DBEAFE] text-[#2563EB] hover:bg-[#DBEAFE] border-0 font-bold px-4 py-1.5 rounded-full text-xs">
+                                    <Badge className="bg-[#DBEAFE] text-[#2563EB] hover:bg-[#DBEAFE] border-0 font-semibold px-2.5 py-0.5 rounded-full text-[11px]">
                                         {categoryName}
                                     </Badge>
                                 )}
                             </div>
-                            <DialogDescription className="text-slate-500 font-bold text-[13px] max-w-2xl leading-tight">
+                            <DialogDescription className="text-slate-400 font-normal text-[12px] mt-1 leading-tight">
                                 {categoryKey === 'global-search'
                                     ? 'Search across all crew members in the system by name, rank, or nationality.'
                                     : (type === 'contract'
-                                        ? `List of crew members whose contracts are currently in the "${categoryName}" category.`
-                                        : `List of documents currently in the "${categoryName}" category.`)}
+                                        ? `Crew members whose contracts are currently in the "${categoryName}" category.`
+                                        : `Documents currently in the "${categoryName}" category.`)}
                             </DialogDescription>
                         </div>
 
                         {/* Row 2: Actions Bar */}
-                        <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-3 flex-1">
-                                <div className="relative w-full md:w-[220px]">
-                                    <Ship className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <div className="px-5 py-2.5 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5 flex-1">
+                                <div className="relative w-full md:w-[200px]">
+                                    <Ship className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                                     <select
                                         value={localVesselId}
                                         onChange={(e) => setLocalVesselId(e.target.value)}
-                                        className="bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500/20 transition-all h-10 w-full pl-10 pr-10 rounded-xl text-sm font-bold text-slate-700 outline-none appearance-none cursor-pointer shadow-sm"
+                                        className="bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500/20 transition-all h-9 w-full pl-9 pr-8 rounded-lg text-[12px] font-medium text-slate-700 outline-none appearance-none cursor-pointer shadow-sm"
                                     >
                                         <option value="all">ALL VESSELS</option>
                                         {vessels?.map((v: any) => (
                                             <option key={v.id} value={v.id}>{v.name.toUpperCase()}</option>
                                         ))}
                                     </select>
-                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-                                        <ChevronDown className="h-4 w-4 text-slate-400" />
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                                     </div>
                                 </div>
-                                <div className="relative w-full md:w-[320px]">
-                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <div className="relative w-full md:w-[300px]">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                                     <Input
-                                        placeholder="Search crew members..."
+                                        placeholder="Search crew members / vessels..."
                                         value={searchTerm}
                                         onChange={(e) => setSearchTerm(e.target.value)}
                                         className={cn(
-                                            "pl-10 pr-10 bg-white border-slate-200 focus:ring-2 focus:ring-blue-500/20 transition-all h-10 rounded-xl text-sm font-bold placeholder:text-slate-400 placeholder:font-bold shadow-sm",
+                                            "pl-9 pr-9 bg-white border-slate-200 focus:ring-2 focus:ring-blue-500/20 transition-all h-9 rounded-lg text-[12px] font-medium placeholder:text-slate-400 shadow-sm",
                                             categoryKey === 'global-search' && "ring-2 ring-blue-500/10"
                                         )}
                                         autoFocus={categoryKey === 'global-search'}
@@ -612,20 +613,27 @@ const HealthDrillDownModal = memo(({
                                     {searchTerm && (
                                         <button
                                             onClick={() => setSearchTerm("")}
-                                            className="absolute right-5 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200 rounded-full transition-colors text-slate-400"
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200 rounded-full transition-colors text-slate-400"
                                         >
-                                            <X className="h-4 w-4" />
+                                            <X className="h-3.5 w-3.5" />
                                         </button>
                                     )}
                                 </div>
+                                {/* Live count pill placed beside search bar */}
+                                {!isLoading && filteredData.length > 0 && (
+                                    <div className="flex items-center gap-1.5 bg-white border border-slate-200 text-slate-600 text-[12px] font-semibold h-9 px-3 rounded-lg shadow-sm whitespace-nowrap">
+                                        <Users className="h-3.5 w-3.5 text-slate-400" />
+                                        {filteredData.length} {type === 'contract' ? 'Contracts' : 'Docs'}
+                                    </div>
+                                )}
                             </div>
                             <Button
                                 variant="outline"
                                 onClick={() => handlePrintReport()}
-                                className="bg-white border-slate-200 text-slate-700 font-bold h-10 rounded-xl px-5 flex items-center gap-2 hover:bg-slate-50 shadow-sm whitespace-nowrap"
+                                className="bg-white border-slate-200 text-slate-600 font-medium h-9 rounded-lg px-4 flex items-center gap-1.5 hover:bg-slate-50 shadow-sm whitespace-nowrap text-[12px]"
                                 disabled={!filteredData || filteredData.length === 0}
                             >
-                                <Printer className="h-4 w-4" />
+                                <Printer className="h-3.5 w-3.5" />
                                 <span>PRINT REPORT</span>
                             </Button>
                         </div>

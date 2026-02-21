@@ -67,7 +67,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
 
         if (member.status === 'onShore') {
             progressPercent = 100;
-            progressColor = '#3B82F6'; // Signed off color
+            progressColor = '#64748b'; // Signed off color
         } else if (startDate && endDate && member.activeContract?.status === 'active') {
             totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
             remainingDays = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -75,14 +75,14 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
 
             if (remainingDays < 0) {
                 progressPercent = 100;
-                progressColor = '#475569'; // Overdue
+                progressColor = '#ef4444'; // Overdue
             } else {
                 progressPercent = totalDays > 0 ? Math.min(100, (elapsedDays / totalDays) * 100) : 0;
 
                 // Color based on health schema
-                if (remainingDays <= 15) progressColor = '#ef4444'; // Critical
-                else if (remainingDays <= 30) progressColor = '#f97316'; // Upcoming
-                else if (remainingDays <= 45) progressColor = '#eab308'; // Attention
+                if (remainingDays <= 15) progressColor = '#f97316'; // Critical
+                else if (remainingDays <= 30) progressColor = '#eab308'; // Upcoming
+                else if (remainingDays <= 45) progressColor = '#3b82f6'; // Attention
                 else progressColor = '#10b981'; // Not Due
             }
         }
@@ -209,10 +209,10 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                 />
                             </div>
                             <div>
-                                <h3 className="text-sm font-extrabold text-[#1E293B] leading-tight uppercase tracking-tight">
+                                <h3 className="text-sm font-bold text-[#1E293B] leading-tight uppercase tracking-tight">
                                     {member.firstName} {member.lastName}
                                 </h3>
-                                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-0.5">
+                                <p className="text-slate-400 text-[10px] font-medium uppercase tracking-widest mt-0.5">
                                     {member.nationality || 'INDIAN'}
                                 </p>
                             </div>
@@ -228,27 +228,33 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                     {/* Rank & Vessel Boxes */}
                     <div className="grid grid-cols-2 gap-2 mb-1.5">
                         <div className="bg-white border border-slate-100 rounded-lg p-1.5 shadow-sm">
-                            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5">Rank</p>
-                            <p className="text-[#1E293B] font-bold text-sm">{member.rank}</p>
+                            <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-0.5">Rank</p>
+                            <p className="text-[#1E293B] font-semibold text-sm">{member.rank}</p>
                         </div>
                         <div className="bg-white border border-slate-100 rounded-lg p-1.5 shadow-sm">
-                            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5">Vessel</p>
-                            <p className="text-[#1E293B] font-extrabold text-base">{member.currentVessel?.name || 'Not assigned'}</p>
+                            <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-0.5">
+                                {member.status === 'onShore' ? 'Vessel Last Sailing' : 'Vessel'}
+                            </p>
+                            <p className={`text-[#1E293B] font-bold ${member.status === 'onShore' && member.lastVessel?.name && member.lastVessel.name.length > 15 ? 'text-sm' : 'text-base'}`}>
+                                {member.status === 'onShore'
+                                    ? (member.lastVessel?.name || 'Not assigned')
+                                    : (member.currentVessel?.name || 'Not assigned')}
+                            </p>
                         </div>
                     </div>
 
                     {/* Timeline & Contract Section */}
                     <div className="mb-4">
                         <div className="flex justify-between items-end mb-1">
-                            <span className="text-[11px] font-bold text-slate-500">
+                            <span className="text-[11px] font-medium text-slate-500">
                                 {formatShortDate(startDate)} – {formatShortDate(endDate)}
                             </span>
                             <div className="flex flex-col items-end">
-                                <span className="text-[10px] font-bold text-slate-400">
+                                <span className="text-[10px] font-normal text-slate-400">
                                     {formatShortDate(endDate, 'MMM d')}
                                 </span>
                                 {contractStats.remainingDays > 0 && (
-                                    <span className="text-[9px] font-black text-blue-600 uppercase tracking-tighter bg-blue-50 px-1 rounded">
+                                    <span className="text-[9px] font-semibold text-blue-600 uppercase tracking-tighter bg-blue-50 px-1 rounded">
                                         {contractStats.remainingDays} Days Left
                                     </span>
                                 )}
@@ -263,10 +269,10 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                         </div>
 
                         <div className="pt-1.5 border-t border-slate-100">
-                            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-0.5">Contract</p>
+                            <p className="text-[9px] font-medium text-slate-400 uppercase tracking-widest mb-0.5">Contract</p>
                             <div className="flex items-center gap-1.5">
                                 <FileText className="h-2.5 w-2.5 text-slate-400" />
-                                <span className="text-[11px] font-bold text-slate-700">
+                                <span className="text-[12px] font-medium text-slate-600">
                                     {formatShortDate(startDate)} – {formatShortDate(endDate)}
                                 </span>
                             </div>
@@ -277,28 +283,28 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                     <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-slate-100">
                         <Button
                             variant="outline"
-                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-bold text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-medium text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
                             onClick={() => onView(member)}
                         >
                             <Eye className="h-3 w-3 mr-1" /> View
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-bold text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-medium text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
                             onClick={() => onEdit(member)}
                         >
                             <UserCog className="h-3 w-3 mr-1" /> Edit
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-bold text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-medium text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
                             onClick={() => onVesselHistory(member)}
                         >
                             <History className="h-3 w-3 mr-1" /> History
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-bold text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-medium text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
                             onClick={() => onSendMail(member)}
                             disabled={isMailPending}
                         >
@@ -306,21 +312,21 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-bold text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-medium text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
                             onClick={() => onDownload(member.id, `${member.firstName} ${member.lastName}`)}
                         >
                             <Download className="h-3 w-3 mr-1" /> Download
                         </Button>
                         {member.status === 'onBoard' ? (
                             <Button
-                                className="h-7.5 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 rounded-lg font-bold text-[9px] uppercase tracking-tight shadow-sm"
+                                className="h-7.5 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 rounded-lg font-medium text-[9px] uppercase tracking-tight shadow-sm"
                                 onClick={() => onSignOff?.(member)}
                             >
                                 <LogOut className="h-3 w-3 mr-1 rotate-180" /> Sign Off
                             </Button>
                         ) : (
                             <Button
-                                className="h-7.5 bg-[#F0FDF4] text-[#16A34A] border border-[#DCFCE7] hover:bg-[#DCFCE7] rounded-lg font-bold text-[9px] uppercase tracking-tight shadow-sm"
+                                className="h-7.5 bg-[#F0FDF4] text-[#16A34A] border border-[#DCFCE7] hover:bg-[#DCFCE7] rounded-lg font-medium text-[9px] uppercase tracking-tight shadow-sm"
                                 onClick={() => onSignOn?.(member)}
                             >
                                 <LogIn className="h-3 w-3 mr-1" /> Sign On
@@ -332,8 +338,8 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                 <div className="lg:w-[52%] p-3 bg-white">
                     <div className="flex flex-col h-full">
                         <div className="mb-1.5">
-                            <h4 className="text-base font-bold text-slate-900 uppercase tracking-tight mb-0.5">Documents</h4>
-                            <div className="flex items-center gap-1.5 text-[10px] font-bold">
+                            <h4 className="text-base font-semibold text-slate-900 uppercase tracking-tight mb-0.5">Documents</h4>
+                            <div className="flex items-center gap-1.5 text-[10px] font-normal">
                                 <span className="text-slate-400">{docStatuses.length} Docs</span>
                                 <span className="text-slate-200">•</span>
                                 <span className="text-[#10B981]">{validCount} Valid</span>
@@ -361,27 +367,27 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                     <Check className="h-2 w-2 text-[#10B981] stroke-[4]" />
                                                 </div>
                                             )}
-                                            <span className="text-xs font-bold text-slate-700 uppercase tracking-tight">
+                                            <span className="text-xs font-medium text-slate-700 uppercase tracking-tight">
                                                 {getDocTypeLabel(doc.type)}
                                             </span>
                                         </div>
 
                                         <div className="flex items-center gap-1">
                                             {doc.status === 'missing' && (
-                                                <span className="text-[#EF4444] text-[9px] font-bold bg-red-50 px-1 py-0.5 rounded mr-1">PENDING</span>
+                                                <span className="text-[#EF4444] text-[9px] font-medium bg-red-50 px-1 py-0.5 rounded mr-1">PENDING</span>
                                             )}
                                             {doc.status === 'expired' && (
-                                                <span className="text-[#EF4444] text-[9px] font-bold bg-red-50 px-1 py-0.5 rounded mr-1">EXPIRED</span>
+                                                <span className="text-[#EF4444] text-[9px] font-medium bg-red-50 px-1 py-0.5 rounded mr-1">EXPIRED</span>
                                             )}
                                             {doc.status === 'expiring' && (
-                                                <span className="text-[#F59E0B] text-[9px] font-bold bg-orange-50 px-1 py-0.5 rounded mr-1">EXPIRING</span>
+                                                <span className="text-[#F59E0B] text-[9px] font-medium bg-orange-50 px-1 py-0.5 rounded mr-1">EXPIRING</span>
                                             )}
 
                                             {isInvalid ? (
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    className="h-7 px-2.5 bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE] rounded-lg font-bold text-[10px] transition-colors"
+                                                    className="h-7 px-2.5 bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE] rounded-lg font-medium text-[10px] transition-colors"
                                                     onClick={() => onUpload?.(member, doc.type)}
                                                 >
                                                     <Upload className="h-2.5 w-2.5 mr-1" />

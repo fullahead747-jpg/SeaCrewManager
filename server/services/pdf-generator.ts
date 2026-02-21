@@ -2,7 +2,7 @@ import PDFDocument from 'pdfkit';
 
 interface ContractEvent {
   id: string;
-  type: 'contract_due' | 'contract_expired';
+  status: 'overdue' | 'critical' | 'upcoming' | 'attention';
   date: Date;
   crewMemberId: string;
   crewMemberName: string;
@@ -17,8 +17,10 @@ export class PDFGeneratorService {
   async generateCalendarPDF(month: string, events: ContractEvent[]): Promise<Buffer> {
     console.log(`📄 Generating PDF for ${month} with ${events.length} events...`);
 
-    const dueEvents = events.filter(e => e.type === 'contract_due');
-    const expiredEvents = events.filter(e => e.type === 'contract_expired');
+    const overdueEvents = events.filter(e => e.status === 'overdue');
+    const criticalEvents = events.filter(e => e.status === 'critical');
+    const upcomingEvents = events.filter(e => e.status === 'upcoming');
+    const attentionEvents = events.filter(e => e.status === 'attention');
 
     return new Promise((resolve, reject) => {
       try {
@@ -38,32 +40,48 @@ export class PDFGeneratorService {
         doc.moveDown(0.5);
         doc.fontSize(14).fillColor('#6c757d').text(month, { align: 'center' });
         doc.moveDown(0.3);
-        doc.fontSize(10).fillColor('#28a745').text(`Generated on ${new Date().toLocaleDateString('en-US', { 
-          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' 
+        doc.fontSize(10).fillColor('#28a745').text(`Generated on ${new Date().toLocaleDateString('en-US', {
+          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
         })}`, { align: 'center' });
-        
+
         doc.moveDown(1.5);
 
         // Stats boxes
         const statsY = doc.y;
-        const boxWidth = 150;
+        const boxWidth = 110; // Narrower boxes since there are 5 now
         const boxHeight = 60;
-        const startX = (doc.page.width - (boxWidth * 3 + 40)) / 2;
+        const boxSpacing = 10;
+        const startX = (doc.page.width - (boxWidth * 5 + boxSpacing * 4)) / 2;
+        let currentX = startX;
 
-        // Contracts Due box
-        doc.rect(startX, statsY, boxWidth, boxHeight).fillAndStroke('#fef3c7', '#d97706');
-        doc.fillColor('#d97706').fontSize(28).text(String(dueEvents.length), startX, statsY + 10, { width: boxWidth, align: 'center' });
-        doc.fontSize(10).fillColor('#92400e').text('Contracts Due', startX, statsY + 40, { width: boxWidth, align: 'center' });
+        // Overdue box
+        doc.rect(currentX, statsY, boxWidth, boxHeight).fillAndStroke('#fee2e2', '#dc2626');
+        doc.fillColor('#dc2626').fontSize(28).text(String(overdueEvents.length), currentX, statsY + 10, { width: boxWidth, align: 'center' });
+        doc.fontSize(10).fillColor('#991b1b').text('Overdue', currentX, statsY + 40, { width: boxWidth, align: 'center' });
+        currentX += boxWidth + boxSpacing;
 
-        // Contracts Expiring box
-        doc.rect(startX + boxWidth + 20, statsY, boxWidth, boxHeight).fillAndStroke('#fee2e2', '#dc2626');
-        doc.fillColor('#dc2626').fontSize(28).text(String(expiredEvents.length), startX + boxWidth + 20, statsY + 10, { width: boxWidth, align: 'center' });
-        doc.fontSize(10).fillColor('#991b1b').text('Contracts Expiring', startX + boxWidth + 20, statsY + 40, { width: boxWidth, align: 'center' });
+        // Critical box
+        doc.rect(currentX, statsY, boxWidth, boxHeight).fillAndStroke('#ffedd5', '#ea580c');
+        doc.fillColor('#ea580c').fontSize(28).text(String(criticalEvents.length), currentX, statsY + 10, { width: boxWidth, align: 'center' });
+        doc.fontSize(10).fillColor('#9a3412').text('Critical', currentX, statsY + 40, { width: boxWidth, align: 'center' });
+        currentX += boxWidth + boxSpacing;
+
+        // Upcoming box
+        doc.rect(currentX, statsY, boxWidth, boxHeight).fillAndStroke('#fef9c3', '#ca8a04');
+        doc.fillColor('#ca8a04').fontSize(28).text(String(upcomingEvents.length), currentX, statsY + 10, { width: boxWidth, align: 'center' });
+        doc.fontSize(10).fillColor('#854d0e').text('Upcoming', currentX, statsY + 40, { width: boxWidth, align: 'center' });
+        currentX += boxWidth + boxSpacing;
+
+        // Attention box
+        doc.rect(currentX, statsY, boxWidth, boxHeight).fillAndStroke('#dbeafe', '#2563eb');
+        doc.fillColor('#2563eb').fontSize(28).text(String(attentionEvents.length), currentX, statsY + 10, { width: boxWidth, align: 'center' });
+        doc.fontSize(10).fillColor('#1e40af').text('Attention', currentX, statsY + 40, { width: boxWidth, align: 'center' });
+        currentX += boxWidth + boxSpacing;
 
         // Total Events box
-        doc.rect(startX + (boxWidth + 20) * 2, statsY, boxWidth, boxHeight).fillAndStroke('#dbeafe', '#2563eb');
-        doc.fillColor('#2563eb').fontSize(28).text(String(events.length), startX + (boxWidth + 20) * 2, statsY + 10, { width: boxWidth, align: 'center' });
-        doc.fontSize(10).fillColor('#1e40af').text('Total Events', startX + (boxWidth + 20) * 2, statsY + 40, { width: boxWidth, align: 'center' });
+        doc.rect(currentX, statsY, boxWidth, boxHeight).fillAndStroke('#f3f4f6', '#4b5563');
+        doc.fillColor('#4b5563').fontSize(28).text(String(events.length), currentX, statsY + 10, { width: boxWidth, align: 'center' });
+        doc.fontSize(10).fillColor('#374151').text('Total Events', currentX, statsY + 40, { width: boxWidth, align: 'center' });
 
         doc.y = statsY + boxHeight + 30;
 
@@ -76,22 +94,40 @@ export class PDFGeneratorService {
           doc.text('The crew schedule is clear for this month.', { align: 'center' });
         }
 
-        // Contracts Due Table
-        if (dueEvents.length > 0) {
+        // Overdue Contracts Table
+        if (overdueEvents.length > 0) {
           doc.moveDown(1);
-          doc.fontSize(14).fillColor('#d97706').text(`Contracts Due Soon (${dueEvents.length})`, 50);
+          doc.fontSize(14).fillColor('#dc2626').text(`Contracts Overdue (<0 Days) (${overdueEvents.length})`, 50);
           doc.moveDown(0.5);
-          
-          this.drawTable(doc, dueEvents, '#fef3c7');
+
+          this.drawTable(doc, overdueEvents, '#fee2e2');
         }
 
-        // Contracts Expiring Table
-        if (expiredEvents.length > 0) {
+        // Critical Contracts Table
+        if (criticalEvents.length > 0) {
           doc.moveDown(1.5);
-          doc.fontSize(14).fillColor('#dc2626').text(`Contracts Expiring (${expiredEvents.length})`, 50);
+          doc.fontSize(14).fillColor('#ea580c').text(`Contracts Critical (<30 Days) (${criticalEvents.length})`, 50);
           doc.moveDown(0.5);
-          
-          this.drawTable(doc, expiredEvents, '#fee2e2');
+
+          this.drawTable(doc, criticalEvents, '#ffedd5');
+        }
+
+        // Upcoming Contracts Table
+        if (upcomingEvents.length > 0) {
+          doc.moveDown(1.5);
+          doc.fontSize(14).fillColor('#ca8a04').text(`Contracts Upcoming (30-60 Days) (${upcomingEvents.length})`, 50);
+          doc.moveDown(0.5);
+
+          this.drawTable(doc, upcomingEvents, '#fef9c3');
+        }
+
+        // Attention Contracts Table
+        if (attentionEvents.length > 0) {
+          doc.moveDown(1.5);
+          doc.fontSize(14).fillColor('#2563eb').text(`Contracts Attention (>60 Days) (${attentionEvents.length})`, 50);
+          doc.moveDown(0.5);
+
+          this.drawTable(doc, attentionEvents, '#dbeafe');
         }
 
         // Footer
@@ -115,19 +151,19 @@ export class PDFGeneratorService {
     const tableLeft = 50;
     const colWidths = [150, 120, 120, 80];
     const headers = ['Crew Member', 'Vessel', 'Date', 'Days Left'];
-    
+
     let y = doc.y;
-    
+
     // Header row
     doc.rect(tableLeft, y, colWidths.reduce((a, b) => a + b, 0), 25).fill(headerColor);
     doc.fillColor('#333333').fontSize(10);
-    
+
     let x = tableLeft;
     headers.forEach((header, i) => {
       doc.text(header, x + 5, y + 8, { width: colWidths[i] - 10 });
       x += colWidths[i];
     });
-    
+
     y += 25;
 
     // Data rows
@@ -139,18 +175,18 @@ export class PDFGeneratorService {
 
       const rowColor = index % 2 === 0 ? '#ffffff' : '#f9fafb';
       doc.rect(tableLeft, y, colWidths.reduce((a, b) => a + b, 0), 22).fill(rowColor);
-      
+
       doc.fillColor('#333333').fontSize(9);
       x = tableLeft;
-      
+
       const dateStr = event.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       const rowData = [event.crewMemberName, event.vesselName, dateStr, `${event.daysUntilExpiry} days`];
-      
+
       rowData.forEach((cell, i) => {
         doc.text(cell, x + 5, y + 6, { width: colWidths[i] - 10 });
         x += colWidths[i];
       });
-      
+
       y += 22;
     });
 

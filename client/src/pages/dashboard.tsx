@@ -23,11 +23,11 @@ import MinimalHealthRow from '@/components/dashboard/minimal-health-row';
 // Memoized helper components to stabilize data references and prevent chart jitter
 const MemoizedContractHealth = memo(({ stats, statsLoading, onDrillDown }: { stats: DashboardStats, statsLoading: boolean, onDrillDown: any }) => {
   const data = useMemo(() => [
-    { key: 'overdue', name: 'Overdue', value: stats.contractHealth.overdue, color: '#475569' },
-    { key: 'critical', name: 'Critical (<= 15 Days)', value: stats.contractHealth.critical, color: '#ef4444' },
-    { key: 'upcoming', name: 'Upcoming (16-30 Days)', value: stats.contractHealth.upcoming, color: '#f97316' },
-    { key: 'soon', name: 'Attention (31-45 Days)', value: stats.contractHealth.soon, color: '#eab308' },
-    { key: 'shored', name: 'Signed Off Crew', value: stats.contractHealth.shored, color: '#3b82f6' },
+    { key: 'overdue', name: 'Overdue', value: stats.contractHealth.overdue, color: '#ef4444' },
+    { key: 'critical', name: 'Critical (<= 15 Days)', value: stats.contractHealth.critical, color: '#f97316' },
+    { key: 'upcoming', name: 'Upcoming (16-30 Days)', value: stats.contractHealth.upcoming, color: '#eab308' },
+    { key: 'soon', name: 'Attention (31-45 Days)', value: stats.contractHealth.soon, color: '#3b82f6' },
+    { key: 'shored', name: 'Signed Off Crew', value: stats.contractHealth.shored, color: '#64748b' },
     { key: 'stable', name: 'Not Due', value: stats.contractHealth.stable, color: '#10b981' },
   ], [
     stats.contractHealth.overdue,
