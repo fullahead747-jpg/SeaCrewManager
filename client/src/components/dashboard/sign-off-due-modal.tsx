@@ -58,6 +58,10 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
     const [signOnDialogOpen, setSignOnDialogOpen] = useState(false);
     const [selectedCrewForSignOn, setSelectedCrewForSignOn] = useState<CrewMemberWithDetails | null>(null);
 
+    // Delete Crew state
+    const [deleteCrewDialogOpen, setDeleteCrewDialogOpen] = useState(false);
+    const [selectedCrewForDelete, setSelectedCrewForDelete] = useState<CrewMemberWithDetails | null>(null);
+
     // Incremental rendering state
     const [displayCount, setDisplayCount] = useState(10);
     const BATCH_SIZE = 10;
@@ -203,6 +207,32 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
         },
         onError: (err: any) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
     });
+
+    const deleteCrewMutation = useMutation({
+        mutationFn: async (crewId: string) => {
+            const res = await fetch(`/api/crew/${crewId}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders(),
+            });
+            if (!res.ok) throw new Error('Failed to delete crew member');
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/dashboard/drilldown'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+            setDeleteCrewDialogOpen(false);
+            setSelectedCrewForDelete(null);
+            toast({ title: 'Crew Member Deleted', description: 'The crew member has been permanently removed.' });
+        },
+        onError: (err: any) => toast({ title: 'Delete Failed', description: err.message, variant: 'destructive' }),
+    });
+
+    const handleDeleteCrewClick = (member: CrewMemberWithDetails) => {
+        setSelectedCrewForDelete(member);
+        setDeleteCrewDialogOpen(true);
+    };
 
     // ── Handlers ───────────────────────────────────────────────────────────────
     const handleUpload = (member: CrewMemberWithDetails, type: string) => {
@@ -432,6 +462,7 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
                                                             onSignOn={(m) => { setSelectedCrewForSignOn(m); setSignOnDialogOpen(true); }}
                                                             onUpload={handleUpload}
                                                             onDeleteDocument={handleDeleteDocument}
+                                                            onDelete={handleDeleteCrewClick}
                                                             isMailPending={sendCrewEmailMutation.isPending}
                                                         />
                                                     </motion.div>
@@ -681,6 +712,45 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
                             }}
                         />
                     )}
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Delete Crew Member Confirmation ── */}
+            <Dialog open={deleteCrewDialogOpen} onOpenChange={(open) => { if (!open) { setDeleteCrewDialogOpen(false); setSelectedCrewForDelete(null); } }}>
+                <DialogContent className="max-w-md rounded-2xl">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <Trash2 className="h-5 w-5" />
+                            Delete Crew Member
+                        </DialogTitle>
+                        <DialogDescription>
+                            {selectedCrewForDelete && (
+                                <>
+                                    You are about to permanently delete{' '}
+                                    <span className="font-semibold text-slate-900">
+                                        {selectedCrewForDelete.firstName} {selectedCrewForDelete.lastName}
+                                    </span>.
+                                    This will remove all their contracts, documents, and history. This action cannot be undone.
+                                </>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => { setDeleteCrewDialogOpen(false); setSelectedCrewForDelete(null); }}
+                            disabled={deleteCrewMutation.isPending}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={() => selectedCrewForDelete && deleteCrewMutation.mutate(selectedCrewForDelete.id)}
+                            disabled={deleteCrewMutation.isPending}
+                        >
+                            {deleteCrewMutation.isPending ? 'Deleting...' : 'Delete Permanently'}
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </>

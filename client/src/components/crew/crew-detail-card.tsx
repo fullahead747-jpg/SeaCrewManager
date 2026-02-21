@@ -332,6 +332,14 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                 <LogIn className="h-3 w-3 mr-1" /> Sign On
                             </Button>
                         )}
+                        {member.status === 'onShore' && onDelete && (
+                            <Button
+                                className="col-span-3 mt-1 h-7.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg font-medium text-[10px] uppercase tracking-tight shadow-sm flex items-center justify-center gap-1"
+                                onClick={() => onDelete(member)}
+                            >
+                                <Trash2 className="h-3 w-3" /> Delete Crew Member
+                            </Button>
+                        )}
                     </div>
                 </div>
 

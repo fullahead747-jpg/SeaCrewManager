@@ -118,7 +118,7 @@ export default function MinimalHealthRow({
                 value="Full"
                 icon={Download}
                 color="text-purple-500"
-                description="Export Excel"
+                description="Export PDF"
                 onClick={onDownloadClick}
             />
 

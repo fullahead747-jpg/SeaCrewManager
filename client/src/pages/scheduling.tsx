@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Calendar, Ship, Printer, AlertTriangle, Clock, User, Mail, Loader2, LayoutGrid, LayoutList, Eye, FileDown, PenLine, Download } from 'lucide-react';
+import { Calendar, Ship, Printer, AlertTriangle, Clock, User, Mail, Loader2, LayoutGrid, LayoutList, Eye, FileDown, PenLine, Download, Trash2 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -49,6 +49,10 @@ export default function Scheduling() {
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMemberWithDetails | null>(null);
 
+  // Delete crew state
+  const [deleteCrewDialogOpen, setDeleteCrewDialogOpen] = useState(false);
+  const [selectedCrewForDelete, setSelectedCrewForDelete] = useState<CrewMemberWithDetails | null>(null);
+
   const { data: documents = [] } = useQuery<Document[]>({
     queryKey: ['/api/documents'],
     queryFn: async () => {
@@ -74,6 +78,32 @@ export default function Scheduling() {
     onSuccess: () => toast({ title: 'Email Sent', description: 'Crew update email has been sent successfully.' }),
     onError: (error: any) => toast({ title: 'Email Failed', description: error.message, variant: 'destructive' }),
   });
+
+  const deleteCrewMutation = useMutation({
+    mutationFn: async (crewId: string) => {
+      const response = await fetch(`/api/crew/${crewId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) throw new Error('Failed to delete crew member');
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/contracts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      setDeleteCrewDialogOpen(false);
+      setSelectedCrewForDelete(null);
+      toast({ title: 'Crew Member Deleted', description: 'The crew member has been permanently removed.' });
+    },
+    onError: (error: any) => toast({ title: 'Delete Failed', description: error.message, variant: 'destructive' }),
+  });
+
+  const handleDeleteCrewClick = (member: CrewMemberWithDetails) => {
+    setSelectedCrewForDelete(member);
+    setDeleteCrewDialogOpen(true);
+  };
 
   const handleDownloadCrewDocuments = async (crewId: string, crewName: string) => {
     try {
@@ -878,6 +908,7 @@ export default function Scheduling() {
                 }
               }}
               isMailPending={sendCrewEmailMutation.isPending}
+              onDelete={handleDeleteCrewClick}
             />
           )}
         </DialogContent>
@@ -898,6 +929,45 @@ export default function Scheduling() {
               }}
             />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Crew Member Confirmation Dialog */}
+      <Dialog open={deleteCrewDialogOpen} onOpenChange={(open) => { if (!open) { setDeleteCrewDialogOpen(false); setSelectedCrewForDelete(null); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete Crew Member
+            </DialogTitle>
+            <DialogDescription>
+              {selectedCrewForDelete && (
+                <>
+                  You are about to permanently delete{' '}
+                  <span className="font-semibold text-slate-900">
+                    {selectedCrewForDelete.firstName} {selectedCrewForDelete.lastName}
+                  </span>.
+                  This will remove all their contracts, documents, and history. This action cannot be undone.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={() => { setDeleteCrewDialogOpen(false); setSelectedCrewForDelete(null); }}
+              disabled={deleteCrewMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700 text-white"
+              onClick={() => selectedCrewForDelete && deleteCrewMutation.mutate(selectedCrewForDelete.id)}
+              disabled={deleteCrewMutation.isPending}
+            >
+              {deleteCrewMutation.isPending ? 'Deleting...' : 'Delete Permanently'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div >

@@ -507,7 +507,7 @@ const VesselCards = React.memo(({ showUploadButton = true }: { showUploadButton?
 
     crewMembers.forEach((member: any) => {
       // If crew belongs to a known vessel
-      if (member.currentVesselId && stats[member.currentVesselId]) {
+      if (member.currentVesselId && stats[member.currentVesselId] && member.status === 'onBoard') {
         const contract = member.activeContract;
 
         // If no active contract found or status is not active

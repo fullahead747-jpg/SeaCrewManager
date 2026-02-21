@@ -919,18 +919,18 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
   };
 
 
-  const handleExportExcel = async () => {
+  const handleExportPDF = async () => {
     if (!vessel) return;
     try {
-      const response = await fetch(`/api/vessels/${vessel.id}/export-excel`, {
+      const response = await fetch(`/api/vessels/${vessel.id}/export-pdf`, {
         headers: getAuthHeaders(),
       });
-      if (!response.ok) throw new Error('Failed to generate Excel export');
+      if (!response.ok) throw new Error('Failed to generate PDF export');
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `${vessel.name.replace(/\s+/g, '_')}_CrewReport_${format(new Date(), 'dd-MM-yyyy')}.xlsx`);
+      link.setAttribute('download', `${vessel.name.replace(/\s+/g, '_')}_CrewReport_${format(new Date(), 'dd-MM-yyyy')}.pdf`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -938,7 +938,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
 
       toast({
         title: 'Report Generated',
-        description: 'The professional vessel crew report has been downloaded successfully.',
+        description: 'The professional vessel crew PDF report has been downloaded successfully.',
       });
     } catch (error: any) {
       toast({
@@ -953,12 +953,12 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
   const [isEmailing, setIsEmailing] = useState(false);
 
 
-  const handleEmailExcel = async () => {
+  const handleEmailPDF = async () => {
     if (!vessel) return;
 
     try {
       setIsEmailing(true);
-      const response = await fetch(`/api/vessels/${vessel.id}/email-excel`, {
+      const response = await fetch(`/api/vessels/${vessel.id}/email-pdf`, {
         method: 'POST',
         headers: {
           ...getAuthHeaders(),
@@ -971,7 +971,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       }
       toast({
         title: 'Email Sent',
-        description: 'The professional Excel report has been emailed successfully.',
+        description: 'The professional PDF report has been emailed successfully.',
       });
     } catch (error: any) {
       toast({
@@ -1094,20 +1094,20 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                 variant="outline"
                 size="sm"
                 className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 h-8 px-3 text-xs"
-                onClick={handleEmailExcel}
+                onClick={handleEmailPDF}
                 disabled={isEmailing}
               >
                 {isEmailing ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Mail className="h-3.5 w-3.5 mr-1" />}
-                Email (Excel Sheet)
+                Email (PDF Report)
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 className="border-blue-600 text-blue-600 hover:bg-blue-50 h-8 px-3 text-xs"
-                onClick={handleExportExcel}
+                onClick={handleExportPDF}
               >
-                <FileSpreadsheet className="h-3.5 w-3.5 mr-1" />
-                Export (Excel Sheet)
+                <FileText className="h-3.5 w-3.5 mr-1" />
+                Export (PDF Report)
               </Button>
               <Button
                 variant="outline"
@@ -1155,6 +1155,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         onSignOff={handleSignOffClick}
                         onSignOn={handleSignOnClick}
                         onUpload={handleUploadClick}
+                        onDelete={handleDeleteClick}
                         isMailPending={sendCrewEmailMutation.isPending}
                       />
                     ))}

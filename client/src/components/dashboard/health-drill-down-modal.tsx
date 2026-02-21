@@ -73,6 +73,8 @@ const HealthDrillDownModal = memo(({
     const [signOffReason, setSignOffReason] = useState("");
     const [signOnDialogOpen, setSignOnDialogOpen] = useState(false);
     const [selectedCrewForSignOn, setSelectedCrewForSignOn] = useState<CrewMemberWithDetails | null>(null);
+    const [deleteCrewDialogOpen, setDeleteCrewDialogOpen] = useState(false);
+    const [selectedCrewForDelete, setSelectedCrewForDelete] = useState<CrewMemberWithDetails | null>(null);
     const [searchTerm, setSearchTerm] = useState("");
     const deferredSearchTerm = useDeferredValue(searchTerm);
 
@@ -81,7 +83,15 @@ const HealthDrillDownModal = memo(({
     const BATCH_SIZE = 20;
 
     // Local vessel filter state
-    const [localVesselId, setLocalVesselId] = useState<string>("all");
+    const [localVesselId, setLocalVesselId] = useState<string>(vesselId || "all");
+
+    useEffect(() => {
+        if (vesselId) {
+            setLocalVesselId(vesselId);
+        } else if (!isOpen) {
+            setLocalVesselId("all");
+        }
+    }, [vesselId, isOpen]);
 
     // Reset display count when search or category changes
     useEffect(() => {
@@ -528,6 +538,34 @@ const HealthDrillDownModal = memo(({
         }
     };
 
+    const deleteCrewMutation = useMutation({
+        mutationFn: async (crewId: string) => {
+            const response = await fetch(`/api/crew/${crewId}`, {
+                method: 'DELETE',
+                headers: getAuthHeaders(),
+            });
+            if (!response.ok) throw new Error('Failed to delete crew member');
+            return response.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/dashboard/drilldown'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+            setDeleteCrewDialogOpen(false);
+            setSelectedCrewForDelete(null);
+            toast({ title: 'Crew Member Deleted', description: 'The crew member has been permanently removed.' });
+        },
+        onError: (error: any) => {
+            toast({ title: 'Delete Failed', description: error.message || 'Could not delete crew member.', variant: 'destructive' });
+        },
+    });
+
+    const handleDeleteCrewClick = (member: CrewMemberWithDetails) => {
+        setSelectedCrewForDelete(member);
+        setDeleteCrewDialogOpen(true);
+    };
+
     const handleViewAOAClick = async (m: CrewMemberWithDetails) => {
         if (m.activeContract?.filePath) {
             try {
@@ -581,22 +619,24 @@ const HealthDrillDownModal = memo(({
                         {/* Row 2: Actions Bar */}
                         <div className="px-5 py-2.5 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between gap-3">
                             <div className="flex items-center gap-2.5 flex-1">
-                                <div className="relative w-full md:w-[200px]">
-                                    <Ship className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                                    <select
-                                        value={localVesselId}
-                                        onChange={(e) => setLocalVesselId(e.target.value)}
-                                        className="bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500/20 transition-all h-9 w-full pl-9 pr-8 rounded-lg text-[12px] font-medium text-slate-700 outline-none appearance-none cursor-pointer shadow-sm"
-                                    >
-                                        <option value="all">ALL VESSELS</option>
-                                        {vessels?.map((v: any) => (
-                                            <option key={v.id} value={v.id}>{v.name.toUpperCase()}</option>
-                                        ))}
-                                    </select>
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                                        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                                {!vesselId && (
+                                    <div className="relative w-full md:w-[200px]">
+                                        <Ship className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                                        <select
+                                            value={localVesselId}
+                                            onChange={(e) => setLocalVesselId(e.target.value)}
+                                            className="bg-white border border-slate-200 focus:ring-2 focus:ring-blue-500/20 transition-all h-9 w-full pl-9 pr-8 rounded-lg text-[12px] font-medium text-slate-700 outline-none appearance-none cursor-pointer shadow-sm"
+                                        >
+                                            <option value="all">ALL VESSELS</option>
+                                            {vessels?.map((v: any) => (
+                                                <option key={v.id} value={v.id}>{v.name.toUpperCase()}</option>
+                                            ))}
+                                        </select>
+                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                                            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                                 <div className="relative w-full md:w-[300px]">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                                     <Input
@@ -684,6 +724,7 @@ const HealthDrillDownModal = memo(({
                                                 onViewAOA={handleViewAOAClick}
                                                 onSignOff={handleSignOffClick}
                                                 onSignOn={handleSignOnClick}
+                                                onDelete={handleDeleteCrewClick}
                                                 isMailPending={sendCrewEmailMutation.isPending}
                                             />
                                         </motion.div>
@@ -1053,6 +1094,45 @@ const HealthDrillDownModal = memo(({
                             queryClient.invalidateQueries({ queryKey: ['/api/dashboard/drilldown'] });
                         }}
                     />
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Crew Member Confirmation Dialog */}
+            <Dialog open={deleteCrewDialogOpen} onOpenChange={(open) => { if (!open) { setDeleteCrewDialogOpen(false); setSelectedCrewForDelete(null); } }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-600">
+                            <Trash2 className="h-5 w-5" />
+                            Delete Crew Member
+                        </DialogTitle>
+                        <DialogDescription>
+                            {selectedCrewForDelete && (
+                                <>
+                                    You are about to permanently delete{' '}
+                                    <span className="font-semibold text-slate-900">
+                                        {selectedCrewForDelete.firstName} {selectedCrewForDelete.lastName}
+                                    </span>.
+                                    This will remove all their contracts, documents, and history. This action cannot be undone.
+                                </>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <Button
+                            variant="outline"
+                            onClick={() => { setDeleteCrewDialogOpen(false); setSelectedCrewForDelete(null); }}
+                            disabled={deleteCrewMutation.isPending}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={() => selectedCrewForDelete && deleteCrewMutation.mutate(selectedCrewForDelete.id)}
+                            disabled={deleteCrewMutation.isPending}
+                        >
+                            {deleteCrewMutation.isPending ? 'Deleting...' : 'Delete Permanently'}
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
 
