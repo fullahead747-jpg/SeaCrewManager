@@ -174,9 +174,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Authentication middleware (simplified for demo)
+  // Authentication middleware (unified session and token support)
   const authenticate = (req: any, res: any, next: any) => {
-    // In development mode, allow access without authentication
+    // 1. Check if user is already authenticated via session (Passport)
+    if (req.isAuthenticated && req.isAuthenticated()) {
+      return next();
+    }
+
+    // 2. In development mode, allow access without authentication if no session
     if (process.env.NODE_ENV === 'development') {
       req.user = {
         id: 'dev-user',
@@ -186,7 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return next();
     }
 
-    // In production, verify JWT tokens
+    // 3. In production, verify JWT tokens or headers
     const authHeader = req.headers.authorization;
 
     // Check for mock token (supported for demo/Vercel)
@@ -1200,6 +1205,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 holderName: scan.extractedHolderName
               };
               console.log(`[STRICT-VALIDATION] Found previous scan for DocNum ${documentData.documentNumber} in DB. Using as fallback.`);
+
+              // SMART CACHE INVALIDATION: If cached dates differ significantly from user-entered dates,
+              // don't use the cache for those date fields. This handles cases where the same document
+              // number (e.g., doctor approval numbers like MAH/MUM/...) is shared across multiple patients
+              // with different visit dates, or where the cache is simply outdated.
+              const MAX_CACHE_DATE_DIFF_DAYS = 45; // 45 days tolerance for cache vs user input
+              const msPerDay = 24 * 60 * 60 * 1000;
+              if (cachedData.expiryDate && documentData.expiryDate) {
+                const cachedExpiry = new Date(cachedData.expiryDate).getTime();
+                const enteredExpiry = new Date(documentData.expiryDate).getTime();
+                const diffDays = Math.abs(cachedExpiry - enteredExpiry) / msPerDay;
+                if (diffDays > MAX_CACHE_DATE_DIFF_DAYS) {
+                  console.log(`[STRICT-VALIDATION] Cache expiryDate differs by ${Math.round(diffDays)} days from user input - ignoring cache for this field`);
+                  cachedData.expiryDate = null;
+                }
+              }
+              if (cachedData.issueDate && documentData.issueDate) {
+                const cachedIssue = new Date(cachedData.issueDate).getTime();
+                const enteredIssue = new Date(documentData.issueDate).getTime();
+                const diffDays = Math.abs(cachedIssue - enteredIssue) / msPerDay;
+                if (diffDays > MAX_CACHE_DATE_DIFF_DAYS) {
+                  console.log(`[STRICT-VALIDATION] Cache issueDate differs by ${Math.round(diffDays)} days from user input - ignoring cache for this field`);
+                  cachedData.issueDate = null;
+                }
+              }
             }
           }
 

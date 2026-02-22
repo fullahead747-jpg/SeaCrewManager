@@ -40,6 +40,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     onSuccess: (user) => {
       queryClient.setQueryData(['/api/user'], user);
+      // Persist to localStorage for getAuthHeaders() to work in other components
+      try {
+        localStorage.setItem('user_data', JSON.stringify(user));
+        // Using a mock token since the server currently relies on sessions
+        localStorage.setItem('auth_token', `mock-token-${user.id}`);
+      } catch (e) {
+        console.warn('Failed to save auth data to localStorage:', e);
+      }
       toast({ title: 'Welcome back!', description: `Signed in as ${user.name}` });
     },
     onError: (error: Error) => {
@@ -62,6 +70,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     onSuccess: (user) => {
       queryClient.setQueryData(['/api/user'], user);
+      // Persist to localStorage
+      try {
+        localStorage.setItem('user_data', JSON.stringify(user));
+        localStorage.setItem('auth_token', `mock-token-${user.id}`);
+      } catch (e) {
+        console.warn('Failed to save auth data to localStorage:', e);
+      }
       toast({ title: 'Account created', description: 'You have been registered successfully.' });
     },
     onError: (error: Error) => {
@@ -75,6 +90,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     onSuccess: () => {
       queryClient.setQueryData(['/api/user'], null);
+      // Clear localStorage
+      try {
+        localStorage.removeItem('user_data');
+        localStorage.removeItem('auth_token');
+      } catch (e) {
+        // Ignore
+      }
       toast({ title: 'Signed out', description: 'Session ended safely.' });
     }
   });
