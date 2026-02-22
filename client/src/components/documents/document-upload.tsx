@@ -248,11 +248,31 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
       toast({ title: 'Error', description: 'File size must be less than 5MB', variant: 'destructive' });
       return false;
     }
-    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      toast({ title: 'Error', description: 'Only PDF, JPEG, and PNG files are allowed', variant: 'destructive' });
+
+    const allowedTypes = [
+      'application/pdf',
+      'image/jpeg',
+      'image/png',
+      'image/jpg',
+      'image/webp',
+      'image/heic',
+      'image/heif'
+    ];
+
+    // Fallback: check file extension if MIME type is missing or generic
+    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.heic'];
+    const fileName = file.name?.toLowerCase() || '';
+    const hasAllowedExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+
+    if (!allowedTypes.includes(file.type) && !hasAllowedExtension) {
+      toast({
+        title: 'Error',
+        description: `Only PDF, JPEG, and PNG files are allowed.`,
+        variant: 'destructive'
+      });
       return false;
     }
+
     setSelectedFile(file);
     return true;
   }, [toast]);
