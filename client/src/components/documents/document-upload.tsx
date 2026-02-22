@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -243,7 +243,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
     }
   };
 
-  const validateAndSetFile = (file: File) => {
+  const validateAndSetFile = useCallback((file: File) => {
     if (file.size > 5 * 1024 * 1024) {
       toast({ title: 'Error', description: 'File size must be less than 5MB', variant: 'destructive' });
       return false;
@@ -255,7 +255,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
     }
     setSelectedFile(file);
     return true;
-  };
+  }, [toast]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -279,15 +279,40 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
   // Handle global paste events
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
-      // Only handle if we don't already have a file selected/in progress
-      // and if the user isn't focused on an input requiring text paste
+      // Don't intercept if user is in a text input or textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
+        // If it's an input, only intercept if there's actually a file/image
+        // being pasted (not just text)
+        const hasFiles = e.clipboardData?.files && e.clipboardData.files.length > 0;
+        const hasImageData = Array.from(e.clipboardData?.items || []).some(item => item.type.startsWith('image/'));
+
+        if (!hasFiles && !hasImageData) return;
+      }
+
       if (document?.filePath && !showReplaceUpload) return;
 
+      // Try e.clipboardData.files first
       const pastedFiles = e.clipboardData?.files;
       if (pastedFiles && pastedFiles.length > 0) {
-        e.preventDefault(); // Prevent default paste behavior
-        const file = pastedFiles[0];
-        validateAndSetFile(file);
+        e.preventDefault();
+        validateAndSetFile(pastedFiles[0]);
+        return;
+      }
+
+      // Fallback to e.clipboardData.items for screenshots/images
+      const items = e.clipboardData?.items;
+      if (items) {
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            const file = items[i].getAsFile();
+            if (file) {
+              e.preventDefault();
+              validateAndSetFile(file);
+              break;
+            }
+          }
+        }
       }
     };
 
