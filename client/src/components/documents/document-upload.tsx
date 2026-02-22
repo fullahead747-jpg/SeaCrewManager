@@ -244,30 +244,27 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
   };
 
   const validateAndSetFile = useCallback((file: File) => {
+    // Debug logging to help identify file types being rejected
+    console.log(`Validating file: name="${file.name}", type="${file.type}", size=${file.size}`);
+
     if (file.size > 5 * 1024 * 1024) {
       toast({ title: 'Error', description: 'File size must be less than 5MB', variant: 'destructive' });
       return false;
     }
 
-    const allowedTypes = [
-      'application/pdf',
-      'image/jpeg',
-      'image/png',
-      'image/jpg',
-      'image/webp',
-      'image/heic',
-      'image/heif'
-    ];
+    const isPdf = file.type === 'application/pdf';
+    const isImage = file.type.startsWith('image/');
 
     // Fallback: check file extension if MIME type is missing or generic
-    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.heic'];
+    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.heic', '.webp'];
     const fileName = file.name?.toLowerCase() || '';
     const hasAllowedExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
 
-    if (!allowedTypes.includes(file.type) && !hasAllowedExtension) {
+    if (!isPdf && !isImage && !hasAllowedExtension) {
+      console.warn(`File rejected: name="${file.name}", type="${file.type}"`);
       toast({
         title: 'Error',
-        description: `Only PDF, JPEG, and PNG files are allowed.`,
+        description: `Only PDF, JPEG, and PNG files are allowed. (Received: ${file.type || 'unknown type'})`,
         variant: 'destructive'
       });
       return false;
