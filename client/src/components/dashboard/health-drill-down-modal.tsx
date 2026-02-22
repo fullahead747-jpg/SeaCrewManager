@@ -724,6 +724,7 @@ const HealthDrillDownModal = memo(({
                                                 onViewAOA={handleViewAOAClick}
                                                 onSignOff={handleSignOffClick}
                                                 onSignOn={handleSignOnClick}
+                                                onDeleteDocument={handleDeleteDocument}
                                                 onDelete={handleDeleteCrewClick}
                                                 isMailPending={sendCrewEmailMutation.isPending}
                                             />

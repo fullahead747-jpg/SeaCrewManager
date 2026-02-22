@@ -1049,6 +1049,37 @@ const CrewTable = React.memo(() => {
     },
   });
 
+  // Document deletion mutation
+  const deleteDocumentMutation = useMutation({
+    mutationFn: async (documentId: string) => {
+      const response = await fetch(`/api/documents/${documentId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Failed to delete document' }));
+        throw new Error(errorData.message || 'Failed to delete document');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      toast({
+        title: 'Success',
+        description: 'Document file removed successfully. Document record preserved.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete document',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleSendEmailClick = (member: CrewMemberWithDetails) => {
     setSelectedCrewForEmail(member);
     setEmailDialogOpen(true);
@@ -1104,6 +1135,11 @@ const CrewTable = React.memo(() => {
         description: error.message || 'Failed to download documents',
         variant: 'destructive',
       });
+    }
+  };
+  const handleDeleteDocument = (docId: string, type: string) => {
+    if (confirm(`Are you sure you want to delete this ${type.toUpperCase()} document? This will remove the uploaded file but keep the document record.`)) {
+      deleteDocumentMutation.mutate(docId);
     }
   };
 
