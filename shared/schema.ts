@@ -64,6 +64,7 @@ export const contracts = pgTable("contracts", {
   contractType: text("contract_type").notNull().default('SEA'),
   contractNumber: text("contract_number"),
   filePath: text("file_path"),
+  lastHealthCategory: text("last_health_category"), // Track last notified health state (e.g., 'notDue', 'attention', 'upcoming', 'critical', 'overdue')
   createdAt: timestamp("created_at").defaultNow(),
 });
 

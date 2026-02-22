@@ -5,6 +5,7 @@ import { pdfGeneratorService } from './pdf-generator';
 import { weeklySummaryEmailService } from './weekly-summary-email-service';
 import { documentMonitoringService } from './document-monitoring-service';
 import { managedReportService } from './managed-report-service';
+import { contractHealthAlertService } from './contract-health-alert-service';
 
 interface ContractEvent {
   id: string;
@@ -124,7 +125,34 @@ export class BackgroundScheduler {
         }
       }
 
-      // 3. Daily initialization (if needed)
+      // 3. Contract Health Transition Alerts
+      // Every day at 10:00 AM
+      if (hour === 10) {
+        const alreadySent = await storage.hasNotificationBeenSentToday(
+          'contract-health-transitions',
+          'contract_expiry',
+          'email',
+          dateStr
+        );
+
+        if (!alreadySent) {
+          console.log('🔔 Triggering daily contract health transition check (10 AM)...');
+          await contractHealthAlertService.checkTransitions();
+
+          await storage.logNotification({
+            eventId: 'contract-health-transitions',
+            eventType: 'contract_expiry',
+            eventDate: now,
+            notificationDate: now,
+            daysBeforeEvent: 0,
+            provider: 'system',
+            success: true,
+            metadata: { hour }
+          });
+        }
+      }
+
+      // 4. Daily initialization (if needed)
       if (this.lastRunDate !== dateStr) {
         this.lastRunDate = dateStr;
       }
@@ -512,6 +540,7 @@ export class BackgroundScheduler {
       status: e.type === 'contract_expired' ? 'overdue' : 'critical'
     })) as any[];
 
+    let pdfBuffer: Buffer | null = null;
     try {
       pdfBuffer = await pdfGeneratorService.generateCalendarPDF(month, pdfEvents);
     } catch (error) {
@@ -555,4 +584,4 @@ export class BackgroundScheduler {
   }
 }
 
-export const backgroundScheduler = new BackgroundScheduler();
+export const backgroundScheduler = BackgroundScheduler.getInstance();
