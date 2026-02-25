@@ -174,7 +174,7 @@ export default function Settings() {
   });
 
   // Export Activity Report
-  const exportActivityReport = () => {
+  const exportActivityReport = async () => {
     try {
       if (!activityData || activityData.length === 0) {
         toast({
