@@ -42,8 +42,10 @@ import { smtpEmailService } from "./services/smtp-email-service";
 // Extend Express Request type to include user
 declare global {
   namespace Express {
-    interface Request {
-      user?: { id: string; role: string; username?: string };
+    interface User {
+      id: string;
+      role: string;
+      username?: string;
     }
   }
 }
@@ -2137,9 +2139,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`📥 Document view request with token: ${token.substring(0, 20)}...`);
 
       // Validate token and retrieve document
-      const document = await documentAccessService.getDocumentByToken(token);
+      const result = await documentAccessService.getTargetByToken(token);
 
-      if (!document) {
+      if (!result) {
         console.log('❌ Invalid or expired token');
         return res.status(404).send(`
           <!DOCTYPE html>
@@ -2194,19 +2196,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         `);
       }
 
-      console.log(`✅ Valid token - Serving document: ${document.type} - ${document.documentNumber}`);
+      console.log(`✅ Valid token - Serving ${result.type}: ${result.data.id}`);
+
+      const { type, data } = result;
+      const crewMemberId = data.crewMemberId;
+      const docType = type === 'document' ? data.type : 'CONTRACT';
+      const docNumber = type === 'document' ? (data.documentNumber || 'doc') : (data.contractNumber || 'doc');
+      const filePath = data.filePath;
 
       // Fetch crew member for name
-      const crewMember = await storage.getCrewMember(document.crewMemberId);
+      const crewMember = await storage.getCrewMember(crewMemberId);
       const crewName = crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : 'Crew';
 
       // Generate a descriptive filename
-      const extension = path.extname(document.filePath || '').toLowerCase() || '.pdf';
-      const fileName = `${document.type.toUpperCase()} - ${crewName} - ${document.documentNumber || 'doc'}${extension}`;
+      const extension = path.extname(filePath || '').toLowerCase() || '.pdf';
+      const fileName = `${docType.toUpperCase()} - ${crewName} - ${docNumber}${extension}`;
       console.log(`[VIEW-DOC] Generated filename: "${fileName}", Extension: "${extension}"`);
 
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(document.filePath!, res, 3600, fileName, 'inline');
+      await documentStorageService.downloadDocument(filePath!, res, 3600, fileName, 'inline');
     } catch (error) {
       console.error("❌ Error in secure document viewer:", error);
       if (!res.headersSent) {

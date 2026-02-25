@@ -1,5 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Mail, FileText, Loader2, Download, Eye } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { getAuthHeaders } from '@/lib/auth';
+import { formatDate } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,7 +15,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { apiRequest } from '@/lib/queryClient';
 import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
 
@@ -414,7 +419,12 @@ function ContractStatusDialogs({
                 id="email"
                 placeholder="email@example.com"
                 value={emailRecipient}
-                onChange={(e) => setEmailRecipientState(e.target.value)}
+                onKeyDown={(e: React.KeyboardEvent) => {
+                  if (e.key === 'Enter') {
+                    // Enter key logic
+                  }
+                }}
+                onChange={(e) => setEmailRecipient(e.target.value)}
               />
             </div>
           </div>
