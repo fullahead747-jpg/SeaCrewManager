@@ -2203,6 +2203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate a descriptive filename
       const extension = path.extname(document.filePath || '').toLowerCase() || '.pdf';
       const fileName = `${document.type.toUpperCase()} - ${crewName} - ${document.documentNumber || 'doc'}${extension}`;
+      console.log(`[VIEW-DOC] Generated filename: "${fileName}", Extension: "${extension}"`);
 
       const documentStorageService = new DocumentStorageService();
       await documentStorageService.downloadDocument(document.filePath!, res, 3600, fileName, 'inline');
@@ -2268,6 +2269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const crewName = crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : 'Crew';
       const extension = path.extname(document.filePath).toLowerCase() || '.pdf';
       const fileName = `${document.type.toUpperCase()} - ${crewName} - ${document.documentNumber || 'doc'}${extension}`;
+      console.log(`[VIEW-DOC-AUTH] Generated filename: "${fileName}", Extension: "${extension}"`);
 
       const documentStorageService = new DocumentStorageService();
       await documentStorageService.downloadDocument(document.filePath, res, 3600, fileName, 'inline');
@@ -2293,6 +2295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const crewName = crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : 'Crew';
       const extension = path.extname(document.filePath).toLowerCase() || '.pdf';
       const fileName = `${document.type.toUpperCase()} - ${crewName} - ${document.documentNumber || 'doc'}${extension}`;
+      console.log(`[DOWNLOAD-DOC-AUTH] Generated filename: "${fileName}", Extension: "${extension}"`);
 
       const documentStorageService = new DocumentStorageService();
       await documentStorageService.downloadDocument(document.filePath, res, 3600, fileName, 'attachment');
@@ -2672,6 +2675,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const extension = path.extname(contract.filePath).toLowerCase() || '.pdf';
       const crewName = crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : 'Crew';
       const fileName = `Seafarers Employment Agreement - ${crewName}${extension}`;
+      console.log(`[VIEW-CONTRACT] Generated filename: "${fileName}", Extension: "${extension}"`);
 
       const documentStorageService = new DocumentStorageService();
       await documentStorageService.downloadDocument(contract.filePath, res, 3600, fileName, 'inline');
@@ -2697,6 +2701,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const extension = path.extname(contract.filePath).toLowerCase() || '.pdf';
       const crewName = crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : 'Crew';
       const fileName = `Seafarers Employment Agreement - ${crewName}${extension}`;
+      console.log(`[DOWNLOAD-CONTRACT] Generated filename: "${fileName}", Extension: "${extension}"`);
 
       const documentStorageService = new DocumentStorageService();
       await documentStorageService.downloadDocument(contract.filePath, res, 3600, fileName, 'attachment');

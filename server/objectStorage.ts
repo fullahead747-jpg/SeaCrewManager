@@ -183,6 +183,8 @@ export class DocumentStorageService {
         res.setHeader(key, value);
       });
 
+      console.log(`[STORAGE-DOWNLOAD-CLOUD] Final headers set. Content-Disposition: "${res.getHeader('Content-Disposition')}"`);
+
       // Download the file content into memory (more robust for small/medium files on Replit)
       console.log(`[STORAGE-DOWNLOAD] Fetching buffer from storage for ${objectName}...`);
       const [buffer] = await objectFile.download();
