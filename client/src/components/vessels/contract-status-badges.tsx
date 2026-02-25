@@ -11,13 +11,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { useState } from 'react';
-import { getAuthHeaders } from '@/lib/auth';
-import { formatDate } from '@/lib/utils';
-import { FileText, Download, Mail, Eye, Loader2, Check } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { apiRequest } from '@/lib/queryClient';
+import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
 
 interface ContractStats {
   active: number;
@@ -329,7 +324,7 @@ function ContractStatusDialogs({
 
                                 if (tokenResponse.ok) {
                                   const { viewUrl } = await tokenResponse.json();
-                                  window.open(viewUrl, '_blank');
+                                  openSecureView(viewUrl);
                                   return;
                                 }
 
@@ -338,10 +333,7 @@ function ContractStatusDialogs({
                                   headers: getAuthHeaders(),
                                 });
                                 if (!response.ok) throw new Error('Failed to view contract');
-                                const blob = await response.blob();
-                                const url = window.URL.createObjectURL(blob);
-                                window.open(url, '_blank');
-                                setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                                await downloadFileFromResponse(response, `Contract_${contract.crewMember.lastName}.pdf`);
                               } catch (error) {
                                 console.error('Error viewing contract:', error);
                                 toast({ title: 'Error', description: 'Failed to open contract', variant: 'destructive' });
@@ -361,15 +353,7 @@ function ContractStatusDialogs({
                                   headers: getAuthHeaders(),
                                 });
                                 if (!response.ok) throw new Error('Failed to download contract');
-                                const blob = await response.blob();
-                                const url = window.URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = `Contract_${contract.crewMember.lastName}.pdf`;
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                                window.URL.revokeObjectURL(url);
+                                await downloadFileFromResponse(response, `Contract_${contract.crewMember.lastName}.pdf`);
                               } catch (error) {
                                 toast({ title: 'Error', description: 'Failed to download contract', variant: 'destructive' });
                               }

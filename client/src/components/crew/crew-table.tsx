@@ -46,6 +46,7 @@ import { formatDate } from '@/lib/utils';
 import { CrewDetailCard } from './crew-detail-card';
 import { CrewAvatar } from './crew-avatar';
 import DocumentUpload from '../documents/document-upload';
+import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
 
 // Helper function for calculating contract days remaining
 export const getContractDaysRemaining = (member: any) => {
@@ -663,7 +664,7 @@ const CrewTable = React.memo(() => {
 
         if (tokenResponse.ok) {
           const { viewUrl } = await tokenResponse.json();
-          window.open(viewUrl, '_blank');
+          openSecureView(viewUrl);
           return;
         }
 
@@ -673,10 +674,7 @@ const CrewTable = React.memo(() => {
         });
 
         if (response.ok) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          window.open(url, '_blank');
-          setTimeout(() => window.URL.revokeObjectURL(url), 100);
+          await downloadFileFromResponse(response, `AOA_${member.lastName}.pdf`);
           return;
         }
       } catch (error) {
@@ -698,10 +696,7 @@ const CrewTable = React.memo(() => {
         });
 
         if (response.ok) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          window.open(url, '_blank');
-          setTimeout(() => window.URL.revokeObjectURL(url), 100);
+          await downloadFileFromResponse(response, `AOA_${member.lastName}.pdf`);
           return;
         }
       } catch (error) {
@@ -1097,15 +1092,7 @@ const CrewTable = React.memo(() => {
         throw new Error(errorData.message || 'Failed to download documents');
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${crewName.replace(/\s+/g, '_')}_documents.zip`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      await downloadFileFromResponse(response, `${crewName.replace(/\s+/g, '_')}_documents.zip`);
 
       toast({
         title: 'Success',
@@ -1744,10 +1731,7 @@ const CrewTable = React.memo(() => {
                                   if (!response.ok) {
                                     throw new Error('Failed to fetch document');
                                   }
-                                  const blob = await response.blob();
-                                  const url = window.URL.createObjectURL(blob);
-                                  window.open(url, '_blank');
-                                  setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                                  await downloadFileFromResponse(response, `AOA_${selectedCrewMember.lastName}.pdf`);
                                 } catch (error) {
                                   toast({
                                     title: 'Error',
@@ -1790,11 +1774,7 @@ const CrewTable = React.memo(() => {
                                 if (!response.ok) {
                                   throw new Error('Failed to fetch document');
                                 }
-                                const blob = await response.blob();
-                                const url = window.URL.createObjectURL(blob);
-                                window.open(url, '_blank');
-                                // Clean up after a delay
-                                setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                                await downloadFileFromResponse(response, `Contract_${selectedCrewMember.lastName}.pdf`);
                               } catch (error) {
                                 toast({
                                   title: 'Error',

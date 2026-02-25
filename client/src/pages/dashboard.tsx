@@ -4,6 +4,7 @@ import { queryClient } from '@/lib/queryClient';
 import { Link } from 'wouter';
 import { getAuthHeaders } from '@/lib/auth';
 import { useAuth } from '@/contexts/auth-context';
+import { downloadFileFromResponse } from '@/lib/file-utils';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -182,15 +183,7 @@ export default function Dashboard() {
         headers: getAuthHeaders(),
       });
       if (!response.ok) throw new Error('Failed to generate PDF export');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `SeaCrewManager_FleetReport_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      await downloadFileFromResponse(response, `SeaCrewManager_FleetReport.pdf`);
 
       toast({
         title: 'Report Generated',

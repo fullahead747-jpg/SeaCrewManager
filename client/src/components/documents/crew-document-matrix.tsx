@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { downloadFileFromResponse } from '@/lib/file-utils';
 import { getAuthHeaders } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
@@ -187,15 +188,7 @@ export default function CrewDocumentMatrix() {
           throw new Error('Failed to fetch document');
         }
 
-        // Create a blob from the response
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-
-        // Open the blob URL in a new tab
-        window.open(blobUrl, '_blank');
-
-        // Clean up the blob URL after a short delay
-        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        await downloadFileFromResponse(response, `${document.type}_${document.documentNumber || document.id}.pdf`);
       } catch (error) {
         console.error('Error viewing document:', error);
         toast({
@@ -219,21 +212,7 @@ export default function CrewDocumentMatrix() {
           throw new Error('Failed to fetch document');
         }
 
-        // Create a blob from the response
-        const blob = await response.blob();
-        const blobUrl = URL.createObjectURL(blob);
-
-        // Create download link
-        const link = document.createElement('a');
-        link.href = blobUrl;
-        link.download = `${doc.type}_${doc.documentNumber}.pdf`;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        // Clean up the blob URL
-        URL.revokeObjectURL(blobUrl);
+        await downloadFileFromResponse(response, `${doc.type}_${doc.documentNumber || doc.id}.pdf`);
       } catch (error) {
         console.error('Error downloading document:', error);
         toast({

@@ -24,6 +24,7 @@ import {
   Calendar,
   FileText
 } from 'lucide-react';
+import { downloadFileFromResponse } from '@/lib/file-utils';
 
 export default function FleetManagement() {
   const { user } = useAuth();
@@ -106,7 +107,7 @@ export default function FleetManagement() {
     ? vessels
     : vessels?.filter((v: any) => v.status === statusFilter) || [];
 
-  const exportVesselList = () => {
+  const exportVesselList = async () => {
     try {
       if (!vessels || vessels.length === 0) {
         toast({
@@ -203,16 +204,15 @@ export default function FleetManagement() {
       // Add BOM for proper Excel UTF-8 handling
       const BOM = '\uFEFF';
       const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `Fleet-Management-Export-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+
+      const response = new Response(blob, {
+        headers: {
+          'Content-Type': 'text/csv;charset=utf-8;',
+          'Content-Disposition': `attachment; filename="Fleet-Management-Export-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv"`
+        }
+      });
+
+      await downloadFileFromResponse(response, `Fleet-Management-Export-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`);
 
       toast({
         title: 'Export Successful',

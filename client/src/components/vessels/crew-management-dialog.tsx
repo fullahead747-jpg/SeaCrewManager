@@ -47,6 +47,7 @@ import { z } from 'zod';
 import { CrewMemberWithDetails } from '@shared/schema';
 import type { VesselWithDetails } from './vessel-cards';
 import { formatDate } from '@/lib/utils';
+import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
 
 // Add crew form schema
 const addCrewSchema = z.object({
@@ -880,15 +881,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
         headers: getAuthHeaders(),
       });
       if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = window.document.createElement('a');
-      link.href = url;
-      link.download = `Documents_${crewName.replace(/\s+/g, '_')}.zip`;
-      window.document.body.appendChild(link);
-      link.click();
-      window.document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      await downloadFileFromResponse(response, `Documents_${crewName.replace(/\s+/g, '_')}.zip`);
     } catch (error) {
       toast({
         title: 'Download Failed',
@@ -940,7 +933,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
 
         if (tokenResponse.ok) {
           const { viewUrl } = await tokenResponse.json();
-          window.open(viewUrl, '_blank');
+          openSecureView(viewUrl);
           return;
         }
 
@@ -949,10 +942,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           headers: getAuthHeaders(),
         });
         if (!response.ok) throw new Error('Failed to fetch document');
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        setTimeout(() => window.URL.revokeObjectURL(url), 100);
+        await downloadFileFromResponse(response, `AOA_${m.lastName}.pdf`);
       } catch (error) {
         console.error('Error viewing AOA:', error);
         toast({
@@ -977,15 +967,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
         headers: getAuthHeaders(),
       });
       if (!response.ok) throw new Error('Failed to generate PDF export');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${vessel.name.replace(/\s+/g, '_')}_CrewReport_${format(new Date(), 'dd-MM-yyyy')}.pdf`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      await downloadFileFromResponse(response, `${vessel.name.replace(/\s+/g, '_')}_CrewReport.pdf`);
 
       toast({
         title: 'Report Generated',
@@ -1428,10 +1410,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                                 if (!response.ok) {
                                   throw new Error('Failed to fetch document');
                                 }
-                                const blob = await response.blob();
-                                const url = window.URL.createObjectURL(blob);
-                                window.open(url, '_blank');
-                                setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                                await downloadFileFromResponse(response, `AOA_${selectedCrewForView.firstName}_${selectedCrewForView.lastName}.pdf`);
                               } catch (error) {
                                 toast({
                                   title: 'Error',

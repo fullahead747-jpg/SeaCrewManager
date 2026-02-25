@@ -13,6 +13,7 @@ import { formatDate } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthHeaders } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
+import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -188,7 +189,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
 
                 if (tokenResponse.ok) {
                     const { viewUrl } = await tokenResponse.json();
-                    window.open(viewUrl, '_blank');
+                    openSecureView(viewUrl);
                     return;
                 }
                 // Fallback to old method if token generation fails (shouldn't happen for docs)
@@ -199,10 +200,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             const endpoint = doc.isContract ? `/api/contracts/${doc.docId}/view` : `/api/documents/${doc.docId}/view`;
             const response = await fetch(endpoint, { headers: getAuthHeaders() });
             if (!response.ok) throw new Error('Failed to fetch document');
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            window.open(url, '_blank');
-            setTimeout(() => window.URL.revokeObjectURL(url), 100);
+            await downloadFileFromResponse(response, `${doc.type.toUpperCase()}_${member.lastName}.pdf`);
         } catch (error) {
             console.error('Document viewer error:', error);
             toast({ title: 'Error', description: 'Failed to open document', variant: 'destructive' });

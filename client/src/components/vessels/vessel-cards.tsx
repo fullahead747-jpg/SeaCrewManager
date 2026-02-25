@@ -1,4 +1,5 @@
-import React, { useState, useMemo, memo } from 'react';
+import React, { useState, useMemo, memo, useEffect } from 'react';
+import { downloadFileFromResponse } from '@/lib/file-utils';
 import AddVesselForm from './add-vessel-form';
 import CrewManagementDialog from './crew-management-dialog';
 import VesselDetailsDialog from './vessel-details-dialog';
@@ -16,7 +17,7 @@ import { ContractStatusBadges } from './contract-status-badges';
 import ContractStatusDonut from './contract-status-donut';
 import HealthDrillDownModal from '../dashboard/health-drill-down-modal';
 import CrewStatsBadges from './crew-stats-badges';
-import { Ship, Users, Calendar, Flag, Hash, Plus, Download, Search, GripVertical, FileText } from 'lucide-react';
+import { Ship, Users, Calendar, Flag, Hash, Plus, Download, Search, GripVertical, FileText, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { Vessel } from '@shared/schema';
 import { apiRequest } from '@/lib/queryClient';
@@ -736,12 +737,15 @@ const VesselCards = React.memo(({ showUploadButton = true }: { showUploadButton?
 
       const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
       const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `Crew-Management-Complete-Export-${format(new Date(), 'yyyy-MM-dd-HHmm')}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+
+      const response = new Response(blob, {
+        headers: {
+          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          'Content-Disposition': `attachment; filename="Crew-Management-Complete-Export-${format(new Date(), 'yyyy-MM-dd-HHmm')}.xlsx"`
+        }
+      });
+
+      await downloadFileFromResponse(response, `Crew-Management-Complete-Export-${format(new Date(), 'yyyy-MM-dd-HHmm')}.xlsx`);
 
       toast({ title: 'Export Successful', description: `Complete data exported: ${crewMembers?.length || 0} crew, ${vessels.length} vessels` });
     } catch (error) {

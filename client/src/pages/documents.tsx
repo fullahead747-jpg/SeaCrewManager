@@ -19,6 +19,7 @@ import { FileText, Plus, Search, Download, Eye, Edit, Trash2 } from 'lucide-reac
 import { Document, CrewMemberWithDetails } from '@shared/schema';
 import { format } from 'date-fns';
 import { formatDate } from '@/lib/utils';
+import { downloadFileFromResponse } from '@/lib/file-utils';
 
 export default function Documents() {
   const { user } = useAuth();
@@ -381,16 +382,7 @@ export default function Documents() {
                                     const response = await fetch(`/api/documents/${document.id}/download`, {
                                       headers: getAuthHeaders(),
                                     });
-                                    if (!response.ok) throw new Error('Failed to download document');
-                                    const blob = await response.blob();
-                                    const url = window.URL.createObjectURL(blob);
-                                    const a = window.document.createElement('a');
-                                    a.href = url;
-                                    a.download = `${document.type}_${document.documentNumber}.pdf`;
-                                    window.document.body.appendChild(a);
-                                    a.click();
-                                    window.document.body.removeChild(a);
-                                    window.URL.revokeObjectURL(url);
+                                    await downloadFileFromResponse(response, `${document.type}_${document.documentNumber}.pdf`);
                                   } catch (error) {
                                     toast({ title: 'Error', description: 'Failed to download document', variant: 'destructive' });
                                   }
@@ -508,16 +500,7 @@ export default function Documents() {
                             const response = await fetch(`/api/documents/${selectedDocument.id}/download`, {
                               headers: getAuthHeaders(),
                             });
-                            if (!response.ok) throw new Error('Failed to download document');
-                            const blob = await response.blob();
-                            const url = window.URL.createObjectURL(blob);
-                            const a = window.document.createElement('a');
-                            a.href = url;
-                            a.download = `${selectedDocument.type}_${selectedDocument.documentNumber}.pdf`;
-                            window.document.body.appendChild(a);
-                            a.click();
-                            window.document.body.removeChild(a);
-                            window.URL.revokeObjectURL(url);
+                            await downloadFileFromResponse(response, `${selectedDocument.type}_${selectedDocument.documentNumber}.pdf`);
                           } catch (error) {
                             toast({ title: 'Error', description: 'Failed to download document', variant: 'destructive' });
                           }

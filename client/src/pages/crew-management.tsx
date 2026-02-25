@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { downloadFileFromResponse } from '@/lib/file-utils';
 import { useQuery } from '@tanstack/react-query';
 import { getAuthHeaders } from '@/lib/auth';
 import { useAuth } from '@/contexts/auth-context';
@@ -50,7 +51,7 @@ export default function CrewManagement() {
     },
   });
 
-  const exportCrewList = () => {
+  const exportCrewList = async () => {
     try {
       if (!crewMembers || crewMembers.length === 0) {
         toast({
@@ -148,13 +149,14 @@ export default function CrewManagement() {
       const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `CrewTrack-Pro-Export-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const response = new Response(blob, {
+          headers: {
+            'Content-Type': 'text/csv;charset=utf-8;',
+            'Content-Disposition': `attachment; filename="CrewTrack-Pro-Export-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv"`
+          }
+        });
+
+        await downloadFileFromResponse(response, `CrewTrack-Pro-Export-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`);
       }
 
       toast({

@@ -11,6 +11,7 @@ import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthHeaders } from '@/lib/auth';
+import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
 
 interface ContractSectionProps {
     crewMember?: any;
@@ -32,7 +33,7 @@ export function ContractSection({ crewMember }: ContractSectionProps) {
 
             if (tokenResponse.ok) {
                 const { viewUrl } = await tokenResponse.json();
-                window.open(viewUrl, '_blank');
+                openSecureView(viewUrl);
                 return;
             }
 
@@ -43,11 +44,7 @@ export function ContractSection({ crewMember }: ContractSectionProps) {
             if (!response.ok) {
                 throw new Error('Failed to fetch document');
             }
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            window.open(url, '_blank');
-            // Clean up after a delay
-            setTimeout(() => window.URL.revokeObjectURL(url), 100);
+            await downloadFileFromResponse(response, `AOA_${crewMember.firstName}_${crewMember.lastName}.pdf`);
         } catch (error) {
             console.error('Error viewing contract:', error);
             toast({

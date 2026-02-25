@@ -17,6 +17,7 @@ import { Upload, FileText, X, Calendar as CalendarIcon, Eye, AlertCircle } from 
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn, formatDate, formatDateForInput } from '@/lib/utils';
+import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
 import { z } from 'zod';
 
 const documentFormSchema = insertDocumentSchema.extend({
@@ -290,17 +291,14 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
 
       if (tokenResponse.ok) {
         const { viewUrl } = await tokenResponse.json();
-        window.open(viewUrl, '_blank');
+        openSecureView(viewUrl);
         return;
       }
 
       // Fallback
       const response = await fetch(`/api/documents/${document.id}/view`, { headers: getAuthHeaders() });
       if (!response.ok) throw new Error('Failed to load document');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+      await downloadFileFromResponse(response, `${document.type}_${document.documentNumber || document.id}.pdf`);
     } catch (error) {
       console.error('Document view error in upload:', error);
       toast({ title: 'Error', description: 'Failed to open document.', variant: 'destructive' });

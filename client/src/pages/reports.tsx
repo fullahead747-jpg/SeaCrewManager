@@ -25,6 +25,7 @@ import {
 import { format, subDays, startOfMonth, endOfMonth } from 'date-fns';
 import { formatDate, cn } from '@/lib/utils';
 import { ShieldAlert } from 'lucide-react';
+import { downloadFileFromResponse } from '@/lib/file-utils';
 
 interface VesselData {
   name: string;
@@ -208,16 +209,14 @@ export default function Reports() {
       }
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', filename);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+      const response = new Response(blob, {
+        headers: {
+          'Content-Type': 'text/csv;charset=utf-8;',
+          'Content-Disposition': `attachment; filename="${filename}"`
+        }
+      });
+
+      await downloadFileFromResponse(response, filename);
 
       toast({
         title: 'Export Successful',

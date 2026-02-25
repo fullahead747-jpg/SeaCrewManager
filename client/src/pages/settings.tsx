@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useTheme } from '@/contexts/theme-context';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { downloadFileFromResponse } from '@/lib/file-utils';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -239,16 +240,14 @@ export default function Settings() {
       const BOM = '\uFEFF';
       const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
 
-      const link = document.createElement('a');
-      if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `System-Activity-Report-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
+      const response = new Response(blob, {
+        headers: {
+          'Content-Type': 'text/csv;charset=utf-8;',
+          'Content-Disposition': `attachment; filename="System-Activity-Report-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv"`
+        }
+      });
+
+      await downloadFileFromResponse(response, `System-Activity-Report-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`);
 
       toast({
         title: 'Export Successful',

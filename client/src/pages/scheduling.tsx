@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { CrewDetailCard } from '@/components/crew/crew-detail-card';
 import EditCrewForm from '@/components/crew/edit-crew-form';
 import { CrewMemberWithDetails, Document } from '@shared/schema';
+import { downloadFileFromResponse } from '@/lib/file-utils';
 
 interface ContractEvent {
   id: string;
@@ -111,15 +112,7 @@ export default function Scheduling() {
         headers: getAuthHeaders(),
       });
       if (!response.ok) throw new Error('Download failed');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = window.document.createElement('a');
-      link.href = url;
-      link.download = `Documents_${crewName.replace(/\s+/g, '_')}.zip`;
-      window.document.body.appendChild(link);
-      link.click();
-      window.document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      await downloadFileFromResponse(response, `Documents_${crewName.replace(/\s+/g, '_')}.zip`);
     } catch (error) {
       toast({ title: 'Download Failed', description: 'Could not download documents zip.', variant: 'destructive' });
     }
@@ -896,10 +889,7 @@ export default function Scheduling() {
                       headers: getAuthHeaders(),
                     });
                     if (!response.ok) throw new Error('Failed to fetch document');
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    window.open(url, '_blank');
-                    setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                    await downloadFileFromResponse(response, `AOA_${m.firstName}_${m.lastName}.pdf`);
                   } catch (error) {
                     toast({ title: 'Error', description: 'Failed to open AOA document', variant: 'destructive' });
                   }

@@ -44,6 +44,8 @@ import {
     Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
+import { getAuthHeaders } from '@/lib/auth';
 
 interface SignOnWizardDialogProps {
     open: boolean;
@@ -315,34 +317,25 @@ export default function SignOnWizardDialog({
             // Use token-based viewing for documents
             const tokenResponse = await fetch(`/api/documents/${doc.id}/view-token`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
+                headers: getAuthHeaders(),
             });
 
             if (tokenResponse.ok) {
                 const { viewUrl } = await tokenResponse.json();
-                window.open(viewUrl, '_blank');
+                openSecureView(viewUrl);
                 return;
             }
 
             // Fallback
             const response = await fetch(`/api/documents/${doc.id}/view`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
+                headers: getAuthHeaders(),
             });
 
             if (!response.ok) {
                 throw new Error('Failed to fetch document');
             }
 
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            window.open(url, '_blank');
-
-            // Clean up after a delay
-            setTimeout(() => window.URL.revokeObjectURL(url), 100);
+            await downloadFileFromResponse(response, `${doc.type}_${doc.documentNumber || doc.id}.pdf`);
         } catch (error) {
             console.error('Error viewing document:', error);
             alert('Failed to open document. Please try again.');

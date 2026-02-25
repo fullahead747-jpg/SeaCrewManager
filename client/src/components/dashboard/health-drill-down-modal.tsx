@@ -28,6 +28,7 @@ import { CrewAvatar } from "@/components/crew/crew-avatar";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, LogIn, Trash2, Mail, Archive, Users, Printer } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { downloadFileFromResponse, openSecureView } from "@/lib/file-utils";
 
 interface HealthDrillDownModalProps {
     isOpen: boolean;
@@ -136,15 +137,7 @@ const HealthDrillDownModal = memo(({
                 headers: getAuthHeaders(),
             });
             if (!response.ok) throw new Error('Download failed');
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = window.document.createElement('a');
-            link.href = url;
-            link.download = `Documents_${crewName.replace(/\s+/g, '_')}.zip`;
-            window.document.body.appendChild(link);
-            link.click();
-            window.document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
+            await downloadFileFromResponse(response, `Documents_${crewName.replace(/\s+/g, '_')}.zip`);
         } catch (error) {
             toast({ title: 'Download Failed', description: 'Could not download documents zip.', variant: 'destructive' });
         }
@@ -588,7 +581,7 @@ const HealthDrillDownModal = memo(({
 
                 if (tokenResponse.ok) {
                     const { viewUrl } = await tokenResponse.json();
-                    window.open(viewUrl, '_blank');
+                    openSecureView(viewUrl);
                     return;
                 }
 
@@ -597,10 +590,7 @@ const HealthDrillDownModal = memo(({
                     headers: getAuthHeaders(),
                 });
                 if (!response.ok) throw new Error('Failed to fetch document');
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                window.open(url, '_blank');
-                setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                await downloadFileFromResponse(response, `AOA_${m.firstName}_${m.lastName}.pdf`);
             } catch (error) {
                 console.error('Error viewing AOA:', error);
                 toast({ title: 'Error', description: 'Failed to open AOA document', variant: 'destructive' });

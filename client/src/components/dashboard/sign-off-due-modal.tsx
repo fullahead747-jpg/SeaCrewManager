@@ -13,6 +13,7 @@ import { CrewDetailCard } from '@/components/crew/crew-detail-card';
 import { CrewAvatar } from "@/components/crew/crew-avatar";
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/lib/utils';
+import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
 import DocumentUpload from '@/components/documents/document-upload';
 import EditCrewForm from '@/components/crew/edit-crew-form';
 import SignOnWizardDialog from '@/components/crew/sign-on-wizard-dialog';
@@ -245,15 +246,7 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
         try {
             const res = await fetch(`/api/crew/${crewId}/documents/download`, { headers: getAuthHeaders() });
             if (!res.ok) throw new Error('Download failed');
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
-            const link = window.document.createElement('a');
-            link.href = url;
-            link.download = `Documents_${crewName.replace(/\s+/g, '_')}.zip`;
-            window.document.body.appendChild(link);
-            link.click();
-            window.document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
+            await downloadFileFromResponse(res, `Documents_${crewName.replace(/\s+/g, '_')}.zip`);
         } catch {
             toast({ title: 'Download Failed', description: 'Could not download documents zip.', variant: 'destructive' });
         }
@@ -270,17 +263,14 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
 
                 if (tokenResponse.ok) {
                     const { viewUrl } = await tokenResponse.json();
-                    window.open(viewUrl, '_blank');
+                    openSecureView(viewUrl);
                     return;
                 }
 
                 // Fallback to traditional method if token fails
                 const res = await fetch(`/api/contracts/${m.activeContract.id}/view`, { headers: getAuthHeaders() });
                 if (!res.ok) throw new Error('Failed to fetch document');
-                const blob = await res.blob();
-                const url = window.URL.createObjectURL(blob);
-                window.open(url, '_blank');
-                setTimeout(() => window.URL.revokeObjectURL(url), 100);
+                await downloadFileFromResponse(res, `AOA_${m.firstName}_${m.lastName}.pdf`);
             } catch (error) {
                 console.error('Error viewing AOA:', error);
                 toast({ title: 'Error', description: 'Failed to open AOA document', variant: 'destructive' });

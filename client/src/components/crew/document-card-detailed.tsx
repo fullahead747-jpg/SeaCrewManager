@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { FileText, Heart, Ship, Award, Eye, Upload, Edit, Trash2, Download, Mail, Camera, Users } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getAuthHeaders } from '@/lib/auth';
+import { downloadFileFromResponse } from '@/lib/file-utils';
 import type { Document } from '@shared/schema';
 
 interface DocumentCardDetailedProps {
@@ -212,20 +213,9 @@ export function DocumentCardDetailed({ document, documentType, allDocuments, onV
                                     if (document?.id) {
                                         try {
                                             const response = await fetch(`/api/documents/${document.id}/download`, {
-                                                headers: {
-                                                    ...getAuthHeaders(),
-                                                }
+                                                headers: getAuthHeaders()
                                             });
-                                            if (!response.ok) throw new Error('Failed to download');
-                                            const blob = await response.blob();
-                                            const url = window.URL.createObjectURL(blob);
-                                            const a = window.document.createElement('a');
-                                            a.href = url;
-                                            a.download = `${document.type}_${document.documentNumber || document.id}.pdf`;
-                                            window.document.body.appendChild(a);
-                                            a.click();
-                                            window.document.body.removeChild(a);
-                                            window.URL.revokeObjectURL(url);
+                                            await downloadFileFromResponse(response, `${document.type}_${document.documentNumber || document.id}.pdf`);
                                         } catch (error) {
                                             console.error('Download error:', error);
                                         }

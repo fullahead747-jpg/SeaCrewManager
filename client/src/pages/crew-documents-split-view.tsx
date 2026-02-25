@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import DocumentUpload from '@/components/documents/document-upload';
 import type { CrewMemberWithDetails, Document } from '@shared/schema';
+import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
 
 export default function CrewDocumentsSplitView() {
     const [location, setLocation] = useLocation();
@@ -120,7 +121,7 @@ export default function CrewDocumentsSplitView() {
 
             if (tokenResponse.ok) {
                 const { viewUrl } = await tokenResponse.json();
-                window.open(viewUrl, '_blank');
+                openSecureView(viewUrl);
                 return;
             }
 
@@ -129,11 +130,7 @@ export default function CrewDocumentsSplitView() {
                 headers: getAuthHeaders(),
             });
             if (!response.ok) throw new Error('Failed to load document');
-            const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            window.open(url, '_blank');
-            // Clean up the URL after a delay
-            setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+            await downloadFileFromResponse(response, `${doc.type}_${doc.documentNumber || doc.id}.pdf`);
         } catch (error) {
             console.error('Document view error:', error);
             toast({
@@ -190,18 +187,7 @@ export default function CrewDocumentsSplitView() {
                     });
                     if (!response.ok) throw new Error(`Failed to download ${doc.type}`);
 
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `${doc.type}_${doc.documentNumber || 'doc'}.pdf`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-
-                    // Clean up
-                    setTimeout(() => window.URL.revokeObjectURL(url), 10000);
+                    await downloadFileFromResponse(response, `${doc.type}_${doc.documentNumber || 'doc'}.pdf`);
                 } catch (error) {
                     console.error(`Failed to download document ${doc.id}:`, error);
                 }
