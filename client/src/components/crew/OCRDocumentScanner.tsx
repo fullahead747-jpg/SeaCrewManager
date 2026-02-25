@@ -9,59 +9,63 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useExtractedRecords, ExtractedCrewRecord } from "@/contexts/extracted-records-context";
 
 interface ExtractedCrewData {
-  name?: string;
-  position?: string;
+  // Identity
+  firstName?: string;
+  lastName?: string;
+  rank?: string;
   nationality?: string;
   dateOfBirth?: string;
-  passportNumber?: string;
-  seamansBookNumber?: string;
-  cdcNumber?: string;
   phoneNumber?: string;
   email?: string;
-  emergencyContact?: string;
-  emergencyPhone?: string;
-  contractStartDate?: string;
-  contractEndDate?: string;
-  joinDate?: string;
-  leaveDate?: string;
-  vessel?: string;
-  salary?: string;
-  shipOwnerName?: string;
-  shipOwnerContactPerson?: string;
-  shipOwnerPostalAddress?: string;
-  seafarerName?: string;
-  seafarerRank?: string;
-  capacityRankEmployed?: string;
-  seafarerNationality?: string;
-  seafarerDatePlaceOfBirth?: string;
   seafarerIndosNumber?: string;
-  seafarerPostalAddress?: string;
-  seafarerEmail?: string;
-  seafarerMobile?: string;
-  cdcPlaceOfIssue?: string;
-  cdcIssueDate?: string;
-  cdcExpiryDate?: string;
+
+  // Emergency Contact (Next of Kin)
+  emergencyContactName?: string;
+  emergencyContactRelationship?: string;
+  emergencyContactPhone?: string;
+  emergencyContactEmail?: string;
+  emergencyContactPostalAddress?: string;
+
+  // Documents - Passport
+  passportNumber?: string;
   passportPlaceOfIssue?: string;
   passportIssueDate?: string;
   passportExpiryDate?: string;
-  nokName?: string;
-  nokRelationship?: string;
-  nokEmail?: string;
-  nokTelephone?: string;
-  nokPostalAddress?: string;
+
+  // Documents - CDC
+  cdcNumber?: string;
+  cdcPlaceOfIssue?: string;
+  cdcIssueDate?: string;
+  cdcExpiryDate?: string;
+
+  // Documents - COC
   cocGradeNo?: string;
   cocPlaceOfIssue?: string;
   cocIssueDate?: string;
   cocExpiryDate?: string;
+
+  // Documents - Medical
   medicalIssuingAuthority?: string;
   medicalApprovalNo?: string;
   medicalIssueDate?: string;
   medicalExpiryDate?: string;
-  shipName?: string;
+
+  // Employment
+  contractStartDate?: string;
   engagementPeriodMonths?: number;
+
+  // Metadata
   recordId?: string;
   displayName?: string;
   scannedFile?: File;
+  rawText?: string;
+  serviceOrigin?: string;
+
+  // Legacy/Alias support (internal)
+  name?: string;
+  position?: string;
+  seafarerName?: string;
+  seafarerRank?: string;
 }
 
 interface OCRDocumentScannerProps {
@@ -91,7 +95,7 @@ export function OCRDocumentScanner({ onDataExtracted, className, mode = 'crew' }
     if (!file) return;
 
     if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
-      setError("Please select an image file (JPG, PNG) or PDF document.");
+      setError("Unsupported format. Please upload a JPG, PNG, WebP, or PDF file.");
       return;
     }
 
@@ -111,7 +115,7 @@ export function OCRDocumentScanner({ onDataExtracted, className, mode = 'crew' }
     if (!file) return;
 
     if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
-      setError("Please select an image file (JPG, PNG) or PDF document.");
+      setError("Unsupported format. Please drop a JPG, PNG, WebP, or PDF file.");
       return;
     }
 
@@ -147,7 +151,7 @@ export function OCRDocumentScanner({ onDataExtracted, className, mode = 'crew' }
 
         // Validate file type
         if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
-          setError("Please paste an image file (JPG, PNG) or PDF document.");
+          setError("Unsupported format. Please paste a JPG, PNG, WebP, or PDF file.");
           return;
         }
 
@@ -363,38 +367,29 @@ export function OCRDocumentScanner({ onDataExtracted, className, mode = 'crew' }
   };
 
   const filterExtractedData = (data: ExtractedCrewData): { key: string; value: string }[] => {
+    // List of keys we actually want to display in the UI for review
+    const displayKeys = [
+      'firstName', 'lastName', 'rank', 'nationality', 'dateOfBirth', 'phoneNumber', 'email', 'seafarerIndosNumber',
+      'emergencyContactName', 'emergencyContactRelationship', 'emergencyContactPhone', 'emergencyContactEmail', 'emergencyContactPostalAddress',
+      'passportNumber', 'passportPlaceOfIssue', 'passportIssueDate', 'passportExpiryDate',
+      'cdcNumber', 'cdcPlaceOfIssue', 'cdcIssueDate', 'cdcExpiryDate',
+      'cocGradeNo', 'cocPlaceOfIssue', 'cocIssueDate', 'cocExpiryDate',
+      'medicalIssuingAuthority', 'medicalApprovalNo', 'medicalIssueDate', 'medicalExpiryDate',
+      'contractStartDate'
+    ];
+
     const entries = Object.entries(data).filter(([key, value]) => {
       if (!value) return false;
-      if (key === 'shipOwnerPostalAddress') return false;
-      if (key === 'scannedFile') return false;
-      if (key === 'recordId') return false;
-      if (key === 'displayName') return false;
-
-      switch (mode) {
-        case 'shipOwner':
-          return key.startsWith('shipOwner');
-        case 'seafarer':
-          return key.startsWith('seafarer') || key.startsWith('cdc') || key.startsWith('passport') || key.startsWith('nok') || key.startsWith('coc') || key.startsWith('medical') || key.startsWith('ship') || key === 'capacityRankEmployed';
-        default:
-          return true;
-      }
+      return displayKeys.includes(key);
     });
 
     const result = entries.map(([key, value]) => ({
       key,
-      value: value as string
+      value: value.toString()
     }));
 
-    result.sort((a, b) => {
-      const priorityOrder = ['seafarerName', 'seafarerRank', 'capacityRankEmployed', 'seafarerNationality'];
-      const aIndex = priorityOrder.indexOf(a.key);
-      const bIndex = priorityOrder.indexOf(b.key);
-
-      if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-      if (aIndex !== -1) return -1;
-      if (bIndex !== -1) return 1;
-      return 0;
-    });
+    // Sort according to displayKeys order
+    result.sort((a, b) => displayKeys.indexOf(a.key) - displayKeys.indexOf(b.key));
 
     return result;
   };
@@ -602,6 +597,7 @@ export function OCRDocumentScanner({ onDataExtracted, className, mode = 'crew' }
                           <span className="px-2 py-1 rounded-full bg-muted/50">JPG</span>
                           <span className="px-2 py-1 rounded-full bg-muted/50">PNG</span>
                           <span className="px-2 py-1 rounded-full bg-muted/50">PDF</span>
+                          <span className="px-2 py-1 rounded-full bg-muted/50">WebP</span>
                           <span className="text-muted-foreground/50">•</span>
                           <span>Max 10MB</span>
                         </div>

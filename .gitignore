@@ -10,6 +10,7 @@ vite.config.ts.*
 *.log
 .git_backup
 uploads/
+baileys_auth/
 baileys_auth_info/
 tokens/
 *.session
@@ -17,3 +18,14 @@ tokens/
 .temp/
 temp/
 seacrew-pdf-conversion/
+google-credentials.json
+test*.js
+test*.ts
+test*.mjs
+test*.tsx
+ocr_debug.txt
+debug_output.txt
+server_out.log
+server_log.txt
+tsc_output.txt
+*.log

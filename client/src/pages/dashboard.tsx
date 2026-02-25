@@ -9,7 +9,6 @@ import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import StatsCard from '@/components/dashboard/stats-card';
 const VesselCards = memo(lazy(() => import('@/components/vessels/vessel-cards')));
-import ChatWidget from '@/components/dashboard/chat-widget';
 import SignOffDueModal from '@/components/dashboard/sign-off-due-modal';
 import ContractExpiryTimelineModal from '@/components/dashboard/contract-expiry-timeline-modal';
 import InteractiveHealthCard, { HealthDataPoint } from '@/components/dashboard/interactive-health-card';

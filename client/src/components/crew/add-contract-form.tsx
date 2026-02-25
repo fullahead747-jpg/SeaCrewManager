@@ -102,14 +102,33 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
   useEffect(() => {
     if (contractStartDate && contractDays && contractDays > 0) {
       const start = new Date(contractStartDate);
-      const end = new Date(start);
-      end.setDate(start.getDate() + contractDays);
-      setContractEndDate(end.toISOString().split('T')[0]);
-      setContractEndDate('');
+      if (!isNaN(start.getTime())) {
+        const end = new Date(start);
+        end.setDate(start.getDate() + (contractDays as number));
+        setContractEndDate(end.toISOString().split('T')[0]);
+      }
     }
   }, [contractStartDate, contractDays]);
 
 
+
+  // Convert DD-MMM-YYYY (e.g. 04-JUL-2017) to YYYY-MM-DD for date inputs
+  const convertDateToISO = (dateStr: string): string => {
+    if (!dateStr) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    const months: Record<string, string> = {
+      'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04',
+      'MAY': '05', 'JUN': '06', 'JUL': '07', 'AUG': '08',
+      'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
+    };
+    const match = dateStr.match(/(\d{1,2})[-/. ]([A-Z]{3})[-/. ](\d{4})/i);
+    if (match) {
+      const [, day, month, year] = match;
+      const m = months[month.toUpperCase()];
+      if (m) return `${year}-${m}-${day.padStart(2, '0')}`;
+    }
+    return dateStr;
+  };
 
   const resetForm = () => {
     setSeafarerName('');
@@ -198,10 +217,10 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       setCdcPlaceOfIssue(extractedData.cdcPlaceOfIssue);
     }
     if (extractedData.cdcIssueDate) {
-      setCdcIssueDate(extractedData.cdcIssueDate);
+      setCdcIssueDate(convertDateToISO(extractedData.cdcIssueDate));
     }
     if (extractedData.cdcExpiryDate) {
-      setCdcExpiryDate(extractedData.cdcExpiryDate);
+      setCdcExpiryDate(convertDateToISO(extractedData.cdcExpiryDate));
     }
     if (extractedData.passportNumber) {
       setPassportNumber(extractedData.passportNumber);
@@ -210,10 +229,10 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       setPassportPlaceOfIssue(extractedData.passportPlaceOfIssue);
     }
     if (extractedData.passportIssueDate) {
-      setPassportIssueDate(extractedData.passportIssueDate);
+      setPassportIssueDate(convertDateToISO(extractedData.passportIssueDate));
     }
     if (extractedData.passportExpiryDate) {
-      setPassportExpiryDate(extractedData.passportExpiryDate);
+      setPassportExpiryDate(convertDateToISO(extractedData.passportExpiryDate));
     }
     if (extractedData.nokName) {
       setNokName(extractedData.nokName);
@@ -237,10 +256,10 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       setCocPlaceOfIssue(extractedData.cocPlaceOfIssue);
     }
     if (extractedData.cocIssueDate) {
-      setCocIssueDate(extractedData.cocIssueDate);
+      setCocIssueDate(convertDateToISO(extractedData.cocIssueDate));
     }
     if (extractedData.cocExpiryDate) {
-      setCocExpiryDate(extractedData.cocExpiryDate);
+      setCocExpiryDate(convertDateToISO(extractedData.cocExpiryDate));
     }
     if (extractedData.medicalIssuingAuthority) {
       setMedicalIssuingAuthority(extractedData.medicalIssuingAuthority);
@@ -249,14 +268,19 @@ export default function AddContractForm({ open, onOpenChange }: AddContractFormP
       setMedicalApprovalNo(extractedData.medicalApprovalNo);
     }
     if (extractedData.medicalIssueDate) {
-      setMedicalIssueDate(extractedData.medicalIssueDate);
+      setMedicalIssueDate(convertDateToISO(extractedData.medicalIssueDate));
     }
     if (extractedData.medicalExpiryDate) {
-      setMedicalExpiryDate(extractedData.medicalExpiryDate);
+      setMedicalExpiryDate(convertDateToISO(extractedData.medicalExpiryDate));
     }
     if (extractedData.shipName) {
       setScannedShipName(extractedData.shipName);
     }
+    if (extractedData.joinDate || extractedData.contractStartDate) {
+      const rawDate = extractedData.joinDate || extractedData.contractStartDate;
+      setContractStartDate(convertDateToISO(rawDate));
+    }
+
     if (extractedData.engagementPeriodMonths) {
       // Convert months to days (30 days per month)
       const days = extractedData.engagementPeriodMonths * 30;

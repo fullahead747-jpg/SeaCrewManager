@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { storage } from "./storage";
-import { geminiOcrService } from "./geminiOcrService";
+import { googleOcrService } from "./googleOcrService";
 import { db } from "./db";
 import { activityLogs } from "@shared/schema";
 
@@ -20,7 +20,7 @@ router.post("/upload", authenticate, async (req, res) => {
         }
 
         console.log(`[ATTENDANCE] Processing upload: ${filename}`);
-        const data = await geminiOcrService.extractAttendanceData(base64Data, filename);
+        const data = await googleOcrService.extractAttendanceData(base64Data, filename);
 
         // Process matches
         const crewWithMatches = await Promise.all(data.crew.map(async (row) => {

@@ -136,76 +136,87 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
 
   const convertDateToISO = (dateStr: string): string => {
     if (!dateStr) return '';
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+    const cleanStr = dateStr.trim().replace(/\s+/g, '-').toUpperCase();
+
+    // Already in YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) return cleanStr;
+
     const months: { [key: string]: string } = {
       'JAN': '01', 'FEB': '02', 'MAR': '03', 'APR': '04',
       'MAY': '05', 'JUN': '06', 'JUL': '07', 'AUG': '08',
       'SEP': '09', 'OCT': '10', 'NOV': '11', 'DEC': '12'
     };
-    const match = dateStr.match(/(\d{2})-([A-Z]{3})-(\d{4})/i);
-    if (match) {
-      const [, day, month, year] = match;
+
+    // Format: DD-MMM-YYYY or DD MMM YYYY or DD/MMM/YYYY
+    const mmmMatch = cleanStr.match(/(\d{1,2})[-/. ]([A-Z]{3})[-/. ](\d{4})/i);
+    if (mmmMatch) {
+      const [, day, month, year] = mmmMatch;
       const monthNum = months[month.toUpperCase()];
-      if (monthNum) return `${year}-${monthNum}-${day}`;
+      if (monthNum) return `${year}-${monthNum}-${day.padStart(2, '0')}`;
     }
+
+    // Format: DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+    const dmyMatch = cleanStr.match(/(\d{1,2})[-/. ](\d{1,2})[-/. ](\d{4})/);
+    if (dmyMatch) {
+      const [, day, month, year] = dmyMatch;
+      // Heuristic: assume DD/MM/YYYY for seafaring docs if month <= 12
+      const m = parseInt(month, 10);
+      const d = parseInt(day, 10);
+      if (m <= 12) {
+        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      } else if (d <= 12) {
+        // Fallback for MM/DD/YYYY
+        return `${year}-${day.padStart(2, '0')}-${month.padStart(2, '0')}`;
+      }
+    }
+
     return dateStr;
   };
 
   const handleOCRDataExtracted = (extractedData: any) => {
-    const setValueOptions = { shouldDirty: true, shouldTouch: true, shouldValidate: false };
+    const setValueOptions = { shouldDirty: true, shouldTouch: true, shouldValidate: true };
 
-    if (extractedData.seafarerName || extractedData.name) {
-      const fullName = extractedData.seafarerName || extractedData.name || '';
-      const nameParts = fullName.trim().split(/\s+/);
-      if (nameParts.length >= 2) {
-        form.setValue('firstName', nameParts.slice(0, -1).join(' '), setValueOptions);
-        form.setValue('lastName', nameParts[nameParts.length - 1], setValueOptions);
-      } else if (nameParts.length === 1) {
-        form.setValue('firstName', nameParts[0], setValueOptions);
-      }
-    }
+    // Standard Identity Fields
+    if (extractedData.firstName) form.setValue('firstName', extractedData.firstName, setValueOptions);
+    if (extractedData.lastName) form.setValue('lastName', extractedData.lastName, setValueOptions);
+    if (extractedData.nationality) form.setValue('nationality', extractedData.nationality, setValueOptions);
+    if (extractedData.dateOfBirth) form.setValue('dateOfBirth', convertDateToISO(extractedData.dateOfBirth), setValueOptions);
+    if (extractedData.rank) form.setValue('rank', extractedData.rank, setValueOptions);
+    if (extractedData.phoneNumber) form.setValue('phoneNumber', extractedData.phoneNumber, setValueOptions);
+    if (extractedData.email) form.setValue('email', extractedData.email, setValueOptions);
 
-    if (extractedData.seafarerNationality) {
-      form.setValue('nationality', extractedData.seafarerNationality, setValueOptions);
-    }
+    // Emergency Contact
+    if (extractedData.emergencyContactName) form.setValue('emergencyContactName', extractedData.emergencyContactName, setValueOptions);
+    if (extractedData.emergencyContactRelationship) form.setValue('emergencyContactRelationship', extractedData.emergencyContactRelationship, setValueOptions);
+    if (extractedData.emergencyContactPhone) form.setValue('emergencyContactPhone', extractedData.emergencyContactPhone, setValueOptions);
+    if (extractedData.emergencyContactEmail) form.setValue('emergencyContactEmail', extractedData.emergencyContactEmail, setValueOptions);
+    if (extractedData.emergencyContactPostalAddress) form.setValue('emergencyContactPostalAddress', extractedData.emergencyContactPostalAddress, setValueOptions);
 
-    if (extractedData.seafarerDatePlaceOfBirth) {
-      const dobMatch = extractedData.seafarerDatePlaceOfBirth.match(/(\d{2}-[A-Z]{3}-\d{4})/i);
-      if (dobMatch) {
-        form.setValue('dateOfBirth', convertDateToISO(dobMatch[1]), setValueOptions);
-      }
-    }
-
-    if (extractedData.seafarerMobile) {
-      form.setValue('phoneNumber', extractedData.seafarerMobile, setValueOptions);
-    }
-
+    // Passport
     if (extractedData.passportNumber) form.setValue('passportNumber', extractedData.passportNumber, setValueOptions);
     if (extractedData.passportPlaceOfIssue) form.setValue('passportPlaceOfIssue', extractedData.passportPlaceOfIssue, setValueOptions);
     if (extractedData.passportIssueDate) form.setValue('passportIssueDate', convertDateToISO(extractedData.passportIssueDate), setValueOptions);
     if (extractedData.passportExpiryDate) form.setValue('passportExpiryDate', convertDateToISO(extractedData.passportExpiryDate), setValueOptions);
 
+    // CDC
     if (extractedData.cdcNumber) form.setValue('cdcNumber', extractedData.cdcNumber, setValueOptions);
     if (extractedData.cdcPlaceOfIssue) form.setValue('cdcPlaceOfIssue', extractedData.cdcPlaceOfIssue, setValueOptions);
     if (extractedData.cdcIssueDate) form.setValue('cdcIssueDate', convertDateToISO(extractedData.cdcIssueDate), setValueOptions);
     if (extractedData.cdcExpiryDate) form.setValue('cdcExpiryDate', convertDateToISO(extractedData.cdcExpiryDate), setValueOptions);
 
+    // COC
     if (extractedData.cocGradeNo) form.setValue('cocGradeNo', extractedData.cocGradeNo, setValueOptions);
     if (extractedData.cocPlaceOfIssue) form.setValue('cocPlaceOfIssue', extractedData.cocPlaceOfIssue, setValueOptions);
     if (extractedData.cocIssueDate) form.setValue('cocIssueDate', convertDateToISO(extractedData.cocIssueDate), setValueOptions);
     if (extractedData.cocExpiryDate) form.setValue('cocExpiryDate', convertDateToISO(extractedData.cocExpiryDate), setValueOptions);
 
+    // Medical
     if (extractedData.medicalIssuingAuthority) form.setValue('medicalIssuingAuthority', extractedData.medicalIssuingAuthority, setValueOptions);
     if (extractedData.medicalApprovalNo) form.setValue('medicalApprovalNo', extractedData.medicalApprovalNo, setValueOptions);
     if (extractedData.medicalIssueDate) form.setValue('medicalIssueDate', convertDateToISO(extractedData.medicalIssueDate), setValueOptions);
     if (extractedData.medicalExpiryDate) form.setValue('medicalExpiryDate', convertDateToISO(extractedData.medicalExpiryDate), setValueOptions);
 
-    if (extractedData.nokName) form.setValue('emergencyContactName', extractedData.nokName, setValueOptions);
-    if (extractedData.nokRelationship) form.setValue('emergencyContactRelationship', extractedData.nokRelationship, setValueOptions);
-    if (extractedData.nokTelephone) form.setValue('emergencyContactPhone', extractedData.nokTelephone, setValueOptions);
-    if (extractedData.nokEmail) form.setValue('emergencyContactEmail', extractedData.nokEmail, setValueOptions);
-    if (extractedData.nokPostalAddress) form.setValue('emergencyContactPostalAddress', extractedData.nokPostalAddress, setValueOptions);
-
+    // Employment / Contract
     if (extractedData.contractStartDate) {
       form.setValue('contractStartDate', convertDateToISO(extractedData.contractStartDate), setValueOptions);
     }

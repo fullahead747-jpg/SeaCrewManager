@@ -24,7 +24,6 @@ const CrewManagement = lazy(() => import("@/pages/crew-management"));
 const FleetManagement = lazy(() => import("@/pages/fleet-management"));
 const Scheduling = lazy(() => import("@/pages/scheduling"));
 const StatusHistory = lazy(() => import("@/pages/status-history"));
-const CaptainLite = lazy(() => import("@/pages/captain-lite"));
 const CrewDocumentsSplitView = lazy(() => import("@/pages/crew-documents-split-view"));
 const Settings = lazy(() => import("@/pages/settings"));
 const Notifications = lazy(() => import("@/pages/notifications"));
@@ -81,9 +80,6 @@ function Router() {
           </Route>
           <Route path="/notifications">
             <ProtectedRoute><AppLayout><Notifications /></AppLayout></ProtectedRoute>
-          </Route>
-          <Route path="/captain">
-            <ProtectedRoute><CaptainLite /></ProtectedRoute>
           </Route>
 
           {/* Default Route */}

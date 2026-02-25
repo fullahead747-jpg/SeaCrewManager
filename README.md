@@ -19,7 +19,7 @@ A comprehensive crew management system for maritime operations, designed to stre
 
 📄 **Document Intelligence**
 - AI-powered OCR for automatic document data extraction
-- Multi-engine OCR (Groq, Gemini, OCR.space) for maximum accuracy
+- Google Gemini AI for intelligent document parsing
 - Automated document verification and validation
 - Expiry date tracking and alerts
 
@@ -38,7 +38,7 @@ A comprehensive crew management system for maritime operations, designed to stre
 - **Frontend**: React + TypeScript + Vite
 - **Backend**: Node.js + Express
 - **Database**: PostgreSQL with Drizzle ORM
-- **OCR**: Groq AI, Google Gemini, OCR.space
+- **OCR**: Google Gemini AI
 - **UI**: Tailwind CSS + shadcn/ui components
 
 ## Setup Instructions
@@ -52,10 +52,8 @@ This application requires the following environment variables to be configured i
 - `NODE_ENV` - Set to `production`
 - `PORT` - Set to `7860` (Hugging Face standard)
 
-#### OCR Services (at least one required)
-- `GROQ_API_KEY` - Groq API key for OCR
-- `GEMINI_API_KEY` - Google Gemini API key for enhanced OCR
-- `OCR_SPACE_API_KEY` - OCR.space API key for fallback
+#### AI / OCR Service (required)
+- `GEMINI_API_KEY` - Google Gemini API key for document OCR and AI features
 
 #### Optional
 - `GMAIL_USER` - Gmail address for email notifications
@@ -74,9 +72,7 @@ This application requires the following environment variables to be configured i
 
 ### Getting API Keys
 
-- **Groq**: Sign up at [console.groq.com](https://console.groq.com)
 - **Gemini**: Get API key at [aistudio.google.com](https://aistudio.google.com/app/apikey)
-- **OCR.space**: Register at [ocr.space/ocrapi](https://ocr.space/ocrapi)
 
 ## Usage
 

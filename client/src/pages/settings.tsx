@@ -29,7 +29,6 @@ import {
   Activity,
   Clock,
   User,
-  MessageCircle,
   Trash2,
   AlertTriangle,
   Loader2
@@ -46,14 +45,12 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useTheme } from '@/contexts/theme-context';
 import { queryClient, apiRequest } from '@/lib/queryClient';
-import WhatsAppSettingsModal from '@/components/modals/whatsapp-settings-modal';
 
 export default function Settings() {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
   const [activeSection, setActiveSection] = useState('general');
-  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   const [showClearCrewDialog, setShowClearCrewDialog] = useState(false);
   const [localRecipientEmail, setLocalRecipientEmail] = useState('');
   const [localEmailTemplate, setLocalEmailTemplate] = useState('');
@@ -278,7 +275,6 @@ export default function Settings() {
     { id: 'general', label: 'General', icon: SettingsIcon },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'email', label: 'Email Settings', icon: Mail },
-    { id: 'whatsapp', label: 'WhatsApp Settings', icon: MessageCircle, adminOnly: true },
     { id: 'activity', label: 'Activity Report', icon: Activity },
     { id: 'users', label: 'User Management', icon: Users, adminOnly: true },
     { id: 'security', label: 'Security', icon: Shield, adminOnly: true },
@@ -659,62 +655,6 @@ export default function Settings() {
             </Card>
           )}
 
-          {activeSection === 'whatsapp' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <MessageCircle className="h-5 w-5 mr-2" />
-                  WhatsApp Group Notifications
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="text-center py-8">
-                  <MessageCircle className="h-16 w-16 mx-auto text-green-600 mb-4" />
-                  <h3 className="text-lg font-semibold text-foreground mb-2">
-                    Automated WhatsApp Alerts
-                  </h3>
-                  <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                    Send automatic notifications to your office WhatsApp group when contracts are expiring,
-                    documents need renewal, or crew rotations are scheduled.
-                  </p>
-                  <Button
-                    onClick={() => setIsWhatsAppModalOpen(true)}
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                    data-testid="configure-whatsapp-button"
-                  >
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    Configure WhatsApp Notifications
-                  </Button>
-                </div>
-
-                <div className="bg-muted/50 p-4 rounded-lg">
-                  <h4 className="font-medium mb-3">Supported Providers</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="text-center">
-                      <MessageCircle className="h-6 w-6 mx-auto mb-1 text-green-600" />
-                      <p className="text-xs font-medium">Wassenger</p>
-                      <p className="text-xs text-muted-foreground">Group Support</p>
-                    </div>
-                    <div className="text-center">
-                      <User className="h-6 w-6 mx-auto mb-1 text-blue-600" />
-                      <p className="text-xs font-medium">WHAPI</p>
-                      <p className="text-xs text-muted-foreground">Professional</p>
-                    </div>
-                    <div className="text-center">
-                      <TestTube className="h-6 w-6 mx-auto mb-1 text-red-600" />
-                      <p className="text-xs font-medium">Twilio</p>
-                      <p className="text-xs text-muted-foreground">Individual SMS</p>
-                    </div>
-                    <div className="text-center">
-                      <Database className="h-6 w-6 mx-auto mb-1 text-purple-600" />
-                      <p className="text-xs font-medium">Custom</p>
-                      <p className="text-xs text-muted-foreground">Webhook</p>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {activeSection === 'activity' && (
             <Card>
@@ -1013,10 +953,6 @@ export default function Settings() {
         </div>
       </div>
 
-      <WhatsAppSettingsModal
-        isOpen={isWhatsAppModalOpen}
-        onClose={() => setIsWhatsAppModalOpen(false)}
-      />
     </div>
   );
 }

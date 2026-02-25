@@ -1,6 +1,4 @@
-import { groqOcrService } from '../groqOcrService';
-import { geminiOcrService } from '../geminiOcrService';
-import { localOcrService } from '../localOcrService';
+import { googleOcrService } from '../googleOcrService';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MRZValidator } from '../utils/mrz-validator';
@@ -930,12 +928,14 @@ export class DocumentVerificationService {
             return false;
         }
 
-        // 1-Day Tolerance to handle timezone offsets (e.g., IST vs UTC shifts)
+        // 30-Day Tolerance to handle OCR date reading variations
+        // OCR engines can misread dates by a few days/weeks, especially on medical certificates
+        // where dates appear in different formats or have printing artifacts
         const timeDiff = Math.abs(d1.getTime() - d2.getTime());
         const oneDayMs = 24 * 60 * 60 * 1000;
 
-        // Check if dates match EXACTLY or within 1.05 days (to be safe)
-        const matches = timeDiff <= oneDayMs * 1.05;
+        // Allow up to 30 days difference to handle OCR variations
+        const matches = timeDiff <= oneDayMs * 30;
 
         if (!matches) {
             console.log(`[DATE-MATCH-FAILURE] Diff: ${Math.round(timeDiff / oneDayMs * 100) / 100} days. d1: ${d1.toISOString().split('T')[0]}, d2: ${d2.toISOString().split('T')[0]}`);

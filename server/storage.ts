@@ -1,4 +1,16 @@
 import {
+  users,
+  vessels,
+  crewMembers,
+  contracts,
+  documents,
+  vesselDocuments,
+  crewRotations,
+  emailSettings,
+  activityLogs,
+  notificationHistory,
+  statusChangeHistory,
+  scannedDocuments,
   type User,
   type InsertUser,
   type Vessel,
@@ -22,24 +34,6 @@ import {
   type InsertActivityLog,
   type NotificationHistory,
   type InsertNotificationHistory,
-  type WhatsappSettings,
-  type InsertWhatsappSettings,
-  users,
-  vessels,
-  crewMembers,
-  contracts,
-  documents,
-  vesselDocuments,
-  crewRotations,
-  emailSettings,
-  whatsappSettings,
-  activityLogs,
-  notificationHistory,
-  scannedDocuments,
-  statusChangeHistory,
-  whatsappMessages,
-  type WhatsappMessage,
-  type InsertWhatsappMessage,
   type ScannedDocument,
   type InsertScannedDocument,
 } from "@shared/schema";
@@ -111,9 +105,6 @@ export interface IStorage {
   getEmailSettings(): Promise<EmailSettings | undefined>;
   updateEmailSettings(settings: InsertEmailSettings): Promise<EmailSettings>;
 
-  // WhatsApp settings operations
-  getWhatsappSettings(): Promise<WhatsappSettings | undefined>;
-  updateWhatsappSettings(settings: InsertWhatsappSettings): Promise<WhatsappSettings>;
 
   // Vessel document operations
   getVesselDocuments(vesselId: string): Promise<VesselDocument[]>;
@@ -134,9 +125,6 @@ export interface IStorage {
   getFailedNotifications(maxRetries: number): Promise<NotificationHistory[]>;
   updateNotificationStatus(id: string, success: boolean, errorMessage?: string, retryCount?: number): Promise<NotificationHistory | undefined>;
 
-  // WhatsApp message operations
-  saveWhatsappMessage(message: InsertWhatsappMessage): Promise<WhatsappMessage>;
-  getWhatsappMessages(remoteJid: string, limit?: number): Promise<WhatsappMessage[]>;
 
   // Dashboard statistics
   getDashboardStats(vesselId?: string): Promise<{
@@ -782,31 +770,6 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // WhatsApp settings operations
-  async getWhatsappSettings(): Promise<WhatsappSettings | undefined> {
-    const [settings] = await db.select().from(whatsappSettings).limit(1);
-    return settings || undefined;
-  }
-
-  async updateWhatsappSettings(settings: InsertWhatsappSettings): Promise<WhatsappSettings> {
-    const existing = await this.getWhatsappSettings();
-
-    if (existing) {
-      const [updated] = await db
-        .update(whatsappSettings)
-        .set({ ...settings, updatedAt: new Date() })
-        .where(eq(whatsappSettings.id, existing.id))
-        .returning();
-
-      return updated;
-    } else {
-      const [created] = await db
-        .insert(whatsappSettings)
-        .values(settings)
-        .returning();
-      return created;
-    }
-  }
 
   // Activity log operations
   async logActivity(activity: InsertActivityLog): Promise<ActivityLog> {
@@ -1154,22 +1117,6 @@ export class DatabaseStorage implements IStorage {
     return sortedContracts;
   }
 
-  async saveWhatsappMessage(message: InsertWhatsappMessage): Promise<WhatsappMessage> {
-    const [newMessage] = await db
-      .insert(whatsappMessages)
-      .values(message)
-      .returning();
-    return newMessage;
-  }
-
-  async getWhatsappMessages(remoteJid: string, limit: number = 50): Promise<WhatsappMessage[]> {
-    return await db
-      .select()
-      .from(whatsappMessages)
-      .where(eq(whatsappMessages.remoteJid, remoteJid))
-      .orderBy(desc(whatsappMessages.timestamp))
-      .limit(limit);
-  }
 }
 
 
@@ -1182,10 +1129,8 @@ export class MemStorage implements IStorage {
   private vesselDocuments: Map<string, VesselDocument>;
   private crewRotations: Map<string, CrewRotation>;
   private emailSettings: EmailSettings | undefined;
-  private whatsappSettings: WhatsappSettings | undefined;
   private notificationHistory: Map<string, NotificationHistory>;
   private scannedDocuments: Map<string, ScannedDocument>;
-  private whatsappMessages: Map<string, WhatsappMessage>;
 
   constructor() {
     this.users = new Map();
@@ -1197,7 +1142,6 @@ export class MemStorage implements IStorage {
     this.crewRotations = new Map();
     this.notificationHistory = new Map();
     this.scannedDocuments = new Map();
-    this.whatsappMessages = new Map();
     this.initializeData();
   }
 
@@ -2309,26 +2253,6 @@ export class MemStorage implements IStorage {
     return updated;
   }
 
-  async getWhatsappSettings(): Promise<WhatsappSettings | undefined> {
-    return this.whatsappSettings;
-  }
-
-  async updateWhatsappSettings(settings: InsertWhatsappSettings): Promise<WhatsappSettings> {
-    const updated: WhatsappSettings = {
-      id: this.whatsappSettings?.id || randomUUID(),
-      enabled: settings.enabled ?? false,
-      provider: settings.provider || 'twilio',
-      apiKey: settings.apiKey || null,
-      groupId: settings.groupId || null,
-      webhookUrl: settings.webhookUrl || null,
-      notificationTypes: settings.notificationTypes || ['contract_expiry', 'document_expiry', 'crew_rotation'],
-      reminderDays: settings.reminderDays || [7, 3, 1],
-      messageTemplate: settings.messageTemplate || '📋 *Crew Management Alert*\n\n{{title}}\n{{description}}\n\nDate: {{date}}\nSeverity: {{severity}}',
-      updatedAt: new Date(),
-    };
-    this.whatsappSettings = updated;
-    return updated;
-  }
 
   // Activity log operations
   async logActivity(activity: InsertActivityLog): Promise<ActivityLog> {
@@ -2534,27 +2458,6 @@ export class MemStorage implements IStorage {
     return newScanned;
   }
 
-  // WhatsApp message operations
-  async saveWhatsappMessage(message: InsertWhatsappMessage): Promise<WhatsappMessage> {
-    const id = randomUUID();
-    const newMessage: WhatsappMessage = {
-      ...message,
-      id,
-      fromMe: message.fromMe ?? false,
-      senderName: message.senderName || null,
-      status: message.status || 'sent',
-      timestamp: new Date(),
-      createdAt: new Date(),
-    };
-    this.whatsappMessages.set(id, newMessage);
-    return newMessage;
-  }
-
-  async getWhatsappMessages(remoteJid: string, _limit?: number): Promise<WhatsappMessage[]> {
-    return Array.from(this.whatsappMessages.values())
-      .filter(m => m.remoteJid === remoteJid)
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-  }
 }
 
 export const storage = new DatabaseStorage();

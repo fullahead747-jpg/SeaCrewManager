@@ -1,14 +1,10 @@
-import { WhatsAppNotificationService, type WhatsAppMessage } from './whatsapp-notification';
 import { smtpEmailService, sendCDCExpiryAlert, sendPassportExpiryAlert, sendCOCExpiryAlert, sendMedicalExpiryAlert, type CDCExpiryAlertData, type PassportExpiryAlertData, type COCExpiryAlertData, type MedicalExpiryAlertData } from './smtp-email-service';
 import { documentAccessService } from './document-access-service';
 import { storage } from '../storage';
-import { whatsappSettings } from '@shared/schema';
 
 // Alerts are sent at 90, 60, 30, 15, 7, and 0 days before/at expiry
 const DOCUMENT_REMINDER_DAYS = [90, 60, 30, 15, 7, 0];
-const DAILY_REMINDER_THRESHOLD = 7; // Start daily reminders when <= 7 days remaining (reduced from 15 for weekly summaries)
-
-type WhatsappSettings = typeof whatsappSettings.$inferSelect;
+const DAILY_REMINDER_THRESHOLD = 7; // Start daily reminders when <= 7 days remaining
 
 export interface UpcomingEvent {
   id: string;
@@ -32,81 +28,33 @@ export interface UpcomingEvent {
 }
 
 export class NotificationService {
-  private whatsappService: WhatsAppNotificationService | null = null;
   private readonly maxRetries = 3;
   private readonly retryDelayMs = 5000; // 5 seconds
-  private defaultFromEmail = 'noreply@crewtrack.com'; // You can customize this
 
   async sendEmail(options: { to: string; subject: string; html: string }): Promise<{ success: boolean }> {
     return smtpEmailService.sendEmail(options);
   }
 
   async initialize() {
-    try {
-      console.log('🔄 Initializing notification service...');
-      const settings = await storage.getWhatsappSettings();
-
-      if (settings) {
-        this.whatsappService = new WhatsAppNotificationService(settings);
-
-        if (this.whatsappService.isConfigured()) {
-          console.log(`✅ WhatsApp notification service initialized with provider: ${settings.provider}`);
-        } else {
-          console.log('⚠️  WhatsApp service initialized but not properly configured');
-        }
-      } else {
-        console.log('ℹ️  No WhatsApp settings found - notifications disabled');
-        this.whatsappService = null;
-      }
-    } catch (error) {
-      console.error('❌ Failed to initialize notification service:', error);
-      this.whatsappService = null;
-
-      // Log the initialization error
-      try {
-        await storage.logNotification({
-          eventId: 'system-init',
-          eventType: 'system_error',
-          eventDate: new Date(),
-          notificationDate: new Date(),
-          daysBeforeEvent: 0,
-          provider: 'system',
-          success: false,
-          errorMessage: error instanceof Error ? error.message : 'Unknown initialization error',
-          retryCount: 0,
-          metadata: {
-            action: 'service_initialization',
-            error: error instanceof Error ? error.stack : String(error),
-          }
-        });
-      } catch (logError) {
-        console.error('❌ Failed to log initialization error:', logError);
-      }
-    }
+    console.log('🔄 Notification service initialized (email only)');
   }
 
   async sendEventNotifications(events: UpcomingEvent[]): Promise<void> {
-    const [whatsappSettings, emailSettings] = await Promise.all([
-      storage.getWhatsappSettings(),
-      storage.getEmailSettings()
-    ]);
+    const emailSettings = await storage.getEmailSettings();
 
     const now = new Date();
 
-    // Determine which notification methods are available
-    const whatsappEnabled = whatsappSettings?.enabled && this.whatsappService?.isConfigured();
-    // Use Gmail SMTP instead of SendGrid
     const emailEnabled = emailSettings?.enabled && smtpEmailService.isReady();
 
-    if (!whatsappEnabled && !emailEnabled) {
-      console.log('No notification methods configured (WhatsApp and Email both disabled)');
+    if (!emailEnabled) {
+      console.log('No notification methods configured (Email disabled)');
       return;
     }
 
-    console.log(`📧 Notification methods available: WhatsApp: ${whatsappEnabled ? '✅' : '❌'}, Email: ${emailEnabled ? '✅' : '❌'}`);
+    console.log(`📧 Email notifications: ✅`);
 
     // Default reminder days for general events
-    const defaultReminderDays = (emailSettings?.reminderDays || whatsappSettings?.reminderDays || [7, 15, 30]) as number[];
+    const defaultReminderDays = (emailSettings?.reminderDays || [7, 15, 30]) as number[];
 
     for (const event of events) {
       // Check if this event should trigger a notification
@@ -125,17 +73,12 @@ export class NotificationService {
 
       // Check if we should send a notification
       let shouldSendNotification = false;
-      let notificationType = 'standard'; // 'standard' or 'daily_reminder'
 
       if (reminderDays.includes(daysUntilEvent)) {
-        // Standard milestone notification (60, 30, 15, or 7 days)
         shouldSendNotification = true;
-        notificationType = 'standard';
         console.log(`📋 Processing milestone notification for ${event.crewMemberName} - ${daysUntilEvent} days`);
       } else if (isImportantDocument && daysUntilEvent <= DAILY_REMINDER_THRESHOLD) {
-        // Daily reminder for documents/contracts with <= 7 days remaining or already expired
-        // Check if we already sent a daily reminder today
-        const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD format
+        const todayStr = now.toISOString().split('T')[0];
         const alreadySentToday = await storage.hasNotificationBeenSentToday(
           event.id,
           event.type,
@@ -145,117 +88,19 @@ export class NotificationService {
 
         if (!alreadySentToday) {
           shouldSendNotification = true;
-          notificationType = 'daily_reminder';
           console.log(`📋 Processing daily reminder for ${event.crewMemberName} - ${daysUntilEvent} days remaining`);
         } else {
           console.log(`🔄 Skipping daily reminder for ${event.crewMemberName} - already sent today`);
         }
       }
 
-      if (shouldSendNotification) {
-        // Send WhatsApp notification if enabled
-        if (whatsappEnabled) {
-          await this.sendWhatsAppNotification(event, daysUntilEvent, now);
-        }
-
-        // Send Email notification if enabled
-        if (emailEnabled && emailSettings) {
-          await this.sendEmailNotification(event, daysUntilEvent, now, emailSettings);
-        }
+      if (shouldSendNotification && emailEnabled && emailSettings) {
+        await this.sendEmailNotification(event, daysUntilEvent, now, emailSettings);
       }
     }
   }
 
-  private async sendWhatsAppNotification(event: UpcomingEvent, daysUntilEvent: number, now: Date): Promise<void> {
-    // Check if WhatsApp notifications are disabled via environment variable
-    const isOff = process.env.WHATSAPP_NOTIFICATIONS === 'OFF';
-    const isDisabledLegacy = process.env.DISABLE_WHATSAPP_NOTIFICATIONS === 'true';
 
-    if (isOff || isDisabledLegacy) {
-      console.log(`📱 WhatsApp notifications ${isOff ? 'OFF' : 'disabled via legacy flag'} - skipping`);
-      return;
-    }
-
-    const provider = 'whatsapp';
-
-    // Check if notification has already been sent for this event and reminder period
-    const alreadySent = await storage.hasNotificationBeenSent(
-      event.id,
-      event.type,
-      daysUntilEvent,
-      provider
-    );
-
-    if (alreadySent) {
-      console.log(`🔄 Skipping duplicate WhatsApp notification for event: ${event.title} (${daysUntilEvent} days before)`);
-      return;
-    }
-
-    const message: WhatsAppMessage = {
-      title: event.title,
-      description: event.description,
-      date: event.date.toLocaleDateString(),
-      severity: event.severity,
-      eventType: event.type,
-      crewMemberName: event.crewMemberName,
-      vesselName: event.vesselName,
-    };
-
-    let notificationId: string | null = null;
-
-    try {
-      // Log the notification attempt before sending
-      const notificationRecord = await storage.logNotification({
-        eventId: event.id,
-        eventType: event.type,
-        eventDate: event.date,
-        notificationDate: now,
-        daysBeforeEvent: daysUntilEvent,
-        provider: provider,
-        success: false, // Will update to true if successful
-        retryCount: 0,
-        metadata: {
-          eventTitle: event.title,
-          crewMemberName: event.crewMemberName,
-          vesselName: event.vesselName,
-          severity: event.severity,
-        }
-      });
-
-      notificationId = notificationRecord.id;
-
-      // Attempt to send the notification
-      const success = await this.whatsappService!.sendEventNotification(message);
-
-      if (success) {
-        // Update notification record as successful
-        await storage.updateNotificationStatus(notificationId, true);
-        console.log(`✅ WhatsApp notification sent for event: ${event.title} (${daysUntilEvent} days before)`);
-      } else {
-        // Update notification record with failure
-        await storage.updateNotificationStatus(
-          notificationId,
-          false,
-          'Failed to send notification - provider returned false',
-          1
-        );
-        console.error(`❌ Failed to send WhatsApp notification for event: ${event.title}`);
-      }
-    } catch (error) {
-      console.error(`❌ Error sending WhatsApp notification for event: ${event.title}:`, error);
-
-      // Update notification record with error
-      if (notificationId) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-        await storage.updateNotificationStatus(
-          notificationId,
-          false,
-          errorMessage,
-          1
-        );
-      }
-    }
-  }
 
   private async sendEmailNotification(event: UpcomingEvent, daysUntilEvent: number, now: Date, emailSettings: any): Promise<void> {
     // Check if email notifications are disabled via environment variable
@@ -703,35 +548,15 @@ export class NotificationService {
           const retryDelay = this.retryDelayMs * Math.pow(2, notification.retryCount || 0);
           await new Promise(resolve => setTimeout(resolve, Math.min(retryDelay, 30000))); // Max 30 seconds
 
-          // Reconstruct the event message
-          const metadata = notification.metadata as any;
-          const message: WhatsAppMessage = {
-            title: metadata?.eventTitle || 'Event Notification',
-            description: `Retry notification for ${notification.eventType}`,
-            date: notification.eventDate.toLocaleDateString(),
-            severity: metadata?.severity || 'info',
-            eventType: notification.eventType,
-            crewMemberName: metadata?.crewMemberName,
-            vesselName: metadata?.vesselName,
-          };
-
-          if (this.whatsappService && this.whatsappService.isConfigured()) {
-            const success = await this.whatsappService.sendEventNotification(message);
-
-            if (success) {
-              await storage.updateNotificationStatus(notification.id, true);
-              console.log(`✅ Retry successful for notification: ${notification.eventId}`);
-            } else {
-              const newRetryCount = (notification.retryCount || 0) + 1;
-              await storage.updateNotificationStatus(
-                notification.id,
-                false,
-                `Retry ${newRetryCount} failed - provider returned false`,
-                newRetryCount
-              );
-              console.log(`❌ Retry ${newRetryCount} failed for notification: ${notification.eventId}`);
-            }
-          }
+          // Mark as permanently failed (no retry provider available)
+          const newRetryCount = (notification.retryCount || 0) + 1;
+          await storage.updateNotificationStatus(
+            notification.id,
+            false,
+            `Retry ${newRetryCount} - no retry provider available`,
+            newRetryCount
+          );
+          console.log(`⚠️  Retry ${newRetryCount} skipped for notification: ${notification.eventId} (no provider)`);
         } catch (error) {
           const newRetryCount = (notification.retryCount || 0) + 1;
           const errorMessage = error instanceof Error ? error.message : 'Unknown error during retry';
@@ -767,24 +592,19 @@ export class NotificationService {
       // Retry any failed notifications first
       await this.retryFailedNotifications();
 
-      const [whatsappSettings, emailSettings] = await Promise.all([
-        storage.getWhatsappSettings(),
-        storage.getEmailSettings()
-      ]);
+      const emailSettings = await storage.getEmailSettings();
 
-      const whatsappEnabled = whatsappSettings?.enabled && this.whatsappService?.isConfigured();
       const emailEnabled = emailSettings?.enabled && smtpEmailService.isReady();
 
-      if (!whatsappEnabled && !emailEnabled) {
-        console.log('⚠️  Both WhatsApp and Email notifications are disabled');
+      if (!emailEnabled) {
+        console.log('⚠️  Email notifications are disabled');
         return;
       }
 
       console.log(`📧 Email notifications: ${emailEnabled ? 'ENABLED' : 'disabled'}`);
-      console.log(`📱 WhatsApp notifications: ${whatsappEnabled ? 'ENABLED' : 'disabled'}`);
 
-      // Use email reminder days if available, otherwise whatsapp, otherwise default
-      const reminderDays = (emailSettings?.reminderDays || whatsappSettings?.reminderDays || [7, 15, 30, 60]) as number[];
+      // Use email reminder days, otherwise default
+      const reminderDays = (emailSettings?.reminderDays || [7, 15, 30, 60]) as number[];
       const maxDays = Math.max(...reminderDays);
       const currentDate = new Date();
       const futureDate = new Date();

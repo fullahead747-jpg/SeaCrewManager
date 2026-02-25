@@ -74,10 +74,7 @@ dist/                 # Production build output
 - Previously hosted on Neon.tech; any PostgreSQL provider works
 
 ### AI & OCR Services
-- **Groq AI** — Vision AI for document OCR and chatbot (requires `GROQ_API_KEY`)
-- **Google Gemini** (`@google/generative-ai`) — Alternative OCR engine (requires API key)
-- **OCR.space** — Cloud OCR fallback service (requires `OCR_SPACE_API_KEY`, free tier: 25K requests/month)
-- **Local Tesseract** — Fallback OCR when cloud services unavailable (uses `eng.traineddata`)
+- **Google Gemini** (`@google/generative-ai`) — AI-powered OCR engine for document processing (requires `GEMINI_API_KEY`)
 
 ### Messaging & Notifications
 - **WAHA (WhatsApp HTTP API)** — WhatsApp integration via Docker container, configured in `docker-compose.yml`
@@ -91,8 +88,7 @@ dist/                 # Production build output
 | Variable | Purpose |
 |----------|---------|
 | `DATABASE_URL` | PostgreSQL connection string (required) |
-| `GROQ_API_KEY` | Groq AI for OCR and chatbot |
-| `OCR_SPACE_API_KEY` | OCR.space cloud OCR service |
+| `GEMINI_API_KEY` | Google Gemini AI for OCR and document processing |
 | `PRIVATE_OBJECT_DIR` | Replit object storage bucket path |
 | `NODE_ENV` | Environment mode (production/development) |
 

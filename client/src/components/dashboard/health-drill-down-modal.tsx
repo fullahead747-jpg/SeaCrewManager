@@ -340,9 +340,20 @@ const HealthDrillDownModal = memo(({
 
     const filteredData = useMemo(() => {
         if (!detailData) return [];
-        if (!deferredSearchTerm) return detailData;
+        let data = [...detailData];
+
+        // Apply sorting for contract health categories
+        if (type === 'contract') {
+            data.sort((a: any, b: any) => {
+                const dateA = a.activeContract?.endDate ? new Date(a.activeContract.endDate).getTime() : Infinity;
+                const dateB = b.activeContract?.endDate ? new Date(b.activeContract.endDate).getTime() : Infinity;
+                return dateA - dateB;
+            });
+        }
+
+        if (!deferredSearchTerm) return data;
         const search = deferredSearchTerm.toLowerCase();
-        return detailData.filter((item: any) => {
+        return data.filter((item: any) => {
             const fullName = `${item.firstName || ""} ${item.lastName || ""}`.toLowerCase();
             return (
                 item.firstName?.toLowerCase().includes(search) ||
@@ -353,7 +364,7 @@ const HealthDrillDownModal = memo(({
                 item.currentVessel?.name?.toLowerCase().includes(search)
             );
         });
-    }, [detailData, deferredSearchTerm]);
+    }, [detailData, deferredSearchTerm, type]);
 
     const handlePrintReport = useCallback(() => {
         if (!filteredData || filteredData.length === 0) return;

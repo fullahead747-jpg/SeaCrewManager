@@ -118,19 +118,6 @@ export const emailSettings = pgTable("email_settings", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-// WhatsApp notification settings
-export const whatsappSettings = pgTable("whatsapp_settings", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  enabled: boolean("enabled").default(false),
-  provider: text("provider").notNull().default('twilio'), // 'twilio', 'wassenger', 'whapi'
-  apiKey: text("api_key"), // Encrypted API key
-  groupId: text("group_id"), // WhatsApp group ID or phone number
-  webhookUrl: text("webhook_url"), // Third-party service webhook URL
-  notificationTypes: jsonb("notification_types").default(['contract_expiry', 'document_expiry', 'crew_rotation']),
-  reminderDays: jsonb("reminder_days").default([7, 3, 1]), // Days before events to send notifications
-  messageTemplate: text("message_template").default('📋 *Crew Management Alert*\n\n{{title}}\n{{description}}\n\nDate: {{date}}\nSeverity: {{severity}}'),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
 
 // Vessel documents table
 export const vesselDocuments = pgTable("vessel_documents", {
@@ -196,7 +183,7 @@ export const notificationHistory = pgTable("notification_history", {
   eventDate: timestamp("event_date").notNull(), // When the event is scheduled to occur
   notificationDate: timestamp("notification_date").notNull(), // When the notification was sent
   daysBeforeEvent: integer("days_before_event").notNull(), // How many days before the event this notification was sent
-  provider: text("provider").notNull(), // 'whatsapp', 'email', etc.
+  provider: text("provider").notNull(), // 'email', etc.
   success: boolean("success").notNull().default(true), // Whether the notification was sent successfully
   errorMessage: text("error_message"), // Error message if sending failed
   retryCount: integer("retry_count").default(0), // Number of retry attempts
@@ -218,18 +205,6 @@ export const statusChangeHistory = pgTable("status_change_history", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
-// WhatsApp message history table
-export const whatsappMessages = pgTable("whatsapp_messages", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  messageId: text("message_id").notNull(), // WhatsApp message ID (key.id)
-  remoteJid: text("remote_jid").notNull(), // Group or user JID
-  fromMe: boolean("from_me").notNull().default(false),
-  body: text("body").notNull(),
-  senderName: text("sender_name"),
-  timestamp: timestamp("timestamp").notNull().defaultNow(),
-  status: text("status").default('sent'), // 'sent', 'delivered', 'read'
-  createdAt: timestamp("created_at").defaultNow(),
-});
 
 // Create insert schemas with proper validation
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -295,12 +270,6 @@ export const insertEmailSettingsSchema = createInsertSchema(emailSettings).omit(
   updatedAt: true,
 });
 
-export const insertWhatsappSettingsSchema = createInsertSchema(whatsappSettings).omit({
-  id: true,
-  updatedAt: true,
-}).extend({
-  provider: z.enum(['twilio', 'wassenger', 'whapi', 'waha', 'custom', 'baileys']),
-});
 
 export const insertVesselDocumentSchema = createInsertSchema(vesselDocuments).omit({
   id: true,
@@ -336,10 +305,6 @@ export const insertScannedDocumentSchema = createInsertSchema(scannedDocuments).
   extractedIssueDate: z.union([z.date(), z.string().transform((str) => new Date(str)), z.null()]).optional(),
 });
 
-export const insertWhatsappMessageSchema = createInsertSchema(whatsappMessages).omit({
-  id: true,
-  createdAt: true,
-});
 
 // Type exports
 export type User = typeof users.$inferSelect;
@@ -358,16 +323,12 @@ export type EmailSettings = typeof emailSettings.$inferSelect;
 export type InsertEmailSettings = z.infer<typeof insertEmailSettingsSchema>;
 export type VesselDocument = typeof vesselDocuments.$inferSelect;
 export type InsertVesselDocument = z.infer<typeof insertVesselDocumentSchema>;
-export type WhatsappSettings = typeof whatsappSettings.$inferSelect;
-export type InsertWhatsappSettings = z.infer<typeof insertWhatsappSettingsSchema>;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
 export type NotificationHistory = typeof notificationHistory.$inferSelect;
 export type InsertNotificationHistory = z.infer<typeof insertNotificationHistorySchema>;
 export type StatusChangeHistory = typeof statusChangeHistory.$inferSelect;
 export type InsertStatusChangeHistory = z.infer<typeof insertStatusChangeHistorySchema>;
-export type WhatsappMessage = typeof whatsappMessages.$inferSelect;
-export type InsertWhatsappMessage = z.infer<typeof insertWhatsappMessageSchema>;
 
 export type ScannedDocument = typeof scannedDocuments.$inferSelect;
 export type InsertScannedDocument = z.infer<typeof insertScannedDocumentSchema>;

@@ -4,6 +4,7 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { hashPassword } from "./auth";
 import {
+  users,
   insertCrewMemberSchema,
   insertVesselSchema,
   insertDocumentSchema,
@@ -11,7 +12,6 @@ import {
   insertContractSchema,
   insertCrewRotationSchema,
   insertEmailSettingsSchema,
-  insertWhatsappSettingsSchema,
   activityLogs,
   statusChangeHistory,
   crewMembers,
@@ -23,9 +23,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { sql, eq, and, isNull, desc } from "drizzle-orm";
-import { localOcrService } from "./localOcrService";
-import { groqOcrService } from "./groqOcrService";
-import { geminiOcrService } from "./geminiOcrService";
+import { googleOcrService } from "./googleOcrService";
 import { randomUUID } from "crypto";
 import { DocumentStorageService } from "./objectStorage";
 import { notificationService } from "./services/notification-service";
@@ -40,7 +38,6 @@ import * as path from 'path';
 import multer from 'multer';
 import { generateVesselPDFBuffer, generateFleetPDFBuffer } from "./utils/vessel-pdf-generator";
 import { smtpEmailService } from "./services/smtp-email-service";
-import { initializeBaileys } from "./baileys-init";
 
 // Extend Express Request type to include user
 declare global {
@@ -82,11 +79,6 @@ function formatDateForDisplay(date: string | Date | null | undefined): string {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Initialize Baileys WhatsApp bot on startup
-  initializeBaileys().catch(err => {
-    console.error('❌ Failed to initialize Baileys on startup:', err);
-  });
-
   // Static file serving for uploaded documents
   const uploadsDir = path.join(process.cwd(), 'uploads');
   if (!fs.existsSync(uploadsDir)) {
@@ -2894,45 +2886,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // WhatsApp Settings routes
-  app.get("/api/whatsapp-settings", authenticate, async (req, res) => {
-    try {
-      if (req.user?.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
-      }
-
-      const settings = await storage.getWhatsappSettings();
-
-      // Redact sensitive information
-      const sanitizedSettings = settings ? {
-        ...settings,
-        apiKey: settings.apiKey ? '***REDACTED***' : null,
-        webhookUrl: settings.webhookUrl ? '***REDACTED***' : null,
-      } : null;
-
-      res.json(sanitizedSettings);
-    } catch (error) {
-      res.status(500).json({ message: "Failed to fetch WhatsApp settings" });
-    }
-  });
-
-  app.put("/api/whatsapp-settings", authenticate, async (req, res) => {
-    try {
-      if (req.user?.role !== 'admin') {
-        return res.status(403).json({ message: "Admin access required" });
-      }
-
-      const settingsData = insertWhatsappSettingsSchema.parse(req.body);
-      const settings = await storage.updateWhatsappSettings(settingsData);
-      res.json(settings);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ message: "Invalid settings data", errors: error.errors });
-      } else {
-        res.status(500).json({ message: "Failed to update WhatsApp settings" });
-      }
-    }
-  });
 
   // Alerts routes
   app.get("/api/alerts/expiring-documents", authenticate, async (req, res) => {
@@ -4271,69 +4224,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // OCR route for extracting crew data from documents
+  // OCR route for extracting crew data from documents (Google Cloud Document AI)
   app.post("/api/ocr/extract-crew-data", authenticate, async (req, res) => {
     try {
       console.log('OCR request received from user:', req.user?.username);
       const { image, filename } = req.body;
 
       if (!image) {
-        console.log('No image data provided in request');
         return res.status(400).json({ message: "Image data is required" });
       }
 
-      let extractedData;
-      const isPDF = filename?.toLowerCase().endsWith('.pdf') || (image && image.startsWith('JVBERi'));
-
-      // Use a multi-engine pipeline with priority based on file type
-      try {
-        if (isPDF) {
-          console.log('PDF detected. Prioritizing Gemini for best results.');
-          if (geminiOcrService.isAvailable()) {
-            try {
-              extractedData = await geminiOcrService.extractCrewDataFromDocument(image, filename);
-            } catch (geminiError) {
-              console.error('Gemini PDF extraction failed, trying Groq:', geminiError);
-              extractedData = await groqOcrService.extractCrewDataFromDocument(image, filename);
-            }
-          } else {
-            extractedData = await groqOcrService.extractCrewDataFromDocument(image, filename);
-          }
-        } else {
-          // IMAGE PROCESSING: Prioritize Groq, fallback to Gemini
-          if (groqOcrService.isAvailable()) {
-            console.log('Using Groq Vision AI for image OCR');
-            try {
-              extractedData = await groqOcrService.extractCrewDataFromDocument(image, filename);
-            } catch (groqError) {
-              console.error('Groq image extraction failed, trying Gemini:', groqError);
-              if (geminiOcrService.isAvailable()) {
-                extractedData = await geminiOcrService.extractCrewDataFromDocument(image, filename);
-              } else {
-                throw groqError;
-              }
-            }
-          } else if (geminiOcrService.isAvailable()) {
-            console.log('Groq unavailable, using Gemini for image OCR');
-            extractedData = await geminiOcrService.extractCrewDataFromDocument(image, filename);
-          } else {
-            console.log('No AI services available, using local OCR');
-            extractedData = await localOcrService.extractCrewDataFromDocument(image, filename);
-          }
-        }
-      } catch (pipelineError) {
-        console.error('AI pipeline failed, falling back to local OCR:', pipelineError);
-        extractedData = await localOcrService.extractCrewDataFromDocument(image, filename);
+      if (!googleOcrService.isAvailable()) {
+        return res.status(503).json({
+          message: "Google Cloud Document AI is not configured. Please check DOCUMENT_AI_PROJECT_ID, DOCUMENT_AI_LOCATION, DOCUMENT_AI_PROCESSOR_ID, and GOOGLE_APPLICATION_CREDENTIALS in your .env file."
+        });
       }
 
-      // Ensure we return a record format
+      // Determine expected document type for better AI prompting
+      let expectedType: string = 'aoa'; // Default to AOA
+      const lowerFilename = (filename || '').toLowerCase();
+      if (lowerFilename.includes('passport')) expectedType = 'passport';
+      else if (lowerFilename.includes('cdc')) expectedType = 'cdc';
+      else if (lowerFilename.includes('medical')) expectedType = 'medical';
+      else if (lowerFilename.includes('coc')) expectedType = 'coc';
+
+      console.log(`[OCR] Processing "${filename}" as document type: ${expectedType}`);
+
+      const extractedData = await googleOcrService.extractCrewDataFromDocument(image, filename, expectedType);
+
+      if (!extractedData || Object.keys(extractedData).length === 0) {
+        return res.status(422).json({ message: "No data could be extracted from the document. Please ensure the document is clear and readable." });
+      }
+
       const recordId = `crew-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      const displayName = extractedData.seafarerName || extractedData.name || 'Unknown Crew Member';
-      const result = {
-        ...extractedData,
-        recordId,
-        displayName
-      };
+      const displayName = (extractedData as any).seafarerName || (extractedData as any).name || 'Unknown Crew Member';
+
+      console.log(`[OCR] Extraction complete. Service: Google Document AI, Fields extracted: ${Object.keys(extractedData).filter(k => (extractedData as any)[k]).length}, Name: ${displayName}`);
 
       // Log the OCR activity
       try {
@@ -4341,19 +4267,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: "Document Processing",
           action: "ocr_document_scan",
           entityType: "document",
-          description: `Scanned crew document: ${filename || 'Unknown file'} `,
+          description: `Scanned crew document: ${filename || 'Unknown file'}`,
           severity: "info",
           username: req.user?.username || "unknown",
           userRole: req.user?.role || "unknown",
-          metadata: JSON.stringify({ filename, extractedFields: Object.keys(extractedData).length })
+          metadata: JSON.stringify({ filename, extractedFields: Object.keys(extractedData).length, service: 'Google Document AI' })
         });
       } catch (logError) {
         console.error("Failed to log OCR activity:", logError);
       }
 
-      res.json(result);
+      res.json({ ...extractedData, recordId, displayName });
     } catch (error) {
-      console.error("OCR extraction error:", error);
+      console.error("[OCR] Google Document AI extraction error:", error);
       res.status(500).json({
         message: error instanceof Error ? error.message : "Failed to extract data from document"
       });
@@ -5098,31 +5024,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // WhatsApp Webhook Routes
-  const webhookRoutes = await import('./routes/webhooks');
-  app.use('/api/webhooks', webhookRoutes.default);
-
-  // WhatsApp Messages API
-  app.get("/api/whatsapp/messages", authenticate, async (req, res) => {
-    try {
-      const { remoteJid, limit } = req.query;
-      if (!remoteJid) {
-        return res.status(400).json({ message: "remoteJid is required" });
-      }
-
-      const messages = await storage.getWhatsappMessages(
-        remoteJid as string,
-        limit ? parseInt(limit as string) : 50
-      );
-
-      // Return messages in chronological order for the UI
-      res.json(messages.reverse());
-    } catch (error) {
-      console.error("Error fetching WhatsApp messages:", error);
-      res.status(500).json({ message: "Failed to fetch WhatsApp messages" });
-    }
-  });
-
   // Attendance Sheet Routes
   const attendanceRoutes = await import('./attendanceRoutes');
   app.use('/api/attendance', attendanceRoutes.default);
@@ -5143,17 +5044,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Query is required and must be a string" });
       }
 
+      /*
       // Import the voice assistant service
       const { voiceAssistantService } = await import('./services/voice-assistant-service');
 
       if (!voiceAssistantService.isAvailable()) {
         return res.status(503).json({
-          message: "Voice assistant service is not available. Please check GROQ_API_KEY configuration."
+          message: "Voice assistant service is not available."
         });
       }
 
       const response = await voiceAssistantService.processQuery(query);
       res.json({ response });
+      */
+      res.status(503).json({ message: "Voice assistant service is currently unavailable." });
     } catch (error) {
       console.error("Error processing voice query:", error);
       res.status(500).json({
