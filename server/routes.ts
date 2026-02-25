@@ -271,26 +271,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Diagnostic endpoint to check uploads directory
-  app.get("/api/debug/uploads", (req, res) => {
+  // Diagnostic endpoint to check OCR configuration
+  app.get("/api/debug/ocr", authenticate, (req, res) => {
     try {
-      const uploadsDir = path.join(process.cwd(), 'uploads');
-      const exists = fs.existsSync(uploadsDir);
-      let files: string[] = [];
-      if (exists) {
-        files = fs.readdirSync(uploadsDir);
+      const config = {
+        isAvailable: googleOcrService.isAvailable(),
+        projectId: process.env.DOCUMENT_AI_PROJECT_ID ? 'SET' : 'NOT SET',
+        location: process.env.DOCUMENT_AI_LOCATION ? 'SET' : 'NOT SET',
+        processorId: process.env.DOCUMENT_AI_PROCESSOR_ID ? 'SET' : 'NOT SET',
+        hasFilePath: !!process.env.GOOGLE_APPLICATION_CREDENTIALS,
+        hasContent: !!process.env.GOOGLE_CREDENTIALS_CONTENT,
+        nodeEnv: process.env.NODE_ENV,
+        credentialsFileExists: false
+      };
+
+      if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        const credPath = path.isAbsolute(process.env.GOOGLE_APPLICATION_CREDENTIALS)
+          ? process.env.GOOGLE_APPLICATION_CREDENTIALS
+          : path.resolve(process.cwd(), process.env.GOOGLE_APPLICATION_CREDENTIALS);
+        config.credentialsFileExists = fs.existsSync(credPath);
       }
-      res.json({
-        cwd: process.cwd(),
-        uploadsDir,
-        exists,
-        fileCount: files.length,
-        files: files.slice(0, 50) // limit to first 50
-      });
+
+      res.json(config);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
   });
+
+  // Diagnostic endpoint to check uploads directory
 
   // Password Reset Routes
   app.post("/api/forgot-password", async (req, res) => {

@@ -213,7 +213,20 @@ export function OCRDocumentScanner({ onDataExtracted, className, mode = 'crew' }
       });
 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : "Failed to process document";
+      console.error('OCR processing error:', err);
+      let errorMessage = "Failed to process document";
+
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+
+      // Check for common error patterns from server
+      if (errorMessage.includes("503") || errorMessage.includes("configured")) {
+        errorMessage = "OCR Service is not fully configured on the server.";
+      } else if (errorMessage.includes("422") || errorMessage.includes("No data")) {
+        errorMessage = "No clear data found in document. Please try a sharper image.";
+      }
+
       setError(errorMessage);
       setPreviewUrl(null);
       setScannedFile(null);

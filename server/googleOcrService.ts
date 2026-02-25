@@ -374,7 +374,7 @@ export const googleOcrService = {
     return !!(
       process.env.DOCUMENT_AI_PROJECT_ID &&
       process.env.DOCUMENT_AI_LOCATION &&
-      process.env.GOOGLE_APPLICATION_CREDENTIALS
+      (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GOOGLE_CREDENTIALS_CONTENT)
     );
   },
 
@@ -390,13 +390,21 @@ export const googleOcrService = {
     try {
       console.log(`[Google Document AI] Starting extraction for ${filename} (type: ${expectedType || 'aoa'})...`);
 
-      const keyFilename = resolveCredentialsPath()!;
-      const client = new DocumentProcessorServiceClient({ keyFilename });
-
       const projectId = process.env.DOCUMENT_AI_PROJECT_ID!;
       const location = process.env.DOCUMENT_AI_LOCATION!;
       const processorId = process.env.DOCUMENT_AI_PROCESSOR_ID!;
       const processorName = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+
+      let client: DocumentProcessorServiceClient;
+      if (process.env.GOOGLE_CREDENTIALS_CONTENT) {
+        console.log('[Google Document AI] Using credentials from GOOGLE_CREDENTIALS_CONTENT');
+        const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_CONTENT);
+        client = new DocumentProcessorServiceClient({ credentials });
+      } else {
+        const keyFilename = resolveCredentialsPath()!;
+        console.log(`[Google Document AI] Using credentials from file: ${keyFilename}`);
+        client = new DocumentProcessorServiceClient({ keyFilename });
+      }
 
       const base64Data = base64Image.includes('base64,')
         ? base64Image.split('base64,')[1]
@@ -453,13 +461,20 @@ export const googleOcrService = {
     try {
       console.log(`[Google Document AI] Extracting attendance data from ${filename}...`);
 
-      const keyFilename = resolveCredentialsPath()!;
-      const client = new DocumentProcessorServiceClient({ keyFilename });
-
       const projectId = process.env.DOCUMENT_AI_PROJECT_ID!;
       const location = process.env.DOCUMENT_AI_LOCATION!;
       const processorId = process.env.DOCUMENT_AI_PROCESSOR_ID!;
       const processorName = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+
+      let client: DocumentProcessorServiceClient;
+      if (process.env.GOOGLE_CREDENTIALS_CONTENT) {
+        console.log('[Google Document AI] Using credentials from GOOGLE_CREDENTIALS_CONTENT for attendance');
+        const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_CONTENT);
+        client = new DocumentProcessorServiceClient({ credentials });
+      } else {
+        const keyFilename = resolveCredentialsPath()!;
+        client = new DocumentProcessorServiceClient({ keyFilename });
+      }
 
       const base64Image = base64Data.includes('base64,')
         ? base64Data.split('base64,')[1]
