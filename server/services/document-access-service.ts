@@ -16,9 +16,10 @@ export class DocumentAccessService {
      * @returns Secure token string
      */
     async generateAccessToken(
-        documentId: string,
+        targetId: string,
         expiryHours: number = 48,
-        purpose: string = 'email_notification'
+        purpose: string = 'email_notification',
+        targetType: 'document' | 'contract' = 'document'
     ): Promise<string> {
         // Generate cryptographically secure random token
         const token = crypto.randomBytes(32).toString('hex');
@@ -28,8 +29,7 @@ export class DocumentAccessService {
         expiresAt.setHours(expiresAt.getHours() + expiryHours);
 
         // Store token in database
-        await db.insert(documentAccessTokens).values({
-            documentId,
+        const values: any = {
             token,
             expiresAt,
             createdFor: purpose,
@@ -37,9 +37,17 @@ export class DocumentAccessService {
                 generatedAt: new Date().toISOString(),
                 expiryHours
             }
-        });
+        };
 
-        console.log(`🔐 Generated access token for document ${documentId}, expires in ${expiryHours}h`);
+        if (targetType === 'document') {
+            values.documentId = targetId;
+        } else {
+            values.contractId = targetId;
+        }
+
+        await db.insert(documentAccessTokens).values(values);
+
+        console.log(`🔐 Generated access token for ${targetType} ${targetId}, expires in ${expiryHours}h`);
 
         return token;
     }
@@ -49,7 +57,7 @@ export class DocumentAccessService {
      * @param token - Access token from email link
      * @returns Document if token is valid, null otherwise
      */
-    async getDocumentByToken(token: string): Promise<any | null> {
+    async getTargetByToken(token: string): Promise<{ type: 'document' | 'contract', data: any } | null> {
         try {
             // Find token in database
             const tokenRecords = await db
@@ -72,27 +80,40 @@ export class DocumentAccessService {
                 return null;
             }
 
-            // Optional: Mark token as used (for single-use tokens)
-            // await db
-            //   .update(documentAccessTokens)
-            //   .set({ usedAt: now })
-            //   .where(eq(documentAccessTokens.id, tokenRecord.id));
+            if (tokenRecord.documentId) {
+                // Fetch the document
+                const docs = await db
+                    .select()
+                    .from(documents)
+                    .where(eq(documents.id, tokenRecord.documentId))
+                    .limit(1);
 
-            // Fetch the document
-            const docs = await db
-                .select()
-                .from(documents)
-                .where(eq(documents.id, tokenRecord.documentId))
-                .limit(1);
+                if (docs.length === 0) {
+                    console.log(`⚠️ Document not found for token: ${token.substring(0, 10)}...`);
+                    return null;
+                }
 
-            if (docs.length === 0) {
-                console.log(`⚠️ Document not found for token: ${token.substring(0, 10)}...`);
-                return null;
+                console.log(`✅ Valid token access for document: ${docs[0].type} - ${docs[0].documentNumber}`);
+                return { type: 'document', data: docs[0] };
+            } else if (tokenRecord.contractId) {
+                // Fetch the contract
+                const { contracts } = await import('@shared/schema');
+                const cntrs = await db
+                    .select()
+                    .from(contracts)
+                    .where(eq(contracts.id, tokenRecord.contractId))
+                    .limit(1);
+
+                if (cntrs.length === 0) {
+                    console.log(`⚠️ Contract not found for token: ${token.substring(0, 10)}...`);
+                    return null;
+                }
+
+                console.log(`✅ Valid token access for contract: ${cntrs[0].id}`);
+                return { type: 'contract', data: cntrs[0] };
             }
 
-            console.log(`✅ Valid token access for document: ${docs[0].type} - ${docs[0].documentNumber}`);
-
-            return docs[0];
+            return null;
         } catch (error) {
             console.error('❌ Error validating token:', error);
             return null;

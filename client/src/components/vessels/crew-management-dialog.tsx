@@ -932,6 +932,19 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
   const handleViewAOAClick = async (m: CrewMemberWithDetails) => {
     if (m.activeContract?.filePath) {
       try {
+        // First, try to get a secure view token
+        const tokenResponse = await fetch(`/api/contracts/${m.activeContract.id}/view-token`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+        });
+
+        if (tokenResponse.ok) {
+          const { viewUrl } = await tokenResponse.json();
+          window.open(viewUrl, '_blank');
+          return;
+        }
+
+        // Fallback to traditional method if token fails
         const response = await fetch(`/api/contracts/${m.activeContract.id}/view`, {
           headers: getAuthHeaders(),
         });
@@ -941,6 +954,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
         window.open(url, '_blank');
         setTimeout(() => window.URL.revokeObjectURL(url), 100);
       } catch (error) {
+        console.error('Error viewing AOA:', error);
         toast({
           title: 'Error',
           description: 'Failed to open AOA document',
@@ -1392,6 +1406,21 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                             size="sm"
                             onClick={async () => {
                               try {
+                                // For documents, use the new token-based viewing system
+                                if (!(displayAoa as any).isContract) {
+                                  const tokenResponse = await fetch(`/api/documents/${displayAoa.id}/view-token`, {
+                                    method: 'POST',
+                                    headers: getAuthHeaders()
+                                  });
+
+                                  if (tokenResponse.ok) {
+                                    const { viewUrl } = await tokenResponse.json();
+                                    window.open(viewUrl, '_blank');
+                                    return;
+                                  }
+                                  // Fallback if token generation fails
+                                }
+
                                 const endpoint = (displayAoa as any).isContract ? `/api/contracts/${displayAoa.id}/view` : `/api/documents/${displayAoa.id}/view`;
                                 const response = await fetch(endpoint, {
                                   headers: getAuthHeaders(),

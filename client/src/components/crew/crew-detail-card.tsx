@@ -179,6 +179,23 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             return;
         }
         try {
+            // For documents, use the new token-based viewing system to preserve filename and extension
+            if (!doc.isContract) {
+                const tokenResponse = await fetch(`/api/documents/${doc.docId}/view-token`, {
+                    method: 'POST',
+                    headers: getAuthHeaders()
+                });
+
+                if (tokenResponse.ok) {
+                    const { viewUrl } = await tokenResponse.json();
+                    window.open(viewUrl, '_blank');
+                    return;
+                }
+                // Fallback to old method if token generation fails (shouldn't happen for docs)
+                console.warn('Token-based view failed, falling back to blob method');
+            }
+
+            // Fallback / Contract Method
             const endpoint = doc.isContract ? `/api/contracts/${doc.docId}/view` : `/api/documents/${doc.docId}/view`;
             const response = await fetch(endpoint, { headers: getAuthHeaders() });
             if (!response.ok) throw new Error('Failed to fetch document');
@@ -187,6 +204,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             window.open(url, '_blank');
             setTimeout(() => window.URL.revokeObjectURL(url), 100);
         } catch (error) {
+            console.error('Document viewer error:', error);
             toast({ title: 'Error', description: 'Failed to open document', variant: 'destructive' });
         }
     }, [toast]);

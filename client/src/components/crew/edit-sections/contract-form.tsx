@@ -24,6 +24,19 @@ export function ContractSection({ crewMember }: ContractSectionProps) {
         if (!crewMember?.activeContract?.id) return;
 
         try {
+            // First, try to get a secure view token
+            const tokenResponse = await fetch(`/api/contracts/${crewMember.activeContract.id}/view-token`, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+            });
+
+            if (tokenResponse.ok) {
+                const { viewUrl } = await tokenResponse.json();
+                window.open(viewUrl, '_blank');
+                return;
+            }
+
+            // Fallback to traditional method if token fails
             const response = await fetch(`/api/contracts/${crewMember.activeContract.id}/view`, {
                 headers: getAuthHeaders(),
             });
@@ -36,6 +49,7 @@ export function ContractSection({ crewMember }: ContractSectionProps) {
             // Clean up after a delay
             setTimeout(() => window.URL.revokeObjectURL(url), 100);
         } catch (error) {
+            console.error('Error viewing contract:', error);
             toast({
                 title: 'Error',
                 description: 'Failed to open contract document',

@@ -112,6 +112,19 @@ export default function CrewDocumentsSplitView() {
     const handleViewDocument = async (doc: Document) => {
         if (!doc.id) return;
         try {
+            // Use token-based viewing for documents
+            const tokenResponse = await fetch(`/api/documents/${doc.id}/view-token`, {
+                method: 'POST',
+                headers: getAuthHeaders()
+            });
+
+            if (tokenResponse.ok) {
+                const { viewUrl } = await tokenResponse.json();
+                window.open(viewUrl, '_blank');
+                return;
+            }
+
+            // Fallback for document loading
             const response = await fetch(`/api/documents/${doc.id}/view`, {
                 headers: getAuthHeaders(),
             });
@@ -122,6 +135,7 @@ export default function CrewDocumentsSplitView() {
             // Clean up the URL after a delay
             setTimeout(() => window.URL.revokeObjectURL(url), 60000);
         } catch (error) {
+            console.error('Document view error:', error);
             toast({
                 title: 'Error',
                 description: 'Failed to open document.',

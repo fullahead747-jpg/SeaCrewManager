@@ -394,11 +394,12 @@ export const documentPolicies = pgTable("document_policies", {
 // Document access tokens for secure email links
 export const documentAccessTokens = pgTable("document_access_tokens", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  documentId: varchar("document_id").notNull().references(() => documents.id, { onDelete: 'cascade' }),
+  documentId: varchar("document_id").references(() => documents.id, { onDelete: 'cascade' }),
+  contractId: varchar("contract_id").references(() => contracts.id, { onDelete: 'cascade' }),
   token: varchar("token", { length: 255 }).notNull().unique(),
   expiresAt: timestamp("expires_at").notNull(),
   usedAt: timestamp("used_at"),
-  createdFor: varchar("created_for", { length: 50 }).notNull(), // 'email_notification', 'renewal_confirmation'
+  createdFor: varchar("created_for", { length: 50 }).notNull(), // 'email_notification', 'renewal_confirmation', 'view_document'
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow(),
 });

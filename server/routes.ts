@@ -2196,8 +2196,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`✅ Valid token - Serving document: ${document.type} - ${document.documentNumber}`);
 
+      // Generate a descriptive filename
+      const extension = path.extname(document.filePath || '').toLowerCase() || '.pdf';
+      const fileName = `${document.type.toUpperCase()}_${document.documentNumber || 'doc'}${extension}`;
+
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(document.filePath!, res);
+      await documentStorageService.downloadDocument(document.filePath!, res, 3600, fileName);
     } catch (error) {
       console.error("❌ Error in secure document viewer:", error);
       if (!res.headersSent) {
@@ -2222,6 +2226,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate secure access token for document
+  app.post("/api/documents/:id/view-token", authenticate, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const document = await storage.getDocument(id);
+
+      if (!document || !document.filePath) {
+        return res.status(404).json({ message: "Document not found" });
+      }
+
+      // Generate a short-lived token (15 mins for viewing)
+      const token = await documentAccessService.generateAccessToken(id, 0.25, 'view_document');
+      const viewUrl = documentAccessService.generateViewUrl(token);
+
+      res.json({ token, viewUrl });
+    } catch (error) {
+      console.error("Error generating document view token:", error);
+      res.status(500).json({ message: "Failed to generate access token" });
+    }
+  });
+
   // View crew document (inline) - Requires authentication
 
   app.get("/api/documents/:id/view", authenticate, async (req, res) => {
@@ -2234,8 +2259,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log(`[VIEW-DOC] Attempting to view doc: ${id}, Path: ${document.filePath}`);
+
+      const extension = path.extname(document.filePath).toLowerCase() || '.pdf';
+      const fileName = `${document.type.toUpperCase()}_${document.documentNumber || 'doc'}${extension}`;
+
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(document.filePath, res);
+      await documentStorageService.downloadDocument(document.filePath, res, 3600, fileName);
     } catch (error) {
       console.error("Error viewing crew document:", error);
       if (!res.headersSent) {
@@ -2254,8 +2283,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Document not found" });
       }
 
+      const extension = path.extname(document.filePath).toLowerCase() || '.pdf';
+      const fileName = `${document.type.toUpperCase()}_${document.documentNumber || 'doc'}${extension}`;
+
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(document.filePath, res);
+      await documentStorageService.downloadDocument(document.filePath, res, 3600, fileName);
     } catch (error) {
       console.error("Error downloading crew document:", error);
       if (!res.headersSent) {
@@ -2597,6 +2629,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate secure access token for contract
+  app.post("/api/contracts/:id/view-token", authenticate, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const contract = await storage.getContract(id);
+
+      if (!contract || !contract.filePath) {
+        return res.status(404).json({ message: "Contract not found" });
+      }
+
+      // Generate a short-lived token (15 mins for viewing)
+      const token = await documentAccessService.generateAccessToken(id, 0.25, 'view_contract', 'contract');
+      const viewUrl = documentAccessService.generateViewUrl(token);
+
+      res.json({ token, viewUrl });
+    } catch (error) {
+      console.error("Error generating contract view token:", error);
+      res.status(500).json({ message: "Failed to generate access token" });
+    }
+  });
+
   // View contract (inline)
   app.get("/api/contracts/:id/view", authenticate, async (req, res) => {
     try {
@@ -2607,8 +2660,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Contract document not found" });
       }
 
+      const extension = path.extname(contract.filePath).toLowerCase() || '.pdf';
+      const fileName = `CONTRACT_${contract.contractNumber || id}${extension}`;
+
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(contract.filePath, res);
+      await documentStorageService.downloadDocument(contract.filePath, res, 3600, fileName);
     } catch (error) {
       console.error("Error viewing contract:", error);
       if (!res.headersSent) {
@@ -2627,8 +2683,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Contract document not found" });
       }
 
+      const extension = path.extname(contract.filePath).toLowerCase() || '.pdf';
+      const fileName = `CONTRACT_${contract.contractNumber || id}${extension}`;
+
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(contract.filePath, res);
+      await documentStorageService.downloadDocument(contract.filePath, res, 3600, fileName);
     } catch (error) {
       console.error("Error downloading contract:", error);
       if (!res.headersSent) {

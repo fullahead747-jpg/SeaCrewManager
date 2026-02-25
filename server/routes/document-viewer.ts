@@ -15,11 +15,11 @@ export function setupDocumentViewerRoute(app: any) {
     console.log(`📥 Document view request: ${token.substring(0, 20)}...`);
 
     try {
-      // Validate token and get document
-      const document = await documentAccessService.getDocumentByToken(token);
+      // Validate token and get target (document or contract)
+      const result = await documentAccessService.getTargetByToken(token);
 
-      if (!document || !document.filePath) {
-        console.log('❌ Invalid or expired token, or document has no file');
+      if (!result || !result.data.filePath) {
+        console.log('❌ Invalid or expired token, or target has no file');
         return res.status(404).send(`
           <!DOCTYPE html>
           <html>
@@ -84,10 +84,20 @@ export function setupDocumentViewerRoute(app: any) {
         `);
       }
 
-      console.log(`✅ Serving document: ${document.type} - ${document.documentNumber}`);
+      const { type, data } = result;
+      console.log(`✅ Serving ${type}: ${type === 'document' ? data.type : 'CONTRACT'} - ${data.id}`);
+
+      let fileName = '';
+      const extension = path.extname(data.filePath).toLowerCase() || '.pdf';
+
+      if (type === 'document') {
+        fileName = `${data.type.toUpperCase()}_${data.documentNumber || 'doc'}${extension}`;
+      } else {
+        fileName = `CONTRACT_${data.contractNumber || data.id}${extension}`;
+      }
 
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(document.filePath, res);
+      await documentStorageService.downloadDocument(data.filePath, res, 3600, fileName);
 
     } catch (error) {
       console.error('❌ Error serving document:', error);

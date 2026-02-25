@@ -262,13 +262,27 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
     const handleViewAOA = async (m: CrewMemberWithDetails) => {
         if (m.activeContract?.filePath) {
             try {
+                // First, try to get a secure view token
+                const tokenResponse = await fetch(`/api/contracts/${m.activeContract.id}/view-token`, {
+                    method: 'POST',
+                    headers: getAuthHeaders(),
+                });
+
+                if (tokenResponse.ok) {
+                    const { viewUrl } = await tokenResponse.json();
+                    window.open(viewUrl, '_blank');
+                    return;
+                }
+
+                // Fallback to traditional method if token fails
                 const res = await fetch(`/api/contracts/${m.activeContract.id}/view`, { headers: getAuthHeaders() });
                 if (!res.ok) throw new Error('Failed to fetch document');
                 const blob = await res.blob();
                 const url = window.URL.createObjectURL(blob);
                 window.open(url, '_blank');
                 setTimeout(() => window.URL.revokeObjectURL(url), 100);
-            } catch {
+            } catch (error) {
+                console.error('Error viewing AOA:', error);
                 toast({ title: 'Error', description: 'Failed to open AOA document', variant: 'destructive' });
             }
         } else {

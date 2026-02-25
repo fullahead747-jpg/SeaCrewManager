@@ -655,6 +655,19 @@ const CrewTable = React.memo(() => {
 
     if (aoaDoc) {
       try {
+        // Use token-based viewing for documents
+        const tokenResponse = await fetch(`/api/documents/${aoaDoc.id}/view-token`, {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
+
+        if (tokenResponse.ok) {
+          const { viewUrl } = await tokenResponse.json();
+          window.open(viewUrl, '_blank');
+          return;
+        }
+
+        // Fallback to old method
         const response = await fetch(`/api/documents/${aoaDoc.id}/view`, {
           headers: getAuthHeaders(),
         });

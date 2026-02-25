@@ -100,12 +100,12 @@ export class DocumentStorageService {
 
 
   // Downloads a document to the response
-  async downloadDocument(encodedFilePath: string, res: Response, cacheTtlSec: number = 3600) {
+  async downloadDocument(encodedFilePath: string, res: Response, cacheTtlSec: number = 3600, fileName?: string) {
     // Decode the path since it might come from a URL (e.g., with %20 for spaces)
     const filePath = decodeURIComponent(encodedFilePath);
     const isCloudAvailable = this.isCloudStorageAvailable();
 
-    console.log(`[STORAGE-DOWNLOAD] Starting download for: ${filePath} (Cloud Available: ${isCloudAvailable})`);
+    console.log(`[STORAGE-DOWNLOAD] Starting download for: ${filePath} (Cloud Available: ${isCloudAvailable}, FileName: ${fileName || 'NOT PROVIDED'})`);
 
     // LOCAL FALLBACK: If path starts with 'uploads/' or cloud storage is unavailable
     // Note: On Replit, Object Storage paths start with /replit-objstore... 
@@ -119,6 +119,11 @@ export class DocumentStorageService {
 
         if (fs.existsSync(fullPath)) {
           console.log(`[STORAGE-DOWNLOAD-LOCAL] Serving local file: ${fullPath}`);
+
+          if (fileName) {
+            res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+          }
+
           return res.sendFile(fullPath);
         } else if (!isCloudAvailable) {
           console.error(`[STORAGE-DOWNLOAD-LOCAL] Local file not found and cloud unavailable: ${fullPath}`);
@@ -154,11 +159,20 @@ export class DocumentStorageService {
       console.log(`[STORAGE-DOWNLOAD] Metadata: ContentType=${metadata.contentType}, Size=${metadata.size}`);
 
       // Set appropriate headers
-      res.set({
+      const headers: Record<string, string | number> = {
         "Content-Type": metadata.contentType || "application/octet-stream",
-        "Content-Length": metadata.size,
         "Cache-Control": `private, max-age=${cacheTtlSec}`,
-      });
+      };
+
+      if (metadata.size) {
+        headers["Content-Length"] = metadata.size;
+      }
+
+      if (fileName) {
+        headers["Content-Disposition"] = `inline; filename="${fileName}"`;
+      }
+
+      res.set(headers);
 
       // Download the file content into memory (more robust for small/medium files on Replit)
       console.log(`[STORAGE-DOWNLOAD] Fetching buffer from storage for ${objectName}...`);

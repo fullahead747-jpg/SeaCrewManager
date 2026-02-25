@@ -310,28 +310,42 @@ export default function SignOnWizardDialog({
 
     // View document
     const handleViewDocument = async (doc: any) => {
-        if (doc?.filePath) {
-            try {
-                const response = await fetch(`/api/documents/${doc.id}/view`, {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                });
+        if (!doc?.id) return;
+        try {
+            // Use token-based viewing for documents
+            const tokenResponse = await fetch(`/api/documents/${doc.id}/view-token`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+            });
 
-                if (!response.ok) {
-                    throw new Error('Failed to fetch document');
-                }
-
-                const blob = await response.blob();
-                const url = window.URL.createObjectURL(blob);
-                window.open(url, '_blank');
-
-                // Clean up after a delay
-                setTimeout(() => window.URL.revokeObjectURL(url), 100);
-            } catch (error) {
-                console.error('Error viewing document:', error);
-                alert('Failed to open document. Please try again.');
+            if (tokenResponse.ok) {
+                const { viewUrl } = await tokenResponse.json();
+                window.open(viewUrl, '_blank');
+                return;
             }
+
+            // Fallback
+            const response = await fetch(`/api/documents/${doc.id}/view`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to fetch document');
+            }
+
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            window.open(url, '_blank');
+
+            // Clean up after a delay
+            setTimeout(() => window.URL.revokeObjectURL(url), 100);
+        } catch (error) {
+            console.error('Error viewing document:', error);
+            alert('Failed to open document. Please try again.');
         }
     };
 

@@ -282,6 +282,19 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
   const handleViewDocument = async () => {
     if (!document?.id) return;
     try {
+      // Use token-based viewing for documents
+      const tokenResponse = await fetch(`/api/documents/${document.id}/view-token`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      });
+
+      if (tokenResponse.ok) {
+        const { viewUrl } = await tokenResponse.json();
+        window.open(viewUrl, '_blank');
+        return;
+      }
+
+      // Fallback
       const response = await fetch(`/api/documents/${document.id}/view`, { headers: getAuthHeaders() });
       if (!response.ok) throw new Error('Failed to load document');
       const blob = await response.blob();
@@ -289,6 +302,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
       window.open(url, '_blank');
       setTimeout(() => window.URL.revokeObjectURL(url), 10000);
     } catch (error) {
+      console.error('Document view error in upload:', error);
       toast({ title: 'Error', description: 'Failed to open document.', variant: 'destructive' });
     }
   };
