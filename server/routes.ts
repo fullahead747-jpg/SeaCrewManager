@@ -2196,12 +2196,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`✅ Valid token - Serving document: ${document.type} - ${document.documentNumber}`);
 
+      // Fetch crew member for name
+      const crewMember = await storage.getCrewMember(document.crewMemberId);
+      const crewName = crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : 'Crew';
+
       // Generate a descriptive filename
       const extension = path.extname(document.filePath || '').toLowerCase() || '.pdf';
-      const fileName = `${document.type.toUpperCase()}_${document.documentNumber || 'doc'}${extension}`;
+      const fileName = `${document.type.toUpperCase()} - ${crewName} - ${document.documentNumber || 'doc'}${extension}`;
 
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(document.filePath!, res, 3600, fileName);
+      await documentStorageService.downloadDocument(document.filePath!, res, 3600, fileName, 'inline');
     } catch (error) {
       console.error("❌ Error in secure document viewer:", error);
       if (!res.headersSent) {
@@ -2260,11 +2264,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[VIEW-DOC] Attempting to view doc: ${id}, Path: ${document.filePath}`);
 
+      const crewMember = await storage.getCrewMember(document.crewMemberId);
+      const crewName = crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : 'Crew';
       const extension = path.extname(document.filePath).toLowerCase() || '.pdf';
-      const fileName = `${document.type.toUpperCase()}_${document.documentNumber || 'doc'}${extension}`;
+      const fileName = `${document.type.toUpperCase()} - ${crewName} - ${document.documentNumber || 'doc'}${extension}`;
 
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(document.filePath, res, 3600, fileName);
+      await documentStorageService.downloadDocument(document.filePath, res, 3600, fileName, 'inline');
     } catch (error) {
       console.error("Error viewing crew document:", error);
       if (!res.headersSent) {
@@ -2283,11 +2289,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Document not found" });
       }
 
+      const crewMember = await storage.getCrewMember(document.crewMemberId);
+      const crewName = crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : 'Crew';
       const extension = path.extname(document.filePath).toLowerCase() || '.pdf';
-      const fileName = `${document.type.toUpperCase()}_${document.documentNumber || 'doc'}${extension}`;
+      const fileName = `${document.type.toUpperCase()} - ${crewName} - ${document.documentNumber || 'doc'}${extension}`;
 
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(document.filePath, res, 3600, fileName);
+      await documentStorageService.downloadDocument(document.filePath, res, 3600, fileName, 'attachment');
     } catch (error) {
       console.error("Error downloading crew document:", error);
       if (!res.headersSent) {
@@ -2660,11 +2668,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Contract document not found" });
       }
 
+      const crewMember = await storage.getCrewMember(contract.crewMemberId);
       const extension = path.extname(contract.filePath).toLowerCase() || '.pdf';
-      const fileName = `CONTRACT_${contract.contractNumber || id}${extension}`;
+      const crewName = crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : 'Crew';
+      const fileName = `Seafarers Employment Agreement - ${crewName}${extension}`;
 
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(contract.filePath, res, 3600, fileName);
+      await documentStorageService.downloadDocument(contract.filePath, res, 3600, fileName, 'inline');
     } catch (error) {
       console.error("Error viewing contract:", error);
       if (!res.headersSent) {
@@ -2683,11 +2693,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Contract document not found" });
       }
 
+      const crewMember = await storage.getCrewMember(contract.crewMemberId);
       const extension = path.extname(contract.filePath).toLowerCase() || '.pdf';
-      const fileName = `CONTRACT_${contract.contractNumber || id}${extension}`;
+      const crewName = crewMember ? `${crewMember.firstName} ${crewMember.lastName}` : 'Crew';
+      const fileName = `Seafarers Employment Agreement - ${crewName}${extension}`;
 
       const documentStorageService = new DocumentStorageService();
-      await documentStorageService.downloadDocument(contract.filePath, res, 3600, fileName);
+      await documentStorageService.downloadDocument(contract.filePath, res, 3600, fileName, 'attachment');
     } catch (error) {
       console.error("Error downloading contract:", error);
       if (!res.headersSent) {

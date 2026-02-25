@@ -100,7 +100,7 @@ export class DocumentStorageService {
 
 
   // Downloads a document to the response
-  async downloadDocument(encodedFilePath: string, res: Response, cacheTtlSec: number = 3600, fileName?: string) {
+  async downloadDocument(encodedFilePath: string, res: Response, cacheTtlSec: number = 3600, fileName?: string, disposition: 'inline' | 'attachment' = 'inline') {
     // Decode the path since it might come from a URL (e.g., with %20 for spaces)
     const filePath = decodeURIComponent(encodedFilePath);
     const isCloudAvailable = this.isCloudStorageAvailable();
@@ -121,7 +121,7 @@ export class DocumentStorageService {
           console.log(`[STORAGE-DOWNLOAD-LOCAL] Serving local file: ${fullPath}`);
 
           if (fileName) {
-            res.setHeader('Content-Disposition', `inline; filename="${fileName}"`);
+            res.setHeader('Content-Disposition', `${disposition}; filename="${fileName}"`);
           }
 
           return res.sendFile(fullPath);
@@ -169,7 +169,7 @@ export class DocumentStorageService {
       }
 
       if (fileName) {
-        headers["Content-Disposition"] = `inline; filename="${fileName}"`;
+        headers["Content-Disposition"] = `${disposition}; filename="${fileName}"`;
       }
 
       res.set(headers);
