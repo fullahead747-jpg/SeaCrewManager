@@ -584,7 +584,7 @@ const VesselCards = React.memo(({ showUploadButton = true }: { showUploadButton?
     return <Ship className="h-8 w-8 text-primary" />;
   };
 
-  const handleExportVessels = () => {
+  const handleExportVessels = async () => {
     try {
       if (!vessels || vessels.length === 0) {
         toast({ title: 'No Data', description: 'No vessels found to export', variant: 'destructive' });

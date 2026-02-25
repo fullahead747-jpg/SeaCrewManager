@@ -181,7 +181,7 @@ export default function Reports() {
     });
   };
 
-  const exportToCSV = () => {
+  const exportToCSV = async () => {
     try {
       let csvContent = '';
       let filename = '';
