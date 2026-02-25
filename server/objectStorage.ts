@@ -105,7 +105,8 @@ export class DocumentStorageService {
     const filePath = decodeURIComponent(encodedFilePath);
     const isCloudAvailable = this.isCloudStorageAvailable();
 
-    console.log(`[STORAGE-DOWNLOAD] Starting download for: ${filePath} (Cloud Available: ${isCloudAvailable}, FileName: ${fileName || 'NOT PROVIDED'})`);
+    console.log(`[STORAGE-DOWNLOAD] Starting download for: ${filePath}`);
+    console.log(`[STORAGE-DOWNLOAD] Parameters - Cloud Available: ${isCloudAvailable}, FileName: "${fileName || 'NOT PROVIDED'}", Disposition: "${disposition}"`);
 
     // LOCAL FALLBACK: If path starts with 'uploads/' or cloud storage is unavailable
     // Note: On Replit, Object Storage paths start with /replit-objstore... 
@@ -121,10 +122,14 @@ export class DocumentStorageService {
           console.log(`[STORAGE-DOWNLOAD-LOCAL] Serving local file: ${fullPath}`);
 
           if (fileName) {
+            console.log(`[STORAGE-DOWNLOAD-LOCAL] Setting Content-Disposition: ${disposition}; filename="${fileName}"`);
             res.setHeader('Content-Disposition', `${disposition}; filename="${fileName}"`);
           }
 
-          return res.sendFile(fullPath);
+          // Use the headers option for sendFile to ensure they aren't overridden
+          return res.sendFile(fullPath, {
+            headers: fileName ? { 'Content-Disposition': `${disposition}; filename="${fileName}"` } : {}
+          });
         } else if (!isCloudAvailable) {
           console.error(`[STORAGE-DOWNLOAD-LOCAL] Local file not found and cloud unavailable: ${fullPath}`);
           return res.status(404).json({
@@ -169,10 +174,14 @@ export class DocumentStorageService {
       }
 
       if (fileName) {
-        headers["Content-Disposition"] = `${disposition}; filename="${fileName}"`;
+        console.log(`[STORAGE-DOWNLOAD-CLOUD] Setting Content-Disposition: ${disposition}; filename="${fileName}"`);
+        res.setHeader('Content-Disposition', `${disposition}; filename="${fileName}"`);
       }
 
-      res.set(headers);
+      // Explicitly set each header using setHeader for maximum reliability
+      Object.entries(headers).forEach(([key, value]) => {
+        res.setHeader(key, value);
+      });
 
       // Download the file content into memory (more robust for small/medium files on Replit)
       console.log(`[STORAGE-DOWNLOAD] Fetching buffer from storage for ${objectName}...`);

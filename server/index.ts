@@ -1,4 +1,5 @@
 import 'dotenv/config';
+console.log(`[SERVER-INIT] Application initialized at ${new Date().toISOString()}`);
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
