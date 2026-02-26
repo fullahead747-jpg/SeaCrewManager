@@ -205,7 +205,23 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             console.error('Document viewer error:', error);
             toast({ title: 'Error', description: 'Failed to open document', variant: 'destructive' });
         }
-    }, [toast]);
+    }, [toast, member]);
+
+    const handleDocDownload = React.useCallback(async (doc: any) => {
+        if (!doc.filePath || !doc.docId) {
+            toast({ title: 'Not Available', description: 'No document file has been uploaded for this type.' });
+            return;
+        }
+        try {
+            const endpoint = doc.isContract ? `/api/contracts/${doc.docId}/view` : `/api/documents/${doc.docId}/view`;
+            const response = await fetch(endpoint, { headers: getAuthHeaders() });
+            if (!response.ok) throw new Error('Failed to fetch document');
+            await downloadFileFromResponse(response, `${doc.type.toUpperCase()}_${member.lastName}.pdf`);
+        } catch (error) {
+            console.error('Document download error:', error);
+            toast({ title: 'Error', description: 'Failed to download document', variant: 'destructive' });
+        }
+    }, [toast, member]);
 
     return (
         <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden mb-6">
@@ -431,7 +447,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                         size="icon"
                                                         variant="ghost"
                                                         className="h-7 w-7 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md"
-                                                        onClick={() => onDownload(doc.docId!, doc.type)}
+                                                        onClick={() => handleDocDownload(doc)}
                                                     >
                                                         <FileDown className="h-3 w-3" />
                                                     </Button>
