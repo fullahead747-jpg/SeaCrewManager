@@ -2251,7 +2251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Generate a short-lived token (15 mins for viewing)
       const token = await documentAccessService.generateAccessToken(id, 0.25, 'view_document');
-      const viewUrl = documentAccessService.generateViewUrl(token);
+      const viewUrl = `/api/documents/view/${token}`;
 
       res.json({ token, viewUrl });
     } catch (error) {
@@ -2660,7 +2660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Generate a short-lived token (15 mins for viewing)
       const token = await documentAccessService.generateAccessToken(id, 0.25, 'view_contract', 'contract');
-      const viewUrl = documentAccessService.generateViewUrl(token);
+      const viewUrl = `/api/documents/view/${token}`;
 
       res.json({ token, viewUrl });
     } catch (error) {
