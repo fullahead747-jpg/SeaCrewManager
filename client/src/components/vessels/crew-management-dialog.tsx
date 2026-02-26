@@ -21,6 +21,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import DocumentUpload from '../documents/document-upload';
+import { BulkUploadDialog } from '../crew/bulk-upload-dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -109,6 +110,8 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedCrewForUpload, setSelectedCrewForUpload] = useState<CrewMemberWithDetails | null>(null);
   const [uploadDocumentType, setUploadDocumentType] = useState<string | null>(null);
+  const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
+  const [selectedCrewForBulkUpload, setSelectedCrewForBulkUpload] = useState<CrewMemberWithDetails | null>(null);
   const [contractDialogOpen, setContractDialogOpen] = useState(false);
   const [selectedCrewForContract, setSelectedCrewForContract] = useState<CrewMemberWithDetails | null>(null);
   const [contractStartDate, setContractStartDate] = useState('');
@@ -1090,6 +1093,11 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
     setShowUploadDialog(true);
   };
 
+  const handleBulkUploadClick = (member: CrewMemberWithDetails) => {
+    setSelectedCrewForBulkUpload(member);
+    setIsBulkUploadModalOpen(true);
+  };
+
   if (!vessel) return null;
 
   return (
@@ -1188,6 +1196,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         onSignOff={handleSignOffClick}
                         onSignOn={handleSignOnClick}
                         onUpload={handleUploadClick}
+                        onBulkUpload={handleBulkUploadClick}
                         onDelete={handleDeleteClick}
                         onDeleteDocument={handleDeleteDocument}
                         isMailPending={sendCrewEmailMutation.isPending}
@@ -2601,6 +2610,19 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Document Upload Dialog */}
+      <BulkUploadDialog
+        open={isBulkUploadModalOpen}
+        onOpenChange={setIsBulkUploadModalOpen}
+        crewMember={selectedCrewForBulkUpload}
+        onSuccess={() => {
+          setIsBulkUploadModalOpen(false);
+          queryClient.invalidateQueries({ queryKey: [`/api/vessels/${vessel?.id}/crew`] });
+          queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+        }}
+      />
     </Dialog>
   );
 }

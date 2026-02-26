@@ -14,6 +14,7 @@ import { CrewAvatar } from "@/components/crew/crew-avatar";
 import { useToast } from '@/hooks/use-toast';
 import { formatDate } from '@/lib/utils';
 import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
+import { BulkUploadDialog } from '@/components/crew/bulk-upload-dialog';
 import DocumentUpload from '@/components/documents/document-upload';
 import EditCrewForm from '@/components/crew/edit-crew-form';
 import SignOnWizardDialog from '@/components/crew/sign-on-wizard-dialog';
@@ -38,6 +39,8 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [selectedCrewForUpload, setSelectedCrewForUpload] = useState<CrewMemberWithDetails | null>(null);
     const [selectedUploadType, setSelectedUploadType] = useState<string | undefined>(undefined);
+    const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
+    const [selectedCrewForBulkUpload, setSelectedCrewForBulkUpload] = useState<CrewMemberWithDetails | null>(null);
 
     // View state
     const [showViewDialog, setShowViewDialog] = useState(false);
@@ -240,6 +243,11 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
         setSelectedCrewForUpload(member);
         setSelectedUploadType(type);
         setIsUploadModalOpen(true);
+    };
+
+    const handleBulkUpload = (member: CrewMemberWithDetails) => {
+        setSelectedCrewForBulkUpload(member);
+        setIsBulkUploadModalOpen(true);
     };
 
     const handleDownload = async (crewId: string, crewName: string) => {
@@ -465,6 +473,7 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
                                                             onSignOff={(m) => { setSelectedCrewForSignOff(m); setSignOffReason(''); setSignOffDialogOpen(true); }}
                                                             onSignOn={(m) => { setSelectedCrewForSignOn(m); setSignOnDialogOpen(true); }}
                                                             onUpload={handleUpload}
+                                                            onBulkUpload={handleBulkUpload}
                                                             onDeleteDocument={handleDeleteDocument}
                                                             onDelete={handleDeleteCrewClick}
                                                             isMailPending={sendCrewEmailMutation.isPending}
@@ -757,6 +766,18 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
                     </div>
                 </DialogContent>
             </Dialog>
+
+            {/* Bulk Document Upload Dialog */}
+            <BulkUploadDialog
+                open={isBulkUploadModalOpen}
+                onOpenChange={setIsBulkUploadModalOpen}
+                crewMember={selectedCrewForBulkUpload}
+                onSuccess={() => {
+                    setIsBulkUploadModalOpen(false);
+                    queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+                    queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+                }}
+            />
         </>
     );
 }

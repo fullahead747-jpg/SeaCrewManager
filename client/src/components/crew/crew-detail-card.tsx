@@ -35,6 +35,7 @@ interface CrewDetailCardProps {
     onSignOn?: (member: CrewMemberWithDetails) => void;
     onSignOff?: (member: CrewMemberWithDetails) => void;
     onUpload?: (member: CrewMemberWithDetails, type: string) => void;
+    onBulkUpload?: (member: CrewMemberWithDetails) => void;
     isMailPending?: boolean;
 }
 
@@ -52,6 +53,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
     onSignOn,
     onSignOff,
     onUpload,
+    onBulkUpload,
     isMailPending
 }) => {
     const { toast } = useToast();
@@ -347,6 +349,12 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                             onClick={() => onDownload(member.id, `${member.firstName} ${member.lastName}`)}
                         >
                             <Download className="h-3 w-3 mr-1" /> Download
+                        </Button>
+                        <Button
+                            className="h-7.5 bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 rounded-lg font-medium text-[9px] uppercase tracking-tight shadow-sm"
+                            onClick={() => onBulkUpload?.(member)}
+                        >
+                            <Upload className="h-3 w-3 mr-1" /> Bulk Upload
                         </Button>
                         {member.status === 'onBoard' ? (
                             <Button
