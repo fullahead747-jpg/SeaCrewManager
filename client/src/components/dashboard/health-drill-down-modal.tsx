@@ -29,6 +29,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, LogIn, Trash2, Mail, Archive, Users, Printer } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 import { downloadFileFromResponse, openSecureView } from "@/lib/file-utils";
+import { BulkUploadDialog } from "@/components/crew/bulk-upload-dialog";
 
 interface HealthDrillDownModalProps {
     isOpen: boolean;
@@ -53,6 +54,8 @@ const HealthDrillDownModal = memo(({
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [selectedCrewForUpload, setSelectedCrewForUpload] = useState<any>(null);
     const [selectedUploadType, setSelectedUploadType] = useState<string | undefined>(undefined);
+    const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
+    const [selectedCrewForBulkUpload, setSelectedCrewForBulkUpload] = useState<CrewMemberWithDetails | null>(null);
 
     // Additional state for crew actions (cloned from CrewTable)
     const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMemberWithDetails | null>(null);
@@ -432,6 +435,11 @@ const HealthDrillDownModal = memo(({
         setIsUploadModalOpen(true);
     };
 
+    const handleBulkUpload = (member: any) => {
+        setSelectedCrewForBulkUpload(member);
+        setIsBulkUploadModalOpen(true);
+    };
+
     // Helper functions cloned from CrewTable
     const getInitials = (firstName?: string | null, lastName?: string | null) => {
         const first = firstName?.charAt(0) || '';
@@ -736,6 +744,7 @@ const HealthDrillDownModal = memo(({
                                                 onSendMail={(m) => sendCrewEmailMutation.mutate(m)}
                                                 onDownload={(id, name) => handleDownloadCrewDocuments(id, name)}
                                                 onUpload={handleUpload}
+                                                onBulkUpload={handleBulkUpload}
                                                 onViewAOA={handleViewAOAClick}
                                                 onSignOff={handleSignOffClick}
                                                 onSignOn={handleSignOnClick}
@@ -1275,6 +1284,18 @@ const HealthDrillDownModal = memo(({
                 </DialogContent>
 
             </Dialog>
+
+            {/* Bulk Document Upload Dialog */}
+            <BulkUploadDialog
+                open={isBulkUploadModalOpen}
+                onOpenChange={setIsBulkUploadModalOpen}
+                crewMember={selectedCrewForBulkUpload}
+                onSuccess={() => {
+                    setIsBulkUploadModalOpen(false);
+                    queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+                    queryClient.invalidateQueries({ queryKey: ['/api/dashboard/drilldown'] });
+                }}
+            />
         </>
     );
 });

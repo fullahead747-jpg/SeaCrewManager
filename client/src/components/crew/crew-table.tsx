@@ -46,6 +46,7 @@ import { formatDate } from '@/lib/utils';
 import { CrewDetailCard } from './crew-detail-card';
 import { CrewAvatar } from './crew-avatar';
 import DocumentUpload from '../documents/document-upload';
+import { BulkUploadDialog } from './bulk-upload-dialog';
 import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
 
 // Helper function for calculating contract days remaining
@@ -102,6 +103,8 @@ const CrewTable = React.memo(() => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedCrewForUpload, setSelectedCrewForUpload] = useState<any>(null);
   const [selectedUploadType, setSelectedUploadType] = useState<string | undefined>(undefined);
+  const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
+  const [selectedCrewForBulkUpload, setSelectedCrewForBulkUpload] = useState<CrewMemberWithDetails | null>(null);
 
   const { data: crewMembers = [], isLoading, refetch } = useQuery<CrewMemberWithDetails[]>({
     queryKey: ['/api/crew'],
@@ -1291,6 +1294,10 @@ const CrewTable = React.memo(() => {
                     onSignOn={handleSignOnClick}
                     onSignOff={handleSignOffClick}
                     onUpload={handleUpload}
+                    onBulkUpload={(m) => {
+                      setSelectedCrewForBulkUpload(m);
+                      setIsBulkUploadModalOpen(true);
+                    }}
                     onDeleteDocument={handleDeleteDocument}
                     isMailPending={sendCrewEmailMutation.isPending}
                   />
@@ -2357,12 +2364,23 @@ const CrewTable = React.memo(() => {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Bulk Document Upload Dialog */}
+      <BulkUploadDialog
+        open={isBulkUploadModalOpen}
+        onOpenChange={setIsBulkUploadModalOpen}
+        crewMember={selectedCrewForBulkUpload}
+        onSuccess={() => {
+          setIsBulkUploadModalOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+        }}
+      />
     </div>
   );
 });
 
 export default CrewTable;
-
 
 
 

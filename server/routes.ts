@@ -1516,6 +1516,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // BULK UPLOAD HANDLER
+  app.post("/api/documents/bulk", authenticate, upload.array('files'), async (req, res) => {
+    try {
+      const crewMemberId = req.body.crewMemberId;
+      if (!crewMemberId) {
+        return res.status(400).json({ message: "Crew member ID is required" });
+      }
+
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ message: "No files uploaded" });
+      }
+
+      const crewMember = await storage.getCrewMember(crewMemberId);
+      if (!crewMember) {
+        return res.status(404).json({ message: "Crew member not found" });
+      }
+
+      const results: any[] = [];
+      const documentTypes = ['passport', 'cdc', 'coc', 'medical', 'visa', 'aoa', 'photo', 'nok', 'coe', 'coe-extension'];
+
+      for (const file of files) {
+        const originalName = file.originalname.toLowerCase();
+        let detectedType = 'other'; // default
+
+        // Match based on keywords in filename
+        for (const type of documentTypes) {
+          if (originalName.includes(type)) {
+            detectedType = type;
+            break;
+          }
+        }
+
+        // Special case for 'med' abbreviation
+        if (detectedType === 'other' && originalName.includes('med')) {
+          detectedType = 'medical';
+        }
+
+        // Return relative path for storage
+        const relativePath = path.relative(process.cwd(), file.path);
+        const normalizedPath = relativePath.split(path.sep).join('/');
+
+        // Create a basic document record
+        // We use placeholders that the OCR background task will hopefully overwrite
+        const docData = {
+          crewMemberId,
+          type: detectedType,
+          documentNumber: "PENDING_SCAN",
+          issuingAuthority: "PENDING_SCAN",
+          issueDate: new Date(),
+          expiryDate: null,
+          status: 'valid',
+          filePath: normalizedPath
+        };
+
+        const document = await storage.createDocument(docData);
+        results.push(document);
+
+        // TRIGGER BACKGROUND OCR EXTRACTION (SILENT)
+        // This mirrors the logic in the single-file POST handler
+        (async () => {
+          try {
+            console.log(`[BULK-SCAN] Starting for Document ID: ${document.id}, Type: ${detectedType}`);
+            const extractedData = await documentVerificationService.extractDocumentData(
+              path.join(process.cwd(), normalizedPath),
+              detectedType
+            );
+
+            // Update document with extracted data
+            const updates: any = {};
+            if (extractedData.documentNumber && extractedData.documentNumber !== 'NONE') {
+              updates.documentNumber = extractedData.documentNumber;
+            }
+            if (extractedData.expiryDate && extractedData.expiryDate !== 'NONE') {
+              updates.expiryDate = parseDDMMYYYY(extractedData.expiryDate);
+            }
+            if (extractedData.issueDate && extractedData.issueDate !== 'NONE') {
+              updates.issueDate = parseDDMMYYYY(extractedData.issueDate);
+            }
+            if (extractedData.issuingAuthority && extractedData.issuingAuthority !== 'NONE') {
+              updates.issuingAuthority = extractedData.issuingAuthority;
+            }
+
+            if (Object.keys(updates).length > 0) {
+              await storage.updateDocument(document.id, updates);
+            }
+
+            // Create scanned document record for verification history
+            await storage.createScannedDocument({
+              documentId: document.id,
+              seafarerName: `${crewMember.firstName} ${crewMember.lastName}`,
+              extractedNumber: extractedData.documentNumber,
+              extractedExpiry: parseDDMMYYYY(extractedData.expiryDate),
+              extractedIssueDate: parseDDMMYYYY(extractedData.issueDate),
+              extractedHolderName: extractedData.holderName,
+              mrzValidation: extractedData.mrzValidation,
+              ocrConfidence: extractedData.ocrConfidence || (extractedData.documentNumber ? 80 : 0),
+              rawText: JSON.stringify(extractedData),
+              ownerValidationStatus: 'match', // Assume match for bulk upload unless we want to flag it
+              ownerValidationScore: 100,
+              ownerValidationMessage: 'Bulk uploaded document'
+            });
+
+            console.log(`[BULK-SCAN] Completed for Document ID: ${document.id}`);
+          } catch (scanError) {
+            console.error(`[BULK-SCAN-ERROR] Failed for Document ID: ${document.id}:`, scanError);
+          }
+        })();
+      }
+
+      res.status(201).json({
+        message: `Successfully processed ${results.length} files`,
+        documents: results
+      });
+    } catch (error) {
+      console.error('Bulk upload error:', error);
+      res.status(500).json({ message: "Bulk upload failed", error: error instanceof Error ? error.message : 'Unknown error' });
+    }
+  });
+
   app.put("/api/documents/:id", authenticate, async (req, res) => {
     try {
       const updates = insertDocumentSchema.partial().parse(req.body);
