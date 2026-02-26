@@ -180,21 +180,20 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             return;
         }
         try {
-            // For documents, use the new token-based viewing system to preserve filename and extension
-            if (!doc.isContract) {
-                const tokenResponse = await fetch(`/api/documents/${doc.docId}/view-token`, {
-                    method: 'POST',
-                    headers: getAuthHeaders()
-                });
+            // Use token-based viewing system to preserve inline view and secure access
+            const tokenEndpoint = doc.isContract ? `/api/contracts/${doc.docId}/view-token` : `/api/documents/${doc.docId}/view-token`;
+            const tokenResponse = await fetch(tokenEndpoint, {
+                method: 'POST',
+                headers: getAuthHeaders()
+            });
 
-                if (tokenResponse.ok) {
-                    const { viewUrl } = await tokenResponse.json();
-                    openSecureView(viewUrl);
-                    return;
-                }
-                // Fallback to old method if token generation fails (shouldn't happen for docs)
-                console.warn('Token-based view failed, falling back to blob method');
+            if (tokenResponse.ok) {
+                const { viewUrl } = await tokenResponse.json();
+                openSecureView(viewUrl);
+                return;
             }
+
+            console.warn('Token-based view failed, falling back to blob method');
 
             // Fallback / Contract Method
             const endpoint = doc.isContract ? `/api/contracts/${doc.docId}/view` : `/api/documents/${doc.docId}/view`;

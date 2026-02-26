@@ -163,9 +163,14 @@ export class DocumentStorageService {
       const [metadata] = await objectFile.getMetadata();
       console.log(`[STORAGE-DOWNLOAD] Metadata: ContentType=${metadata.contentType}, Size=${metadata.size}`);
 
+      let contentType = metadata.contentType || "application/octet-stream";
+      if (filePath.toLowerCase().endsWith('.pdf') && contentType === 'application/octet-stream') {
+        contentType = 'application/pdf';
+      }
+
       // Set appropriate headers
       const headers: Record<string, string | number> = {
-        "Content-Type": metadata.contentType || "application/octet-stream",
+        "Content-Type": contentType,
         "Cache-Control": `private, max-age=${cacheTtlSec}`,
       };
 
