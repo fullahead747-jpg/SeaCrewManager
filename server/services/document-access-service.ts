@@ -24,9 +24,15 @@ export class DocumentAccessService {
         // Generate cryptographically secure random token
         const token = crypto.randomBytes(32).toString('hex');
 
-        // Calculate expiry time
-        const expiresAt = new Date();
-        expiresAt.setHours(expiresAt.getHours() + expiryHours);
+        // Calculate expiry time correctly (supporting fractional hours)
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + (expiryHours * 60 * 60 * 1000));
+
+        console.log(`🔐 [TOKEN-GEN] Generating ${targetType} token:
+            NOW (UTC/Local): ${now.toISOString()}
+            ExpiresAt (UTC/Local): ${expiresAt.toISOString()}
+            Duration: ${expiryHours}h
+            Purpose: ${purpose}`);
 
         // Store token in database
         const values: any = {
@@ -34,8 +40,9 @@ export class DocumentAccessService {
             expiresAt,
             createdFor: purpose,
             metadata: {
-                generatedAt: new Date().toISOString(),
-                expiryHours
+                generatedAt: now.toISOString(),
+                expiryHours,
+                serverTime: now.toString()
             }
         };
 
@@ -47,7 +54,7 @@ export class DocumentAccessService {
 
         await db.insert(documentAccessTokens).values(values);
 
-        console.log(`🔐 Generated access token for ${targetType} ${targetId}, expires in ${expiryHours}h`);
+        console.log(`✅ Access token generated and saved for ${targetType} ${targetId}`);
 
         return token;
     }
@@ -75,7 +82,14 @@ export class DocumentAccessService {
 
             // Check if token has expired
             const now = new Date();
-            if (tokenRecord.expiresAt < now) {
+            const expiresAt = new Date(tokenRecord.expiresAt);
+
+            console.log(`🔍 [TOKEN-VAL] Validating token:
+                Current Time (UTC): ${now.toISOString()}
+                Expires At (UTC): ${expiresAt.toISOString()}
+                Time Remaining: ${((expiresAt.getTime() - now.getTime()) / 60000).toFixed(2)} mins`);
+
+            if (expiresAt < now) {
                 console.log(`⏰ Token expired: ${token.substring(0, 10)}...`);
                 return null;
             }
