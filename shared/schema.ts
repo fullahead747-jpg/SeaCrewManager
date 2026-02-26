@@ -397,10 +397,10 @@ export const documentAccessTokens = pgTable("document_access_tokens", {
   documentId: varchar("document_id").references(() => documents.id, { onDelete: 'cascade' }),
   contractId: varchar("contract_id").references(() => contracts.id, { onDelete: 'cascade' }),
   token: varchar("token", { length: 255 }).notNull().unique(),
-  expiresAt: timestamp("expires_at").notNull(),
-  usedAt: timestamp("used_at"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  usedAt: timestamp("used_at", { withTimezone: true }),
   createdFor: varchar("created_for", { length: 50 }).notNull(), // 'email_notification', 'renewal_confirmation', 'view_document'
   metadata: jsonb("metadata"),
-  createdAt: timestamp("created_at").defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow(),
 });
 
