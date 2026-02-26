@@ -1,201 +1,46 @@
-# CrewTrack Pro - Hostinger Deployment Guide
+# Replit Deployment Guide
 
-## Overview
-This guide will help you deploy your maritime crew management system to Hostinger web hosting.
+Follow these steps to deploy the latest changes to your live site on Replit.
 
-## Prerequisites
-- Hostinger hosting account with Node.js support
-- Database hosting (Hostinger provides MySQL/PostgreSQL)
-- File manager or FTP access to your hosting account
+## 1. Set Environment Variables (Secrets)
 
-## Step 1: Prepare Your Files
+In your Replit project, go to the **Secrets** (🔒) tab and ensure the following variables are correctly set:
 
-### Files to Upload:
-```
-/
-├── dist/                 # Frontend build files
-├── server/              # Backend Node.js files
-├── shared/              # Shared schema files
-├── package.json         # Dependencies
-├── package-lock.json    # Lock file
-├── drizzle.config.ts    # Database config
-├── tsconfig.json        # TypeScript config
-├── .env.example         # Environment template
-└── eng.traineddata      # OCR language data
-```
+| Secret Name | Description |
+| :--- | :--- |
+| `APP_URL` | The live URL of your application (e.g., `https://seacrewmanager.your-replit-username.repl.co`). **Do not use localhost.** |
+| `DOCUMENT_AI_PROJECT_ID` | Your Google Cloud Project ID. |
+| `DOCUMENT_AI_LOCATION` | The processor location (e.g., `us` or `eu`). |
+| `DOCUMENT_AI_PROCESSOR_ID` | Your Google Document AI Processor ID. |
+| `GOOGLE_CREDENTIALS_CONTENT` | The **entire content** of your `google-credentials.json` file. |
 
-## Step 2: Database Setup
+> [!IMPORTANT]
+> Since Replit doesn't allow direct file uploads like `google-credentials.json` into the root easily for security, we've enabled the `GOOGLE_CREDENTIALS_CONTENT` secret. Copy the text from inside your JSON file and paste it as the value for this secret.
 
-### Option A: PostgreSQL (Recommended)
-1. Create a PostgreSQL database in Hostinger control panel
-2. Note down:
-   - Database name
-   - Username
-   - Password
-   - Host
-   - Port
+## 2. Push Changes to GitHub
 
-### Option B: MySQL (Alternative)
-1. Create MySQL database in Hostinger control panel
-2. You'll need to modify the database configuration
+If you are working locally, commit and push your changes to your GitHub repository.
 
-## Step 3: Environment Configuration
-
-Create `.env` file with your database credentials:
-
-```env
-# Database Configuration
-DATABASE_URL="postgresql://username:password@host:port/database_name"
-PGHOST=your_host
-PGPORT=5432
-PGUSER=your_username
-PGPASSWORD=your_password
-PGDATABASE=your_database_name
-
-# Node Environment
-NODE_ENV=production
-PORT=3000
-
-# Optional: OpenAI API Key (for enhanced OCR features)
-OPENAI_API_KEY=your_openai_key_if_needed
+```powershell
+git add .
+git commit -m "Fix live URLs and enable real OCR"
+git push origin main
 ```
 
-## Step 4: Hostinger Setup Steps
+## 3. Pull Changes on Replit
 
-### 1. Upload Files
-- Use Hostinger File Manager or FTP client
-- Upload all files to your domain's public_html folder
-- Ensure proper file permissions (755 for directories, 644 for files)
+In the Replit Console:
 
-### 2. Install Dependencies
-- Access SSH terminal in Hostinger control panel
-- Navigate to your domain folder
-- Run: `npm install --production`
-
-### 3. Database Migration
-- Run: `npm run db:push`
-- This creates all necessary tables
-
-### 4. Start Application
-- Run: `npm start` or use Hostinger's Node.js application manager
-- Set startup file to: `server/index.js`
-
-## Step 5: Domain Configuration
-
-### DNS Settings:
-- Point your domain to Hostinger's servers
-- Configure subdomain if needed (e.g., crewtrack.yourdomain.com)
-
-### SSL Certificate:
-- Enable free SSL certificate in Hostinger control panel
-- Ensure HTTPS is working
-
-## Step 6: Testing
-
-1. Visit your domain
-2. Test login with demo credentials:
-   - Admin: admin / admin123
-   - Office Staff: office / demo123
-3. Test core features:
-   - Add crew member
-   - Upload document with OCR
-   - View dashboard statistics
-
-## File Structure on Server
-
-```
-public_html/
-├── dist/                    # React frontend (static files)
-│   ├── index.html
-│   ├── assets/
-│   └── ...
-├── server/                  # Node.js backend
-│   ├── index.js
-│   ├── routes.js
-│   ├── storage.js
-│   ├── db.js
-│   ├── localOcrService.js
-│   └── ...
-├── shared/
-│   └── schema.js
-├── package.json
-├── .env
-└── eng.traineddata
+```bash
+git pull origin main
 ```
 
-## Troubleshooting
+## 4. Restart the Server
 
-### Common Issues:
+Replit should automatically restart the server when changes are detected, but you can manually trigger it by clicking **Stop** and then **Run**.
 
-**Database Connection Error:**
-- Verify DATABASE_URL format
-- Check database credentials
-- Ensure database server is accessible
+## 5. Verification
 
-**Port Conflicts:**
-- Hostinger may assign different ports
-- Check Hostinger's Node.js app settings
-- Update PORT in .env file
-
-**File Permissions:**
-- Set directories to 755: `chmod -R 755 public_html`
-- Set files to 644: `chmod -R 644 public_html/*`
-
-**Node.js Version:**
-- Ensure Hostinger supports Node.js 18+
-- Check in hosting control panel
-
-### Performance Optimization:
-
-1. **Enable Gzip Compression**
-2. **Set up CDN** (if available in your plan)
-3. **Configure Caching Headers**
-4. **Monitor Resource Usage**
-
-## Security Considerations
-
-1. **Environment Variables:**
-   - Never commit .env to version control
-   - Use strong database passwords
-
-2. **HTTPS:**
-   - Always use SSL certificate
-   - Force HTTPS redirects
-
-3. **Database Security:**
-   - Use restricted database users
-   - Regular backups
-
-## Backup Strategy
-
-1. **Database Backups:**
-   - Set up automatic database backups in Hostinger
-   - Export data regularly
-
-2. **File Backups:**
-   - Keep local copies of your code
-   - Use Hostinger's backup features
-
-## Support
-
-If you encounter issues:
-1. Check Hostinger's Node.js documentation
-2. Review error logs in hosting control panel
-3. Test locally first before deploying changes
-
-## Production Checklist
-
-- [ ] Database created and configured
-- [ ] Environment variables set
-- [ ] Files uploaded with correct permissions
-- [ ] Dependencies installed
-- [ ] Database migrated
-- [ ] Application started
-- [ ] Domain configured
-- [ ] SSL certificate enabled
-- [ ] Basic functionality tested
-- [ ] Backups configured
-
----
-
-**Note:** This system includes advanced features like OCR document processing and real-time notifications. Ensure your Hostinger plan supports the required Node.js features and database connections.
+- **Live URL**: Test the "View" button on a crew card. It should now open in a new tab using your live domain.
+- **Email Links**: Trigger an email notification (e.g., by uploading a document with a near expiry). The link in the email should correctly point to your live URL.
+- **OCR Extraction**: Upload a new document (Passport or CDC). The system will now use the real Google Document AI service. Check the server console for `[OCR-START]` and `[OCR-COMPLETE]` logs.

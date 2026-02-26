@@ -149,8 +149,16 @@ export class DocumentAccessService {
      * @returns Full URL to view document
      */
     generateViewUrl(token: string, baseUrl?: string): string {
-        const base = baseUrl || process.env.APP_URL || 'http://localhost:5000';
-        return `${base}/api/documents/view/${token}`;
+        const base = baseUrl || process.env.APP_URL;
+
+        if (!base) {
+            console.warn('⚠️ [WARNING] APP_URL not set in environment. Secure document links in emails will be broken. Falling back to relative path.');
+            return `/api/documents/view/${token}`;
+        }
+
+        // Ensure base doesn't end with a slash to avoid double slash
+        const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+        return `${cleanBase}/api/documents/view/${token}`;
     }
 }
 

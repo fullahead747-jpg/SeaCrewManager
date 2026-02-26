@@ -421,7 +421,7 @@ export class SMTPEmailService {
             ` : ''}
 
             <div style="margin-top: 30px; text-align: center;">
-              <a href="${process.env.APP_URL || 'http://localhost:5000'}/dashboard" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">Open Dashboard</a>
+              <a href="${process.env.APP_URL ? (process.env.APP_URL.endsWith('/') ? process.env.APP_URL.slice(0, -1) : process.env.APP_URL) : ''}/dashboard" style="background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: bold;">Open Dashboard</a>
             </div>
           </div>
 
