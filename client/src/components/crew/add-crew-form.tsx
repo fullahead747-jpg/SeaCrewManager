@@ -14,7 +14,7 @@ import { OCRDocumentScanner } from './OCRDocumentScanner';
 
 const addCrewSchema = z.object({
   firstName: z.string().min(1, 'First name is required'),
-  lastName: z.string().min(1, 'Last name is required'),
+  lastName: z.string().optional().or(z.literal('')),
   nationality: z.string().min(1, 'Nationality is required'),
   dateOfBirth: z.string().min(1, 'Date of birth is required'),
   rank: z.string().min(1, 'Rank is required'),
