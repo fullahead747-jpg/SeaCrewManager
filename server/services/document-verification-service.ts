@@ -472,7 +472,7 @@ export class DocumentVerificationService {
     }
 
     /**
-     * Extract data from uploaded document using multiple OCR engines in parallel
+     * Extract data from uploaded document using Google Document AI
      */
     public async extractDocumentData(
         filePath: string,
@@ -481,38 +481,43 @@ export class DocumentVerificationService {
         expectedData?: ExistingDocumentData
     ): Promise<ExtractedDocumentData> {
         try {
-            console.log(`[OCR-BYPASS] Simulating extraction for ${documentType} from ${filePath}`);
+            console.log(`[OCR-START] Extracting ${documentType} from ${filePath}`);
 
-            // Simulate processing delay to feel like real OCR
-            const delay = 1500 + Math.random() * 2000;
-            await new Promise(resolve => setTimeout(resolve, delay));
+            // 1. Read file and convert to base64
+            const fileBuffer = await fs.promises.readFile(filePath);
+            const base64Content = fileBuffer.toString('base64');
+            const fileName = path.basename(filePath);
 
-            // Create a result that "matches" what we expect to pass validation
-            // but still feels like OCR extraction
-            const result: ExtractedDocumentData = {
-                documentNumber: expectedData?.documentNumber || "NOT_EXTRACTED",
-                issuingAuthority: expectedData?.issuingAuthority || "NOT_EXTRACTED",
-                issueDate: expectedData?.issueDate || undefined,
-                expiryDate: expectedData?.expiryDate || undefined,
-                holderName: expectedData?.holderName || "SEAFARER NAME",
-                detectedDocumentType: documentType.toUpperCase(),
-                ocrConfidence: 0.95,
-                errors: []
-            };
+            // 2. Call Google OCR Service
+            // We use the real Google Document AI service now
+            const ocrResult = await googleOcrService.extractCrewDataFromDocument(
+                base64Content,
+                fileName,
+                documentType
+            );
 
-            // If we have expected data, use it to populate profile fields to pass owner validation
-            if (expectedData?.holderName) {
-                const parts = expectedData.holderName.trim().split(' ');
-                result.firstName = parts[0];
-                result.lastName = parts.slice(1).join(' ');
+            // 3. Map the raw AOA fields to our internal document structure
+            const extractedData = await this.mapOcrDataToDocument(
+                ocrResult,
+                documentType,
+                nationalityHint,
+                expectedData
+            );
+
+            // Add overall confidence score if available from service
+            if (ocrResult.ocrConfidence) {
+                extractedData.ocrConfidence = ocrResult.ocrConfidence;
             }
 
-            console.log(`[OCR-BYPASS] Simulation complete. Document Number: "${result.documentNumber}"`);
-            return result;
+            console.log(`[OCR-COMPLETE] Successfully extracted data for ${documentType}`);
+            return extractedData;
 
         } catch (error) {
-            console.error('OCR simulation error:', error);
-            throw new Error('Failed to simulate data extraction from document');
+            console.error('[OCR-ERROR] Extraction failed:', error);
+
+            // Fallback for non-critical errors or when offline (optional)
+            // For now, we throw the error as expected by the caller
+            throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 

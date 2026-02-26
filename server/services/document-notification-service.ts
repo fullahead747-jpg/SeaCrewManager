@@ -5,48 +5,48 @@ import { notificationService } from '../services/notification-service';
  * Integrates with the new status-based system
  */
 export async function sendDocumentExpiryNotification(
-    document: any,
-    crewMember: any,
-    daysUntilExpiry: number,
-    notificationType: string
+  document: any,
+  crewMember: any,
+  daysUntilExpiry: number,
+  notificationType: string
 ): Promise<boolean> {
-    try {
-        const docType = document.type.toUpperCase();
+  try {
+    const docType = document.type.toUpperCase();
 
-        // Determine subject and urgency based on notification type
-        let subject = '';
-        let urgencyColor = '#2563eb'; // blue
-        let urgencyText = 'Notice';
-        let urgencyBg = '#eff6ff';
+    // Determine subject and urgency based on notification type
+    let subject = '';
+    let urgencyColor = '#2563eb'; // blue
+    let urgencyText = 'Notice';
+    let urgencyBg = '#eff6ff';
 
-        if (notificationType === 'critical_expired') {
-            subject = `🚨 CRITICAL: ${crewMember.name}'s ${docType} Expired - Assignment Blocked`;
-            urgencyColor = '#dc2626';
-            urgencyText = 'CRITICAL';
-            urgencyBg = '#fee2e2';
-        } else if (notificationType === 'expired') {
-            subject = `⚠️ URGENT: ${crewMember.name}'s ${docType} Expired - Grace Period Active`;
-            urgencyColor = '#f59e0b';
-            urgencyText = 'URGENT';
-            urgencyBg = '#fef3c7';
-        } else if (notificationType === 'expiring_7days') {
-            subject = `⚠️ ${crewMember.name}'s ${docType} Expires in 7 Days`;
-            urgencyColor = '#f59e0b';
-            urgencyText = 'URGENT';
-            urgencyBg = '#fef3c7';
-        } else if (notificationType === 'expiring_15days') {
-            subject = `📋 ${crewMember.name}'s ${docType} Expires in 15 Days - Action Required`;
-            urgencyColor = '#eab308';
-            urgencyText = 'Action Required';
-            urgencyBg = '#fef9c3';
-        } else {
-            subject = `📋 ${crewMember.name}'s ${docType} Expires in ${daysUntilExpiry} Days`;
-            urgencyColor = '#2563eb';
-            urgencyText = 'Notice';
-            urgencyBg = '#eff6ff';
-        }
+    if (notificationType === 'critical_expired') {
+      subject = `🚨 CRITICAL: ${crewMember.name}'s ${docType} Expired - Assignment Blocked`;
+      urgencyColor = '#dc2626';
+      urgencyText = 'CRITICAL';
+      urgencyBg = '#fee2e2';
+    } else if (notificationType === 'expired') {
+      subject = `⚠️ URGENT: ${crewMember.name}'s ${docType} Expired - Grace Period Active`;
+      urgencyColor = '#f59e0b';
+      urgencyText = 'URGENT';
+      urgencyBg = '#fef3c7';
+    } else if (notificationType === 'expiring_7days') {
+      subject = `⚠️ ${crewMember.name}'s ${docType} Expires in 7 Days`;
+      urgencyColor = '#f59e0b';
+      urgencyText = 'URGENT';
+      urgencyBg = '#fef3c7';
+    } else if (notificationType === 'expiring_15days') {
+      subject = `📋 ${crewMember.name}'s ${docType} Expires in 15 Days - Action Required`;
+      urgencyColor = '#eab308';
+      urgencyText = 'Action Required';
+      urgencyBg = '#fef9c3';
+    } else {
+      subject = `📋 ${crewMember.name}'s ${docType} Expires in ${daysUntilExpiry} Days`;
+      urgencyColor = '#2563eb';
+      urgencyText = 'Notice';
+      urgencyBg = '#eff6ff';
+    }
 
-        const emailHtml = `
+    const emailHtml = `
       <!DOCTYPE html>
       <html>
       <head>
@@ -246,7 +246,7 @@ export async function sendDocumentExpiryNotification(
             ` : ''}
             
             <div style="text-align: center;">
-              <a href="${process.env.APP_URL || 'http://localhost:5000'}/documents" class="cta-button">
+              <a href="${process.env.APP_URL ? (process.env.APP_URL.endsWith('/') ? process.env.APP_URL.slice(0, -1) : process.env.APP_URL) : ''}/documents" class="cta-button">
                 📤 Upload Renewed Document
               </a>
             </div>
@@ -264,16 +264,16 @@ export async function sendDocumentExpiryNotification(
       </html>
     `;
 
-        // Send via existing notification service
-        const result = await notificationService.sendEmail({
-            to: crewMember.email || 'admin@offing.biz',
-            subject,
-            html: emailHtml
-        });
+    // Send via existing notification service
+    const result = await notificationService.sendEmail({
+      to: crewMember.email || 'admin@offing.biz',
+      subject,
+      html: emailHtml
+    });
 
-        return result.success;
-    } catch (error) {
-        console.error('❌ Error sending document expiry notification:', error);
-        return false;
-    }
+    return result.success;
+  } catch (error) {
+    console.error('❌ Error sending document expiry notification:', error);
+    return false;
+  }
 }

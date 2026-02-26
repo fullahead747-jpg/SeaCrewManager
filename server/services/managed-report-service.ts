@@ -54,6 +54,7 @@ export class ManagedReportService {
 
       await storage.logActivity({
         type: 'System',
+        entityType: 'System',
         action: 'execute',
         description: 'Generating automated managed reports...',
         username: 'system',
@@ -71,6 +72,7 @@ export class ManagedReportService {
 
         await storage.logActivity({
           type: 'Notification',
+          entityType: 'Notification',
           action: 'send',
           description: `Critical Crew Report sent to ${recipientEmail} (${categories.critical.length} members)`,
           username: 'system',
@@ -97,6 +99,7 @@ export class ManagedReportService {
 
         await storage.logActivity({
           type: 'Notification',
+          entityType: 'Notification',
           action: 'send',
           description: `Upcoming Crew Report sent to ${recipientEmail} (${categories.upcoming.length} members)`,
           username: 'system',
@@ -123,6 +126,7 @@ export class ManagedReportService {
 
         await storage.logActivity({
           type: 'Notification',
+          entityType: 'Notification',
           action: 'send',
           description: `Attention Crew Report sent to ${recipientEmail} (${categories.attention.length} members)`,
           username: 'system',
@@ -145,6 +149,7 @@ export class ManagedReportService {
       if (results.sent.length === 0) {
         await storage.logActivity({
           type: 'System',
+          entityType: 'System',
           action: 'execute',
           description: 'Managed reports processed: No reports needed (no matches or disabled).',
           username: 'system',
@@ -160,6 +165,7 @@ export class ManagedReportService {
 
       await storage.logActivity({
         type: 'System',
+        entityType: 'System',
         action: 'error',
         description: `Failed to generate managed reports: ${errorMessage}`,
         username: 'system',
@@ -223,7 +229,7 @@ export class ManagedReportService {
               </tbody>
             </table>
             <div style="margin-top: 30px; text-align: center;">
-              <a href="${process.env.APP_URL || 'http://localhost:5000'}/dashboard" 
+              <a href="${process.env.APP_URL ? (process.env.APP_URL.endsWith('/') ? process.env.APP_URL.slice(0, -1) : process.env.APP_URL) : ''}/dashboard" 
                  style="background-color: #1e293b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                 Access Fleet Dashboard
               </a>
