@@ -320,6 +320,76 @@ export class DocumentStorageService {
     const url = new URL(uploadUrl);
     return url.pathname;
   }
+
+  /**
+   * Helper to upload a local file to Object Storage and return the new path
+   * @param localPath Relative path to local file (e.g. uploads/xyz.pdf)
+   * @param entityId Crew member or Vessel ID
+   * @param entityType 'crew' or 'vessels'
+   * @returns The new cloud path if successful, otherwise the original local path
+   */
+  async uploadLocalFileToCloud(localPath: string, entityId: string, entityType: 'crew' | 'vessels' = 'crew'): Promise<string> {
+    if (!this.isCloudStorageAvailable()) {
+      console.log(`[STORAGE-LOCAL] Cloud storage not available, keeping local file path: ${localPath}`);
+      return localPath;
+    }
+
+    try {
+      const fullPath = path.isAbsolute(localPath) ? localPath : path.join(process.cwd(), localPath);
+
+      if (!fs.existsSync(fullPath)) {
+        console.warn(`[STORAGE-CLOUD] Local file not found at ${fullPath}, cannot upload to cloud.`);
+        return localPath;
+      }
+
+      const fileName = path.basename(fullPath);
+      const uploadUrl = await this.getDocumentUploadURL(entityType, entityId, fileName);
+
+      // Upload local file to signed URL
+      const fileBuffer = fs.readFileSync(fullPath);
+
+      // Helper function for mime type (replicated here to avoid circular dependency if moved)
+      const getMimeType = (filePath: string): string => {
+        const ext = path.extname(filePath).toLowerCase();
+        const map: Record<string, string> = {
+          '.pdf': 'application/pdf',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.jpeg': 'image/jpeg',
+          '.gif': 'image/gif'
+        };
+        return map[ext] || 'application/octet-stream';
+      };
+
+      const response = await fetch(uploadUrl, {
+        method: 'PUT',
+        body: new Uint8Array(fileBuffer),
+        headers: {
+          'Content-Type': getMimeType(fullPath)
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
+      }
+
+      // Update path to the cloud path
+      const cloudPath = this.normalizeDocumentPath(uploadUrl);
+      console.log(`[STORAGE-CLOUD] Successfully uploaded ${localPath} to ${cloudPath}`);
+
+      // Cleanup local file asynchronously
+      fs.unlink(fullPath, (err) => {
+        if (err) console.error(`[STORAGE-CLOUD] Failed to delete local file ${fullPath}:`, err);
+        else console.log(`[STORAGE-CLOUD] Deleted temporary local file: ${fullPath}`);
+      });
+
+      return cloudPath;
+    } catch (error) {
+      console.error("[STORAGE-CLOUD] Error uploading to Object Storage:", error);
+      // Fallback to local path if cloud upload fails, so we don't break the user experience
+      return localPath;
+    }
+  }
 }
 
 function parseObjectPath(path: string): {
