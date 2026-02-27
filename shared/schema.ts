@@ -105,6 +105,7 @@ export const emailSettings = pgTable("email_settings", {
   recipientEmail: text("recipient_email").default('admin@offing.biz, management@fullahead.in'), // Primary recipient email address
   emailTemplate: text("email_template"),
   // Managed Report Toggles
+  overdueEnabled: boolean("overdue_enabled").default(true),
   criticalEnabled: boolean("critical_enabled").default(true),
   upcomingEnabled: boolean("upcoming_enabled").default(true),
   attentionEnabled: boolean("attention_enabled").default(true),

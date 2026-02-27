@@ -87,13 +87,13 @@ export class BackgroundScheduler {
       await this.runNotificationCheck();
 
       // 2. Scheduled Managed Reports
-      // Monday at 9:00 AM and Friday at 9:00 AM (09:00)
+      // Monday at 9:00 AM and Friday at 6:00 PM (18:00)
       const dayOfWeek = now.getDay();
       const isMondayMorning = dayOfWeek === 1 && hour === 9;
-      const isFridayMorning = dayOfWeek === 5 && hour === 9;
+      const isFridayEvening = dayOfWeek === 5 && hour === 18;
 
-      if (isMondayMorning || isFridayMorning) {
-        const reportType = isMondayMorning ? 'monday_morning_report' : 'friday_morning_report';
+      if (isMondayMorning || isFridayEvening) {
+        const reportType = isMondayMorning ? 'monday_morning_report' : 'friday_evening_report';
         const alreadySent = await storage.hasNotificationBeenSentToday(
           `managed-report-${reportType}`,
           'managed_report',
@@ -102,7 +102,7 @@ export class BackgroundScheduler {
         );
 
         if (!alreadySent && this.lastReportSentDate !== `${dateStr}-H${hour}`) {
-          console.log(`📊 Triggering scheduled managed reports (${isMondayMorning ? 'Mon 9AM' : 'Fri 9AM'})...`);
+          console.log(`📊 Triggering scheduled managed reports (${isMondayMorning ? 'Mon 9AM' : 'Fri 6PM'})...`);
           const reportResult = await managedReportService.generateAndSendReports();
           if (reportResult.success) {
             this.lastReportSentDate = `${dateStr}-H${hour}`;
