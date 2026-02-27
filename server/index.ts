@@ -1,4 +1,12 @@
-import 'dotenv/config';
+import { config } from 'dotenv';
+const dotenvResult = config();
+if (dotenvResult.error) {
+  console.error('❌ Error loading .env file:', dotenvResult.error);
+} else {
+  const keys = Object.keys(dotenvResult.parsed || {});
+  console.log(`✅ .env loaded successfully (${keys.length} keys injected)`);
+}
+
 console.log(`[SERVER-INIT] Application initialized at ${new Date().toISOString()}`);
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
@@ -43,10 +51,17 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // CRITICAL: Ensure database URL is present
+  if (!process.env.DATABASE_URL) {
+    console.error('\n\n❌ CRITICAL ERROR: DATABASE_URL is not set in environment variables.');
+    console.error('Please ensure your .env file exists and contains a valid DATABASE_URL.\n\n');
+    process.exit(1);
+  }
+
   // CRITICAL: Log database host for identification
-  const dbUrl = process.env.DATABASE_URL || '';
-  const dbHost = dbUrl ? new URL(dbUrl).hostname : 'NOT SET';
-  const dbSnippet = dbUrl ? dbUrl.substring(0, 15) + '...' : 'NONE';
+  const dbUrl = process.env.DATABASE_URL;
+  const dbHost = new URL(dbUrl).hostname;
+  const dbSnippet = dbUrl.substring(0, 15) + '...';
   console.log('\n\n================================================');
   console.log(`🚀 APP STARTING - DB HOST: ${dbHost}`);
   console.log(`🔑 DB URL SNIPPET: ${dbSnippet}`);
