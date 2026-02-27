@@ -1,5 +1,6 @@
 import { storage } from '../storage';
 import { smtpEmailService } from './smtp-email-service';
+import { pdfGeneratorService } from './pdf-generator';
 import { format } from 'date-fns';
 
 export class ManagedReportService {
@@ -13,6 +14,7 @@ export class ManagedReportService {
       const allCrew = await storage.getCrewMembers();
 
       const categories = {
+        overdue: [] as any[],
         critical: [] as any[],
         upcoming: [] as any[],
         attention: [] as any[]
@@ -38,7 +40,9 @@ export class ManagedReportService {
 
         const endDate = new Date(contract.endDate);
 
-        if (endDate <= fifteenDaysFromNow) {
+        if (endDate < now) {
+          categories.overdue.push(rowData);
+        } else if (endDate <= fifteenDaysFromNow) {
           categories.critical.push(rowData);
         } else if (endDate <= thirtyDaysFromNow) {
           categories.upcoming.push(rowData);
@@ -65,9 +69,68 @@ export class ManagedReportService {
       const settings = await storage.getEmailSettings();
       const recipientEmail = settings?.recipientEmail || process.env.REPORT_RECIPIENT_EMAIL || process.env.GMAIL_USER || 'management@fullahead.in';
 
+      // Generate Consolidated PDF for all flagged categories
+      const allFlaggedEvents = [
+        ...categories.overdue.map(c => ({ ...c, status: 'overdue' })),
+        ...categories.critical.map(c => ({ ...c, status: 'critical' })),
+        ...categories.upcoming.map(c => ({ ...c, status: 'upcoming' })),
+        ...categories.attention.map(c => ({ ...c, status: 'attention' }))
+      ].map(item => ({
+        id: Math.random().toString(36).substr(2, 9),
+        status: item.status as any,
+        date: new Date(item.expiryDate),
+        crewMemberId: '', // IDs not strictly needed for PDF generation table
+        crewMemberName: item.name,
+        vesselId: '',
+        vesselName: item.vessel,
+        contractId: '',
+        contractEndDate: new Date(item.expiryDate),
+        daysUntilExpiry: item.daysRemaining || 0
+      }));
+
+      let pdfBuffer: Buffer | null = null;
+      if (allFlaggedEvents.length > 0) {
+        try {
+          pdfBuffer = await pdfGeneratorService.generateCalendarPDF(
+            format(now, 'MMMM yyyy'),
+            allFlaggedEvents
+          );
+          console.log(`✅ Consolidated PDF generated for managed report (${pdfBuffer.length} bytes)`);
+        } catch (pdfError) {
+          console.error('❌ Failed to generate consolidated PDF:', pdfError);
+        }
+      }
+
+      // Send Overdue Report
+      if (categories.overdue.length > 0 && (settings?.overdueEnabled ?? true)) {
+        await this.sendCategoryEmail(recipientEmail, 'Overdue', '#dc2626', categories.overdue, pdfBuffer);
+        results.sent.push('Overdue');
+
+        await storage.logActivity({
+          type: 'Notification',
+          entityType: 'Notification',
+          action: 'send',
+          description: `Overdue Crew Report sent to ${recipientEmail} (${categories.overdue.length} members)`,
+          username: 'system',
+          userRole: 'admin',
+          severity: 'info'
+        });
+
+        await storage.logNotification({
+          eventId: 'managed-report-overdue',
+          eventType: 'managed_report',
+          eventDate: now,
+          notificationDate: now,
+          daysBeforeEvent: 0,
+          provider: 'email',
+          success: true,
+          metadata: { category: 'Overdue', count: categories.overdue.length, recipient: recipientEmail }
+        });
+      }
+
       // Send Critical Report
       if (categories.critical.length > 0 && (settings?.criticalEnabled ?? true)) {
-        await this.sendCategoryEmail(recipientEmail, 'Critical', '#ef4444', categories.critical);
+        await this.sendCategoryEmail(recipientEmail, 'Critical', '#ef4444', categories.critical, pdfBuffer);
         results.sent.push('Critical');
 
         await storage.logActivity({
@@ -94,7 +157,7 @@ export class ManagedReportService {
 
       // Send Upcoming Report
       if (categories.upcoming.length > 0 && (settings?.upcomingEnabled ?? true)) {
-        await this.sendCategoryEmail(recipientEmail, 'Upcoming', '#f97316', categories.upcoming);
+        await this.sendCategoryEmail(recipientEmail, 'Upcoming', '#f97316', categories.upcoming, pdfBuffer);
         results.sent.push('Upcoming');
 
         await storage.logActivity({
@@ -121,7 +184,7 @@ export class ManagedReportService {
 
       // Send Attention Report
       if (categories.attention.length > 0 && (settings?.attentionEnabled ?? true)) {
-        await this.sendCategoryEmail(recipientEmail, 'Attention', '#eab308', categories.attention);
+        await this.sendCategoryEmail(recipientEmail, 'Attention', '#eab308', categories.attention, pdfBuffer);
         results.sent.push('Attention');
 
         await storage.logActivity({
@@ -177,7 +240,7 @@ export class ManagedReportService {
     }
   }
 
-  private async sendCategoryEmail(to: string, category: string, color: string, data: any[]) {
+  private async sendCategoryEmail(to: string, category: string, color: string, data: any[], attachment?: Buffer | null) {
     const html = `
       <!DOCTYPE html>
       <html>
@@ -244,11 +307,24 @@ export class ManagedReportService {
       </html>
     `;
 
-    await smtpEmailService.sendEmail({
-      to,
-      subject: `🚨 ${category} Crew Report - ${format(new Date(), 'dd MMM yyyy')}`,
-      html
-    });
+    if (attachment) {
+      await smtpEmailService.sendEmailWithAttachment({
+        to,
+        subject: `🚨 ${category} Crew Report - ${format(new Date(), 'dd MMM yyyy')}`,
+        html,
+        attachments: [{
+          filename: `Crew-Status-Report-${format(new Date(), 'dd-MMM-yyyy')}.pdf`,
+          content: attachment,
+          contentType: 'application/pdf'
+        }]
+      });
+    } else {
+      await smtpEmailService.sendEmail({
+        to,
+        subject: `🚨 ${category} Crew Report - ${format(new Date(), 'dd MMM yyyy')}`,
+        html
+      });
+    }
   }
 }
 
