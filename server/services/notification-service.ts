@@ -456,9 +456,27 @@ export class NotificationService {
       const now = new Date();
       const daysUntilExpiry = Math.ceil((new Date(contract.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-      // Only send immediate alert if expiry is within 30 days but not expired
-      if (daysUntilExpiry > 30 || daysUntilExpiry <= 0) {
+      // Only send immediate alert if expiry is within 45 days (covers Attention, Upcoming, Critical, Overdue)
+      if (daysUntilExpiry > 45) {
         return false;
+      }
+
+      let categoryName = 'Attention';
+      let headerColor = '#f59e0b'; // Amber for Attention
+      let urgentTag = 'Contract Due Alert';
+
+      if (daysUntilExpiry < 0) {
+        categoryName = 'Overdue';
+        headerColor = '#991b1b'; // Dark Red
+        urgentTag = 'URGENT: Contract Overdue';
+      } else if (daysUntilExpiry <= 15) {
+        categoryName = 'Critical';
+        headerColor = '#dc2626'; // Red
+        urgentTag = 'URGENT: Contract Critical';
+      } else if (daysUntilExpiry <= 30) {
+        categoryName = 'Upcoming';
+        headerColor = '#ea580c'; // Orange
+        urgentTag = 'Contract Upcoming';
       }
 
       console.log(`🚨 Immediate alert triggered: ${crewMember.name}'s contract expires in ${daysUntilExpiry} days`);
@@ -471,19 +489,19 @@ export class NotificationService {
       const recipientEmail = emailSettings.recipientEmail || 'admin@offing.biz, management@fullahead.in';
 
       const emailContent = {
-        subject: `🚨 URGENT: ${crewMember.name}'s Contract expires in ${daysUntilExpiry} days`,
+        subject: `🚨 ${urgentTag}: ${crewMember.name} - ${daysUntilExpiry < 0 ? 'Overdue' : daysUntilExpiry + ' days'}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8f9fa; padding: 20px;">
             <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-              <h2 style="color: #dc2626; margin: 0 0 20px 0;">🚨 Urgent Contract Due Alert</h2>
+              <h2 style="color: ${headerColor}; margin: 0 0 20px 0;">🚨 ${urgentTag}</h2>
               <p style="color: #374151; line-height: 1.6;"><strong>Crew Member:</strong> ${crewMember.name}</p>
               ${crewMember.rank ? `<p style="color: #374151; line-height: 1.6;"><strong>Rank:</strong> ${crewMember.rank}</p>` : ''}
               ${vesselName ? `<p style="color: #374151; line-height: 1.6;"><strong>Vessel:</strong> ${vesselName}</p>` : ''}
               <p style="color: #374151; line-height: 1.6;"><strong>Contract Status:</strong> ${contract.status || 'Active'}</p>
               <p style="color: #374151; line-height: 1.6;"><strong>Contract End Date:</strong> ${contract.endDate.toLocaleDateString()}</p>
-              <p style="color: #dc2626; line-height: 1.6; font-weight: bold;"><strong>Days Remaining:</strong> ${daysUntilExpiry} days</p>
+              <p style="color: ${headerColor}; line-height: 1.6; font-weight: bold;"><strong>Status Tracking:</strong> ${categoryName} ${daysUntilExpiry < 0 ? '(Expired)' : `(${daysUntilExpiry} days remaining)`}</p>
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-              <p style="color: #6b7280; font-size: 12px;">This contract was just created/updated and requires immediate attention for renewal planning.</p>
+              <p style="color: #6b7280; font-size: 12px;">This contract was just created/updated and its category trigger is active.</p>
             </div>
           </div>
         `,

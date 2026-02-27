@@ -87,13 +87,13 @@ export class BackgroundScheduler {
       await this.runNotificationCheck();
 
       // 2. Scheduled Managed Reports
-      // Monday at 9:00 AM and Friday at 6:00 PM (18:00)
+      // Monday at 9:00 AM and Friday at 9:00 AM (09:00)
       const dayOfWeek = now.getDay();
       const isMondayMorning = dayOfWeek === 1 && hour === 9;
-      const isFridayEvening = dayOfWeek === 5 && hour === 18;
+      const isFridayMorning = dayOfWeek === 5 && hour === 9;
 
-      if (isMondayMorning || isFridayEvening) {
-        const reportType = isMondayMorning ? 'monday_morning_report' : 'friday_evening_report';
+      if (isMondayMorning || isFridayMorning) {
+        const reportType = isMondayMorning ? 'monday_morning_report' : 'friday_morning_report';
         const alreadySent = await storage.hasNotificationBeenSentToday(
           `managed-report-${reportType}`,
           'managed_report',
@@ -102,7 +102,7 @@ export class BackgroundScheduler {
         );
 
         if (!alreadySent && this.lastReportSentDate !== `${dateStr}-H${hour}`) {
-          console.log(`📊 Triggering scheduled managed reports (${isMondayMorning ? 'Mon 9AM' : 'Fri 6PM'})...`);
+          console.log(`📊 Triggering scheduled managed reports (${isMondayMorning ? 'Mon 9AM' : 'Fri 9AM'})...`);
           const reportResult = await managedReportService.generateAndSendReports();
           if (reportResult.success) {
             this.lastReportSentDate = `${dateStr}-H${hour}`;
@@ -126,8 +126,8 @@ export class BackgroundScheduler {
       }
 
       // 3. Contract Health Transition Alerts
-      // Every day at 10:00 AM
-      if (hour === 10) {
+      // Every day at or after 10:00 AM (with catch-up logic)
+      if (hour >= 10) {
         const alreadySent = await storage.hasNotificationBeenSentToday(
           'contract-health-transitions',
           'contract_expiry',
@@ -136,7 +136,7 @@ export class BackgroundScheduler {
         );
 
         if (!alreadySent) {
-          console.log('🔔 Triggering daily contract health transition check (10 AM)...');
+          console.log('🔔 Triggering daily contract health transition check...');
           await contractHealthAlertService.checkTransitions();
 
           await storage.logNotification({

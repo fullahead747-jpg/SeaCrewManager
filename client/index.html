@@ -5,15 +5,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
 
-  <!-- PWA Meta Tags -->
-  <meta name="description" content="Captain - Intelligent voice assistant for maritime crew management" />
-  <meta name="theme-color" content="#3b82f6" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/captain-icon-192.png" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="Captain" />
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -25,17 +16,6 @@
   <div id="root"></div>
 
   <script type="module" src="/src/main.tsx"></script>
-
-  <!-- Service Worker Registration -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/service-worker.js')
-          .then(reg => console.log('Service Worker registered:', reg))
-          .catch(err => console.log('Service Worker registration failed:', err));
-      });
-    }
-  </script>
 </body>
 
 </html>

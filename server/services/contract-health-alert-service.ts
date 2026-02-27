@@ -5,135 +5,131 @@ import { type Contract, type CrewMember, type Vessel } from '@shared/schema';
 export type HealthCategory = 'overdue' | 'critical' | 'upcoming' | 'attention' | 'notDue';
 
 export class ContractHealthAlertService {
-    private static instance: ContractHealthAlertService;
+  private static instance: ContractHealthAlertService;
 
-    private constructor() { }
+  private constructor() { }
 
-    public static getInstance(): ContractHealthAlertService {
-        if (!ContractHealthAlertService.instance) {
-            ContractHealthAlertService.instance = new ContractHealthAlertService();
+  public static getInstance(): ContractHealthAlertService {
+    if (!ContractHealthAlertService.instance) {
+      ContractHealthAlertService.instance = new ContractHealthAlertService();
+    }
+    return ContractHealthAlertService.instance;
+  }
+
+  /**
+   * Calculate health category based on days until expiry
+   */
+  public getHealthCategory(endDate: Date): HealthCategory {
+    const now = new Date();
+    // Reset hours to midnight for consistent comparison
+    now.setHours(0, 0, 0, 0);
+    const end = new Date(endDate);
+    end.setHours(0, 0, 0, 0);
+
+    const diffInMs = end.getTime() - now.getTime();
+    const diffInDays = Math.ceil(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInDays < 0) return 'overdue';
+    if (diffInDays <= 15) return 'critical';
+    if (diffInDays <= 30) return 'upcoming';
+    if (diffInDays <= 45) return 'attention';
+    return 'notDue';
+  }
+
+  /**
+   * Get display name for category
+   */
+  private getCategoryDisplayName(category: HealthCategory): string {
+    const map: Record<HealthCategory, string> = {
+      overdue: 'Overdue',
+      critical: 'Critical (≤ 15 Days)',
+      upcoming: 'Upcoming (16-30 Days)',
+      attention: 'Attention (31-45 Days)',
+      notDue: 'Not Due (> 45 Days)'
+    };
+    return map[category];
+  }
+
+  /**
+   * Check all active contracts for health category transitions
+   */
+  public async checkTransitions(): Promise<void> {
+    console.log('🔍 Checking contract health transitions...');
+
+    try {
+      const [contracts, crewMembers, vessels] = await Promise.all([
+        storage.getContracts(),
+        storage.getCrewMembers(),
+        storage.getVessels()
+      ]);
+
+      const crewMap = new Map(crewMembers.map(c => [c.id, c]));
+      const vesselMap = new Map(vessels.map(v => [v.id, v]));
+
+      const activeContracts = contracts.filter(c => c.status === 'active');
+      let alertCount = 0;
+
+      for (const contract of activeContracts) {
+        if (!contract.endDate) continue;
+
+        const currentCategory = this.getHealthCategory(contract.endDate);
+        const lastCategory = contract.lastHealthCategory as HealthCategory | null;
+
+        // Alert if: 
+        // 1. It's the first time we're tracking (lastCategory is null) AND it's not 'notDue'
+        // 2. The category has changed to ANY different category (e.g. attention -> upcoming, or even upcoming -> critical)
+        // We only care about alerting when they fall into one of the 4 tracked buckets (attention or worse)
+
+        const shouldAlert = lastCategory === null
+          ? currentCategory !== 'notDue'
+          : (currentCategory !== lastCategory && currentCategory !== 'notDue');
+
+        if (shouldAlert) {
+          const crew = crewMap.get(contract.crewMemberId);
+          const vessel = vesselMap.get(contract.vesselId);
+
+          if (crew) {
+            console.log(`🚨 Alert: ${crew.firstName} ${crew.lastName} transitioned ${lastCategory || 'None'} -> ${currentCategory}`);
+
+            await this.sendTransitionAlert(contract, crew, vessel, lastCategory, currentCategory);
+            alertCount++;
+          }
         }
-        return ContractHealthAlertService.instance;
-    }
 
-    /**
-     * Calculate health category based on days until expiry
-     */
-    public getHealthCategory(endDate: Date): HealthCategory {
-        const now = new Date();
-        // Reset hours to midnight for consistent comparison
-        now.setHours(0, 0, 0, 0);
-        const end = new Date(endDate);
-        end.setHours(0, 0, 0, 0);
-
-        const diffInMs = end.getTime() - now.getTime();
-        const diffInDays = Math.ceil(diffInMs / (1000 * 60 * 60 * 24));
-
-        if (diffInDays < 0) return 'overdue';
-        if (diffInDays <= 15) return 'critical';
-        if (diffInDays <= 30) return 'upcoming';
-        if (diffInDays <= 45) return 'attention';
-        return 'notDue';
-    }
-
-    /**
-     * Get display name for category
-     */
-    private getCategoryDisplayName(category: HealthCategory): string {
-        const map: Record<HealthCategory, string> = {
-            overdue: 'Overdue',
-            critical: 'Critical (≤ 15 Days)',
-            upcoming: 'Upcoming (16-30 Days)',
-            attention: 'Attention (31-45 Days)',
-            notDue: 'Not Due (> 45 Days)'
-        };
-        return map[category];
-    }
-
-    /**
-     * Check all active contracts for health category transitions
-     */
-    public async checkTransitions(): Promise<void> {
-        console.log('🔍 Checking contract health transitions...');
-
-        try {
-            const [contracts, crewMembers, vessels] = await Promise.all([
-                storage.getContracts(),
-                storage.getCrewMembers(),
-                storage.getVessels()
-            ]);
-
-            const crewMap = new Map(crewMembers.map(c => [c.id, c]));
-            const vesselMap = new Map(vessels.map(v => [v.id, v]));
-
-            const activeContracts = contracts.filter(c => c.status === 'active');
-            let alertCount = 0;
-
-            for (const contract of activeContracts) {
-                if (!contract.endDate) continue;
-
-                const currentCategory = this.getHealthCategory(contract.endDate);
-                const lastCategory = contract.lastHealthCategory as HealthCategory | null;
-
-                // Determine if alert should be sent
-                // Alert if: 
-                // 1. It's the first time we're tracking (lastCategory is null) AND it's not 'notDue'
-                // 2. The category has changed to a more urgent state (moving towards overdue)
-
-                const severityOrder: HealthCategory[] = ['notDue', 'attention', 'upcoming', 'critical', 'overdue'];
-                const currentIndex = severityOrder.indexOf(currentCategory);
-                const lastIndex = lastCategory ? severityOrder.indexOf(lastCategory) : -1;
-
-                const shouldAlert = lastCategory === null
-                    ? currentCategory !== 'notDue'
-                    : currentIndex > lastIndex;
-
-                if (shouldAlert) {
-                    const crew = crewMap.get(contract.crewMemberId);
-                    const vessel = vesselMap.get(contract.vesselId);
-
-                    if (crew) {
-                        console.log(`🚨 Alert: ${crew.firstName} ${crew.lastName} transitioned ${lastCategory || 'None'} -> ${currentCategory}`);
-
-                        await this.sendTransitionAlert(contract, crew, vessel, lastCategory, currentCategory);
-                        alertCount++;
-                    }
-                }
-
-                // Always update lastHealthCategory if it changed (even if moving to less urgent state, e.g. after extension)
-                if (currentCategory !== lastCategory) {
-                    await storage.updateContract(contract.id, { lastHealthCategory: currentCategory });
-                }
-            }
-
-            console.log(`✅ Contract health transition check completed. Alerts sent: ${alertCount}`);
-        } catch (error) {
-            console.error('❌ Error checking contract health transitions:', error);
+        // Always update lastHealthCategory if it changed (even if moving to less urgent state, e.g. after extension)
+        if (currentCategory !== lastCategory) {
+          await storage.updateContract(contract.id, { lastHealthCategory: currentCategory });
         }
+      }
+
+      console.log(`✅ Contract health transition check completed. Alerts sent: ${alertCount}`);
+    } catch (error) {
+      console.error('❌ Error checking contract health transitions:', error);
     }
+  }
 
-    /**
-     * Send the email alert for a transition
-     */
-    private async sendTransitionAlert(
-        contract: Contract,
-        crew: CrewMember,
-        vessel: Vessel | undefined,
-        previousCategory: HealthCategory | null,
-        currentCategory: HealthCategory
-    ): Promise<void> {
-        const settings = await storage.getEmailSettings();
-        const recipientEmail = settings?.recipientEmail || 'admin@offing.biz, management@fullahead.in';
+  /**
+   * Send the email alert for a transition
+   */
+  private async sendTransitionAlert(
+    contract: Contract,
+    crew: CrewMember,
+    vessel: Vessel | undefined,
+    previousCategory: HealthCategory | null,
+    currentCategory: HealthCategory
+  ): Promise<void> {
+    const settings = await storage.getEmailSettings();
+    const recipientEmail = settings?.recipientEmail || 'admin@offing.biz, management@fullahead.in';
 
-        const crewName = `${crew.firstName} ${crew.lastName}`;
-        const vesselName = vessel?.name || 'Unassigned';
+    const crewName = `${crew.firstName} ${crew.lastName}`;
+    const vesselName = vessel?.name || 'Unassigned';
 
-        const prevDisplay = previousCategory ? this.getCategoryDisplayName(previousCategory) : 'Initial State';
-        const currDisplay = this.getCategoryDisplayName(currentCategory);
+    const prevDisplay = previousCategory ? this.getCategoryDisplayName(previousCategory) : 'Initial State';
+    const currDisplay = this.getCategoryDisplayName(currentCategory);
 
-        const subject = `🔔 Contract Health Alert: ${crewName} (${vesselName})`;
+    const subject = `🔔 Contract Health Alert: ${crewName} (${vesselName})`;
 
-        const html = `
+    const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8f9fa; padding: 20px;">
         <div style="background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
           <h2 style="color: #1e3a5f; margin: 0 0 20px 0;">📋 Contract Health Transition</h2>
@@ -179,30 +175,30 @@ export class ContractHealthAlertService {
       </div>
     `;
 
-        await smtpEmailService.sendEmail({
-            to: recipientEmail,
-            subject,
-            html
-        });
+    await smtpEmailService.sendEmail({
+      to: recipientEmail,
+      subject,
+      html
+    });
 
-        // Log notification
-        await storage.logNotification({
-            eventId: `transition-${contract.id}-${currentCategory}`,
-            eventType: 'contract_expiry',
-            eventDate: contract.endDate,
-            notificationDate: new Date(),
-            daysBeforeEvent: 0, // Not applicable
-            provider: 'email',
-            success: true,
-            metadata: {
-                crewName,
-                vesselName,
-                previousCategory,
-                currentCategory,
-                transition: true
-            }
-        });
-    }
+    // Log notification
+    await storage.logNotification({
+      eventId: `transition-${contract.id}-${currentCategory}`,
+      eventType: 'contract_expiry',
+      eventDate: contract.endDate,
+      notificationDate: new Date(),
+      daysBeforeEvent: 0, // Not applicable
+      provider: 'email',
+      success: true,
+      metadata: {
+        crewName,
+        vesselName,
+        previousCategory,
+        currentCategory,
+        transition: true
+      }
+    });
+  }
 }
 
 export const contractHealthAlertService = ContractHealthAlertService.getInstance();
