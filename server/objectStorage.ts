@@ -9,12 +9,17 @@ const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 console.log(`[STORAGE-INIT] Initializing Object Storage Client...`);
 
 function initStorage() {
-  // 1. Check if we are using a Replit-managed bucket
   const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
   const isReplitManaged = privateObjectDir?.startsWith('/replit-objstore-');
+  const hasSidecar = !!REPLIT_SIDECAR_ENDPOINT;
 
-  if (isReplitManaged) {
-    console.log(`[STORAGE-INIT] Detected Replit-managed bucket: ${privateObjectDir}. Using Replit Sidecar (preferred).`);
+  console.log(`[STORAGE-INIT] Checking environment: PRIVATE_OBJECT_DIR=${privateObjectDir || 'NONE'}, isReplitManaged=${isReplitManaged}`);
+
+  // 1. Check if we are using a Replit-managed bucket
+  // FORCE Replit sidecar if PRIVATE_OBJECT_DIR is set, even if it doesn't start with the prefix
+  // often the prefix might be different in future Replit versions, but the sidecar is the source of truth for Replit storage.
+  if (isReplitManaged || privateObjectDir) {
+    console.log(`[STORAGE-INIT] 🛡️ REPLIT DETECTED. Using Replit Sidecar for bucket access.`);
     return new Storage({
       credentials: {
         audience: "replit",
@@ -34,37 +39,37 @@ function initStorage() {
     });
   }
 
-  // 2. Fallback to storage-specific credentials
+  // 2. Fallback to storage-specific credentials (ONLY if NOT on Replit)
   if (process.env.GOOGLE_STORAGE_CREDENTIALS_CONTENT) {
     try {
-      console.log(`[STORAGE-INIT] Using credentials from GOOGLE_STORAGE_CREDENTIALS_CONTENT`);
+      console.log(`[STORAGE-INIT] 🔑 Using credentials from GOOGLE_STORAGE_CREDENTIALS_CONTENT`);
       const credentials = JSON.parse(process.env.GOOGLE_STORAGE_CREDENTIALS_CONTENT);
       return new Storage({
         credentials,
         projectId: process.env.DOCUMENT_AI_PROJECT_ID || process.env.GCP_PROJECT_ID || undefined
       });
     } catch (e) {
-      console.error(`[STORAGE-INIT] Failed to parse GOOGLE_STORAGE_CREDENTIALS_CONTENT:`, e);
+      console.error(`[STORAGE-INIT] ❌ Failed to parse GOOGLE_STORAGE_CREDENTIALS_CONTENT:`, e);
     }
   }
 
-  // 3. Fallback to generic credentials if available (e.g. for Document AI)
-  // ONLY use this if we are NOT on a Replit-managed bucket
+  // 3. Fallback to generic credentials if available
+  // WARNING: This often fails for storage if the account only has Document AI roles
   if (process.env.GOOGLE_CREDENTIALS_CONTENT) {
     try {
-      console.log(`[STORAGE-INIT] Using credentials from GOOGLE_CREDENTIALS_CONTENT (generic)`);
+      console.log(`[STORAGE-INIT] ⚠️ FALLBACK: Using credentials from GOOGLE_CREDENTIALS_CONTENT (generic)`);
       const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_CONTENT);
       return new Storage({
         credentials,
         projectId: process.env.DOCUMENT_AI_PROJECT_ID || process.env.GCP_PROJECT_ID || undefined
       });
     } catch (e) {
-      console.error(`[STORAGE-INIT] Failed to parse GOOGLE_CREDENTIALS_CONTENT:`, e);
+      console.error(`[STORAGE-INIT] ❌ Failed to parse GOOGLE_CREDENTIALS_CONTENT:`, e);
     }
   }
 
-  // 4. Default fallback (should not reach here on Replit with proper setup)
-  console.log(`[STORAGE-INIT] No specific credentials found, using default sidecar fallback.`);
+  // 4. Default fallback (Sidecar)
+  console.log(`[STORAGE-INIT] 🛰️ No specific credentials found, using default sidecar fallback.`);
   return new Storage({
     credentials: {
       audience: "replit",
@@ -259,20 +264,32 @@ export class DocumentStorageService {
       res.send(buffer);
       console.log(`[STORAGE-DOWNLOAD] Successfully sent file: ${filePath}`);
     } catch (error: any) {
-      console.error("[STORAGE-DOWNLOAD] Error downloading file:", error.message);
+      console.error("[STORAGE-DOWNLOAD] ❌ Error downloading file:", error.message);
       if (error.stack) console.error(error.stack);
 
       if (!res.headersSent) {
         if (error instanceof ObjectNotFoundError) {
-          res.status(404).json({ error: "File not found in Object Storage" });
+          res.status(404).json({
+            error: "File not found in Object Storage",
+            details: `Path: ${filePath}. Check if the file was deleted or the path is incorrect.`
+          });
         } else {
-          // Check if it's a connection error
+          // Check if it's a permission or connection error
+          const isPermissionError = error.message.includes('permission');
           const isConnectionError = error.message.includes('ECONNREFUSED') || error.message.includes('ENOTFOUND');
-          const errorMessage = isConnectionError
-            ? `Storage connection error: ${error.message}. If running locally, Replit Object Storage is not available.`
-            : `Storage error: ${error.message}`;
 
-          res.status(500).json({ error: errorMessage });
+          let errorMessage = `Storage error: ${error.message}`;
+          if (isConnectionError) {
+            errorMessage = `Storage connection error: ${error.message}. replit-objstore sidecar may be down or unavailable.`;
+          } else if (isPermissionError) {
+            errorMessage = `GCS Permission Denied: ${error.message}. This usually means the service account (or sidecar) doesn't have 'storage.objects.get' access to the bucket.`;
+          }
+
+          res.status(500).json({
+            error: errorMessage,
+            serviceAccount: objectStorageClient.projectId === 'replit-production' ? 'Replit Sidecar' : 'GCP Service Account',
+            path: filePath
+          });
         }
       }
     }
