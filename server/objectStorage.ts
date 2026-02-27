@@ -7,24 +7,43 @@ import * as path from 'path';
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
 console.log(`[STORAGE-INIT] Initializing Object Storage Client...`);
-export const objectStorageClient = new Storage({
-  credentials: {
-    audience: "replit",
-    subject_token_type: "access_token",
-    token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
-    type: "external_account",
-    credential_source: {
-      url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
-      format: {
-        type: "json",
-        subject_token_field_name: "access_token",
+
+function initStorage() {
+  if (process.env.GOOGLE_CREDENTIALS_CONTENT) {
+    try {
+      console.log(`[STORAGE-INIT] Using credentials from GOOGLE_CREDENTIALS_CONTENT`);
+      const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_CONTENT);
+      return new Storage({
+        credentials,
+        projectId: process.env.DOCUMENT_AI_PROJECT_ID || process.env.GCP_PROJECT_ID || undefined
+      });
+    } catch (e) {
+      console.error(`[STORAGE-INIT] Failed to parse GOOGLE_CREDENTIALS_CONTENT, falling back to sidecar:`, e);
+    }
+  }
+
+  // Default Replit Sidecar for Dev/Editor
+  return new Storage({
+    credentials: {
+      audience: "replit",
+      subject_token_type: "access_token",
+      token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
+      type: "external_account",
+      credential_source: {
+        url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+        format: {
+          type: "json",
+          subject_token_field_name: "access_token",
+        },
       },
+      universe_domain: "googleapis.com",
     },
-    universe_domain: "googleapis.com",
-  },
-  projectId: "replit-production",
-});
-console.log(`[STORAGE-INIT] Client initialized. PRIVATE_OBJECT_DIR: ${process.env.PRIVATE_OBJECT_DIR || 'NOT SET'}`);
+    projectId: "replit-production",
+  });
+}
+
+export const objectStorageClient = initStorage();
+console.log(`[STORAGE-INIT] Client initialized. Project: ${objectStorageClient.projectId}. PRIVATE_OBJECT_DIR: ${process.env.PRIVATE_OBJECT_DIR || 'NOT SET'}`);
 
 export class ObjectNotFoundError extends Error {
   constructor() {
