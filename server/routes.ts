@@ -1269,44 +1269,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           // Move to Object Storage for persistence
           const documentStorageService = new DocumentStorageService();
-
-          // Only attempt cloud move if objectively storage is available (Replit sidecar)
-          if (documentStorageService.isCloudStorageAvailable()) {
-            try {
-              const fileName = path.basename(fullPath);
-              const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', crewMember.id, fileName);
-
-              // Upload local file to signed URL
-              const fileBuffer = fs.readFileSync(fullPath);
-              const response = await fetch(uploadUrl, {
-                method: 'PUT',
-                body: new Uint8Array(fileBuffer),
-                headers: {
-                  'Content-Type': getMimeType(fullPath)
-                }
-              });
-
-              if (!response.ok) {
-                throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
-              }
-
-              // Update path to the cloud path
-              const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
-              console.log(`[CLOUD-STORAGE] Successfully uploaded to ${cloudPath}`);
-              documentData.filePath = cloudPath;
-
-              // Cleanup local file
-              fs.unlink(fullPath, (err) => {
-                if (err) console.error(`[CLOUD-STORAGE] Failed to delete local file ${fullPath}:`, err);
-              });
-            } catch (storageError) {
-              console.error("[CLOUD-STORAGE] Error uploading to Object Storage:", storageError);
-              // We can choose to keep it local if cloud fails, but Replit is non-persistent
-              // so maybe we should fail the whole request?
-              return res.status(500).json({ message: "Failed to save document to persistent storage" });
-            }
-          } else {
-            console.log(`[STORAGE-LOCAL] Cloud storage not available, keeping local file path: ${documentData.filePath}`);
+          if (documentData.filePath) {
+            documentData.filePath = await documentStorageService.uploadLocalFileToCloud(
+              documentData.filePath,
+              crewMember.id,
+              'crew'
+            );
           }
         } catch (validationError) {
           console.error("Validation service error:", validationError);
@@ -1554,9 +1522,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           detectedType = 'medical';
         }
 
-        // Return relative path for storage
+        // Return relative path for temporary storage
         const relativePath = path.relative(process.cwd(), file.path);
         const normalizedPath = relativePath.split(path.sep).join('/');
+
+        // MOVE TO CLOUD STORAGE (Persist before creating DB record)
+        console.log(`[BULK-UPLOAD] Persisting ${file.originalname} to cloud...`);
+        const documentStorageService = new DocumentStorageService();
+        const persistedPath = await documentStorageService.uploadLocalFileToCloud(
+          normalizedPath,
+          crewMemberId,
+          'crew'
+        );
 
         // Create a basic document record
         // We use placeholders that the OCR background task will hopefully overwrite
@@ -1568,7 +1545,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           issueDate: new Date(),
           expiryDate: null,
           status: 'valid',
-          filePath: normalizedPath
+          filePath: persistedPath
         };
 
         const document = await storage.createDocument(docData);
@@ -2680,48 +2657,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Move to Object Storage for persistence if a file path is provided
-      if (contractData.filePath && !contractData.filePath.startsWith('/')) {
+      if (contractData.filePath) {
         const documentStorageService = new DocumentStorageService();
-
-        // Only attempt cloud move if objectively storage is available (Replit sidecar)
-        if (documentStorageService.isCloudStorageAvailable()) {
-          try {
-            const fullPath = path.join(process.cwd(), contractData.filePath);
-            if (fs.existsSync(fullPath)) {
-              const fileName = path.basename(fullPath);
-              const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', contractData.crewMemberId, fileName);
-
-              // Upload local file to signed URL
-              const fileBuffer = fs.readFileSync(fullPath);
-              const response = await fetch(uploadUrl, {
-                method: 'PUT',
-                body: new Uint8Array(fileBuffer),
-                headers: {
-                  'Content-Type': getMimeType(fullPath)
-                }
-              });
-
-              if (!response.ok) {
-                throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
-              }
-
-              // Update path to the cloud path
-              const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
-              console.log(`[CLOUD-STORAGE-CONTRACT] Successfully uploaded to ${cloudPath}`);
-              contractData.filePath = cloudPath;
-
-              // Cleanup local file
-              fs.unlink(fullPath, (err) => {
-                if (err) console.error(`[CLOUD-STORAGE-CONTRACT] Failed to delete local file ${fullPath}:`, err);
-              });
-            }
-          } catch (storageError) {
-            console.error("[CLOUD-STORAGE-CONTRACT] Error uploading to Object Storage:", storageError);
-            return res.status(500).json({ message: "Failed to save contract document to persistent storage" });
-          }
-        } else {
-          console.log(`[STORAGE-LOCAL] Cloud storage not available, keeping local file path: ${contractData.filePath}`);
-        }
+        contractData.filePath = await documentStorageService.uploadLocalFileToCloud(
+          contractData.filePath,
+          contractData.crewMemberId,
+          'crew'
+        );
       }
 
       const contract = await storage.createContract(contractData);
