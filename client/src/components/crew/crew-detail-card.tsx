@@ -225,12 +225,12 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
     }, [toast, member]);
 
     return (
-        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden mb-6">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden mb-6 hover:shadow-lg transition-shadow duration-300">
             <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
                 {/* Left Column: Identity & Info */}
-                <div className="lg:w-[48%] p-3">
+                <div className="lg:w-[48%] p-5">
                     {/* Header Identity Section */}
-                    <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-start justify-between mb-6">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-300">
                                 <CrewAvatar
@@ -313,79 +313,79 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                     </div>
 
                     {/* Action Buttons Grid */}
-                    <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-slate-100">
+                    <div className="grid grid-cols-3 gap-2 pt-4 border-t border-slate-100">
                         <Button
                             variant="outline"
-                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-medium text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            className="h-9 border-slate-200 rounded-lg text-slate-600 font-medium text-[11px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm transition-all active:scale-95"
                             onClick={() => onView(member)}
                         >
-                            <Eye className="h-3 w-3 mr-1" /> View
+                            <Eye className="h-3.5 w-3.5 mr-1.5" /> View
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-medium text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            className="h-9 border-slate-200 rounded-lg text-slate-600 font-medium text-[11px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm transition-all active:scale-95"
                             onClick={() => onEdit(member)}
                         >
-                            <UserCog className="h-3 w-3 mr-1" /> Edit
+                            <UserCog className="h-3.5 w-3.5 mr-1.5" /> Edit
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-medium text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            className="h-9 border-slate-200 rounded-lg text-slate-600 font-medium text-[11px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm transition-all active:scale-95"
                             onClick={() => onVesselHistory(member)}
                         >
-                            <History className="h-3 w-3 mr-1" /> History
+                            <History className="h-3.5 w-3.5 mr-1.5" /> History
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-medium text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            className="h-9 border-slate-200 rounded-lg text-slate-600 font-medium text-[11px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm transition-all active:scale-95"
                             onClick={() => onSendMail(member)}
                             disabled={isMailPending}
                         >
-                            <Mail className="h-3 w-3 mr-1" /> Mail
+                            <Mail className="h-3.5 w-3.5 mr-1.5" /> Mail
                         </Button>
                         <Button
                             variant="outline"
-                            className="h-7.5 border-slate-200 rounded-lg text-slate-600 font-medium text-[10px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm"
+                            className="h-9 border-slate-200 rounded-lg text-slate-600 font-medium text-[11px] uppercase tracking-tight bg-white hover:bg-slate-50 shadow-sm transition-all active:scale-95"
                             onClick={() => onDownload(member.id, `${member.firstName} ${member.lastName}`)}
                         >
-                            <Download className="h-3 w-3 mr-1" /> Download
+                            <Download className="h-3.5 w-3.5 mr-1.5" /> Download
                         </Button>
                         <Button
-                            className="h-7.5 bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 rounded-lg font-medium text-[9px] uppercase tracking-tight shadow-sm"
+                            className="h-9 bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 rounded-lg font-medium text-[10px] uppercase tracking-tight shadow-sm transition-all active:scale-95"
                             onClick={() => onBulkUpload?.(member)}
                         >
-                            <Upload className="h-3 w-3 mr-1" /> Bulk Upload
+                            <Upload className="h-3.5 w-3.5 mr-1.5" /> Bulk Upload
                         </Button>
                         {member.status === 'onBoard' ? (
                             <Button
-                                className="h-7.5 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 rounded-lg font-medium text-[9px] uppercase tracking-tight shadow-sm"
+                                className="h-9 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 rounded-lg font-medium text-[10px] uppercase tracking-tight shadow-sm transition-all active:scale-95"
                                 onClick={() => onSignOff?.(member)}
                             >
-                                <LogOut className="h-3 w-3 mr-1 rotate-180" /> Sign Off
+                                <LogOut className="h-3.5 w-3.5 mr-1.5 rotate-180" /> Sign Off
                             </Button>
                         ) : (
                             <Button
-                                className="h-7.5 bg-[#F0FDF4] text-[#16A34A] border border-[#DCFCE7] hover:bg-[#DCFCE7] rounded-lg font-medium text-[9px] uppercase tracking-tight shadow-sm"
+                                className="h-9 bg-[#F0FDF4] text-[#16A34A] border border-[#DCFCE7] hover:bg-[#DCFCE7] rounded-lg font-medium text-[10px] uppercase tracking-tight shadow-sm transition-all active:scale-95"
                                 onClick={() => onSignOn?.(member)}
                             >
-                                <LogIn className="h-3 w-3 mr-1" /> Sign On
+                                <LogIn className="h-3.5 w-3.5 mr-1.5" /> Sign On
                             </Button>
                         )}
                         {member.status === 'onShore' && onDelete && (
                             <Button
-                                className="col-span-3 mt-1 h-7.5 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg font-medium text-[10px] uppercase tracking-tight shadow-sm flex items-center justify-center gap-1"
+                                className="col-span-3 mt-1 h-9 bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 rounded-lg font-medium text-[12px] uppercase tracking-tight shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95"
                                 onClick={() => onDelete(member)}
                             >
-                                <Trash2 className="h-3 w-3" /> Delete Crew Member
+                                <Trash2 className="h-3.5 w-3.5" /> Delete Crew Member
                             </Button>
                         )}
                     </div>
                 </div>
 
-                <div className="lg:w-[52%] p-3 bg-white">
-                    <div className="flex flex-col h-full">
-                        <div className="mb-1.5">
-                            <h4 className="text-base font-semibold text-slate-900 uppercase tracking-tight mb-0.5">Documents</h4>
+                <div className="lg:w-[52%] p-5 bg-white">
+                    <div className="flex flex-col">
+                        <div className="mb-4">
+                            <h4 className="text-lg font-bold text-slate-900 uppercase tracking-tight mb-1">Documents</h4>
                             <div className="flex items-center gap-1.5 text-[10px] font-normal">
                                 <span className="text-slate-400">{docStatuses.length} Docs</span>
                                 <span className="text-slate-200">•</span>
@@ -399,80 +399,80 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                             </div>
                         </div>
 
-                        <div className="flex-1 space-y-0.5">
+                        <div className="space-y-1">
                             {docStatuses.map((doc) => {
                                 const isInvalid = doc.status === 'missing' || doc.status === 'expired';
                                 return (
-                                    <div key={doc.type} className="flex items-center justify-between py-1">
+                                    <div key={doc.type} className="flex items-center justify-between py-1.5 px-3 rounded-xl hover:bg-slate-50 transition-colors group">
                                         <div className="flex items-center gap-4">
                                             {isInvalid ? (
-                                                <div className="w-3.5 h-3.5 rounded-full bg-white border border-[#EF4444] flex items-center justify-center">
-                                                    <span className="text-[#EF4444] text-[7px] font-black">!</span>
+                                                <div className="w-4 h-4 rounded-full bg-white border-2 border-[#EF4444] flex items-center justify-center">
+                                                    <span className="text-[#EF4444] text-[8px] font-black">!</span>
                                                 </div>
                                             ) : (
-                                                <div className="w-3.5 h-3.5 rounded-full bg-white border border-[#10B981] flex items-center justify-center">
-                                                    <Check className="h-2 w-2 text-[#10B981] stroke-[4]" />
+                                                <div className="w-4 h-4 rounded-full bg-white border-2 border-[#10B981] flex items-center justify-center">
+                                                    <Check className="h-2.5 w-2.5 text-[#10B981] stroke-[4]" />
                                                 </div>
                                             )}
-                                            <span className="text-xs font-medium text-slate-700 uppercase tracking-tight">
+                                            <span className="text-[13px] font-semibold text-slate-700 uppercase tracking-tight">
                                                 {getDocTypeLabel(doc.type)}
                                             </span>
                                         </div>
 
-                                        <div className="flex items-center gap-1">
+                                        <div className="flex items-center gap-2">
                                             {doc.status === 'missing' && (
-                                                <span className="text-[#EF4444] text-[9px] font-medium bg-red-50 px-1 py-0.5 rounded mr-1">PENDING</span>
+                                                <span className="text-[#EF4444] text-[10px] font-bold bg-red-50 px-2 py-0.5 rounded-full border border-red-100">PENDING</span>
                                             )}
                                             {doc.status === 'expired' && (
-                                                <span className="text-[#EF4444] text-[9px] font-medium bg-red-50 px-1 py-0.5 rounded mr-1">EXPIRED</span>
+                                                <span className="text-[#EF4444] text-[10px] font-bold bg-red-50 px-2 py-0.5 rounded-full border border-red-100">EXPIRED</span>
                                             )}
                                             {doc.status === 'expiring' && (
-                                                <span className="text-[#F59E0B] text-[9px] font-medium bg-orange-50 px-1 py-0.5 rounded mr-1">EXPIRING</span>
+                                                <span className="text-[#F59E0B] text-[10px] font-bold bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">EXPIRING</span>
                                             )}
 
                                             {isInvalid ? (
                                                 <Button
                                                     size="sm"
                                                     variant="ghost"
-                                                    className="h-7 px-2.5 bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE] rounded-lg font-medium text-[10px] transition-colors"
+                                                    className="h-8 px-3 bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE] rounded-lg font-bold text-[11px] transition-all active:scale-95"
                                                     onClick={() => onUpload?.(member, doc.type)}
                                                 >
-                                                    <Upload className="h-2.5 w-2.5 mr-1" />
+                                                    <Upload className="h-3 w-3 mr-1.5" />
                                                     Upload
                                                 </Button>
                                             ) : (
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                                                     <Button
                                                         size="icon"
                                                         variant="ghost"
-                                                        className="h-7 w-7 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md"
+                                                        className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                                         onClick={() => handleDocClick(doc)}
                                                     >
-                                                        <Eye className="h-3 w-3" />
+                                                        <Eye className="h-3.5 w-3.5" />
                                                     </Button>
                                                     <Button
                                                         size="icon"
                                                         variant="ghost"
-                                                        className="h-7 w-7 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md"
+                                                        className="h-8 w-8 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                                                         onClick={() => handleDocDownload(doc)}
                                                     >
-                                                        <FileDown className="h-3 w-3" />
+                                                        <FileDown className="h-3.5 w-3.5" />
                                                     </Button>
                                                     <Button
                                                         size="icon"
                                                         variant="ghost"
-                                                        className="h-7 w-7 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-md"
+                                                        className="h-8 w-8 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
                                                         onClick={() => onSendMail(member)}
                                                     >
-                                                        <Mail className="h-3 w-3" />
+                                                        <Mail className="h-3.5 w-3.5" />
                                                     </Button>
                                                     <Button
                                                         size="icon"
                                                         variant="ghost"
-                                                        className="h-7 w-7 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-md"
+                                                        className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                                                         onClick={() => onDeleteDocument?.(doc.docId!, doc.type)}
                                                     >
-                                                        <Trash2 className="h-3 w-3" />
+                                                        <Trash2 className="h-3.5 w-3.5" />
                                                     </Button>
                                                 </div>
                                             )}

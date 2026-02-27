@@ -703,7 +703,7 @@ const HealthDrillDownModal = memo(({
                     </DialogHeader>
 
                     <div
-                        className="flex-1 min-h-[500px] max-h-[calc(90vh-140px)] overflow-y-auto custom-scrollbar bg-slate-50/50 p-6"
+                        className="flex-1 h-0 overflow-y-auto custom-scrollbar bg-slate-50/50 p-6"
                         onScroll={(e) => {
                             const target = e.currentTarget;
                             if (target.scrollHeight - target.scrollTop - target.clientHeight < 100) {
@@ -725,45 +725,47 @@ const HealthDrillDownModal = memo(({
                                 <p className="text-sm opacity-80">{(error as Error).message}</p>
                             </div>
                         ) : (
-                            <div className="space-y-4">
-                                {displayData && displayData.length > 0 ? (
-                                    displayData.map((item: any) => (
-                                        <motion.div
-                                            key={item.id}
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            exit={{ opacity: 0, scale: 0.95 }}
-                                            transition={{ duration: 0.2 }}
-                                        >
-                                            <CrewDetailCard
-                                                member={item}
-                                                documents={documents}
-                                                onView={(m) => { setSelectedCrewMember(m); setShowViewDialog(true); }}
-                                                onEdit={(m) => { setSelectedCrewMember(m); setShowEditDialog(true); }}
-                                                onVesselHistory={(m) => { setSelectedCrewForHistory(m); setShowVesselHistoryDialog(true); }}
-                                                onSendMail={(m) => sendCrewEmailMutation.mutate(m)}
-                                                onDownload={(id, name) => handleDownloadCrewDocuments(id, name)}
-                                                onUpload={handleUpload}
-                                                onBulkUpload={handleBulkUpload}
-                                                onViewAOA={handleViewAOAClick}
-                                                onSignOff={handleSignOffClick}
-                                                onSignOn={handleSignOnClick}
-                                                onDeleteDocument={handleDeleteDocument}
-                                                onDelete={handleDeleteCrewClick}
-                                                isMailPending={sendCrewEmailMutation.isPending}
-                                            />
-                                        </motion.div>
-                                    ))
-                                ) : (
-                                    <div className="h-48 flex items-center justify-center text-slate-500 dark:text-slate-400 italic font-medium bg-white/50 dark:bg-white/5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
-                                        No records found for this category.
-                                    </div>
-                                )}
-                                {displayCount < filteredData.length && (
-                                    <div className="flex justify-center p-4">
-                                        <Loader2 className="h-6 w-6 animate-spin text-primary/30" />
-                                    </div>
-                                )}
+                            <div className="pb-10">
+                                <div className="space-y-6">
+                                    {displayData && displayData.length > 0 ? (
+                                        displayData.map((item: any) => (
+                                            <motion.div
+                                                key={item.id}
+                                                initial={{ opacity: 0, y: 15 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                exit={{ opacity: 0, scale: 0.98 }}
+                                                transition={{ duration: 0.3, ease: "easeOut" }}
+                                            >
+                                                <CrewDetailCard
+                                                    member={item}
+                                                    documents={documents}
+                                                    onView={(m) => { setSelectedCrewMember(m); setShowViewDialog(true); }}
+                                                    onEdit={(m) => { setSelectedCrewMember(m); setShowEditDialog(true); }}
+                                                    onVesselHistory={(m) => { setSelectedCrewForHistory(m); setShowVesselHistoryDialog(true); }}
+                                                    onSendMail={(m) => sendCrewEmailMutation.mutate(m)}
+                                                    onDownload={(id, name) => handleDownloadCrewDocuments(id, name)}
+                                                    onUpload={handleUpload}
+                                                    onBulkUpload={handleBulkUpload}
+                                                    onViewAOA={handleViewAOAClick}
+                                                    onSignOff={handleSignOffClick}
+                                                    onSignOn={handleSignOnClick}
+                                                    onDeleteDocument={handleDeleteDocument}
+                                                    onDelete={handleDeleteCrewClick}
+                                                    isMailPending={sendCrewEmailMutation.isPending}
+                                                />
+                                            </motion.div>
+                                        ))
+                                    ) : (
+                                        <div className="h-48 flex items-center justify-center text-slate-500 dark:text-slate-400 italic font-medium bg-white/50 dark:bg-white/5 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800">
+                                            No records found for this category.
+                                        </div>
+                                    )}
+                                    {displayCount < filteredData.length && (
+                                        <div className="flex justify-center p-4">
+                                            <Loader2 className="h-6 w-6 animate-spin text-primary/30" />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
