@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.seacrewmanager.captain',
-  appName: 'Captain Voice Assistant',
+  appId: 'com.seacrewmanager',
+  appName: 'Sea Crew Manager',
   webDir: 'dist/public'
 };
 

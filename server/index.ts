@@ -90,6 +90,13 @@ app.use((req, res, next) => {
     reusePort: process.platform !== "win32",
   }, () => {
     log(`serving on port ${port}`);
+    // Explicitly ensure the background scheduler is initialized and running
+    try {
+      backgroundScheduler.start();
+      log('Background scheduler validated on startup');
+    } catch (e) {
+      console.error('Failed to initialize background scheduler:', e);
+    }
   });
 })();
 

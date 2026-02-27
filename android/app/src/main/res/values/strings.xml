@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Captain Voice Assistant</string>
-    <string name="title_activity_main">Captain Voice Assistant</string>
-    <string name="package_name">com.seacrewmanager.captain</string>
-    <string name="custom_url_scheme">com.seacrewmanager.captain</string>
+    <string name="app_name">Sea Crew Manager</string>
+    <string name="title_activity_main">Sea Crew Manager</string>
+    <string name="package_name">com.seacrewmanager</string>
+    <string name="custom_url_scheme">com.seacrewmanager</string>
 </resources>
