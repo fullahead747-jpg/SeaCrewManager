@@ -9,20 +9,62 @@ const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 console.log(`[STORAGE-INIT] Initializing Object Storage Client...`);
 
 function initStorage() {
+  // 1. Check if we are using a Replit-managed bucket
+  const privateObjectDir = process.env.PRIVATE_OBJECT_DIR;
+  const isReplitManaged = privateObjectDir?.startsWith('/replit-objstore-');
+
+  if (isReplitManaged) {
+    console.log(`[STORAGE-INIT] Detected Replit-managed bucket: ${privateObjectDir}. Using Replit Sidecar (preferred).`);
+    return new Storage({
+      credentials: {
+        audience: "replit",
+        subject_token_type: "access_token",
+        token_url: `${REPLIT_SIDECAR_ENDPOINT}/token`,
+        type: "external_account",
+        credential_source: {
+          url: `${REPLIT_SIDECAR_ENDPOINT}/credential`,
+          format: {
+            type: "json",
+            subject_token_field_name: "access_token",
+          },
+        },
+        universe_domain: "googleapis.com",
+      },
+      projectId: "replit-production",
+    });
+  }
+
+  // 2. Fallback to storage-specific credentials
+  if (process.env.GOOGLE_STORAGE_CREDENTIALS_CONTENT) {
+    try {
+      console.log(`[STORAGE-INIT] Using credentials from GOOGLE_STORAGE_CREDENTIALS_CONTENT`);
+      const credentials = JSON.parse(process.env.GOOGLE_STORAGE_CREDENTIALS_CONTENT);
+      return new Storage({
+        credentials,
+        projectId: process.env.DOCUMENT_AI_PROJECT_ID || process.env.GCP_PROJECT_ID || undefined
+      });
+    } catch (e) {
+      console.error(`[STORAGE-INIT] Failed to parse GOOGLE_STORAGE_CREDENTIALS_CONTENT:`, e);
+    }
+  }
+
+  // 3. Fallback to generic credentials if available (e.g. for Document AI)
+  // ONLY use this if we are NOT on a Replit-managed bucket
   if (process.env.GOOGLE_CREDENTIALS_CONTENT) {
     try {
-      console.log(`[STORAGE-INIT] Using credentials from GOOGLE_CREDENTIALS_CONTENT`);
+      console.log(`[STORAGE-INIT] Using credentials from GOOGLE_CREDENTIALS_CONTENT (generic)`);
       const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_CONTENT);
       return new Storage({
         credentials,
         projectId: process.env.DOCUMENT_AI_PROJECT_ID || process.env.GCP_PROJECT_ID || undefined
       });
     } catch (e) {
-      console.error(`[STORAGE-INIT] Failed to parse GOOGLE_CREDENTIALS_CONTENT, falling back to sidecar:`, e);
+      console.error(`[STORAGE-INIT] Failed to parse GOOGLE_CREDENTIALS_CONTENT:`, e);
     }
   }
 
-  // Default Replit Sidecar for Dev/Editor
+  // 4. Default fallback (should not reach here on Replit with proper setup)
+  console.log(`[STORAGE-INIT] No specific credentials found, using default sidecar fallback.`);
   return new Storage({
     credentials: {
       audience: "replit",

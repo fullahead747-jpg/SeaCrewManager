@@ -16,7 +16,8 @@ if (-not $status) {
 }
 
 # 3. Commit with timestamp
-$message = "Sync from Local: $timestamp (Persistent Object Storage Implementation)"
+$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+$message = "Fix: GCS Permission Denied - Unified Storage Client ($timestamp)"
 git commit -m $message
 
 # 4. Push to GitHub
