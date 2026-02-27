@@ -234,7 +234,8 @@ export class BackgroundScheduler {
   }
 
   /**
-   * Check if it's Monday at 9 AM and send the weekly summary email
+   * Check if the weekly summary email should be sent (Mondays at 9 AM)
+   * Includes a catch-up mechanism if the server was down during the scheduled time.
    */
   private async checkAndSendWeeklySummaryEmail(): Promise<void> {
     const isOff = process.env.EMAIL_NOTIFICATIONS === 'OFF';
@@ -249,7 +250,12 @@ export class BackgroundScheduler {
     const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
     const currentHour = now.getHours();
 
-    if (dayOfWeek !== 1 || currentHour !== 9) {
+    // Check if it's Monday 9 AM OR if we need to catch up
+    // We only catch up on Monday/Tuesday to avoid spamming mid-week if a crash happens then
+    const isScheduledTime = dayOfWeek === 1 && currentHour === 9;
+    const isCatchUpWindow = (dayOfWeek === 1 && currentHour > 9) || dayOfWeek === 2;
+
+    if (!isScheduledTime && !isCatchUpWindow) {
       return;
     }
 
@@ -264,11 +270,19 @@ export class BackgroundScheduler {
       }
 
       if (settings.lastWeeklySummaryMonth === currentWeekKey) {
-        console.log(`📅 Weekly summary already sent for ${currentWeekKey}`);
+        // Only log "already sent" if it's exactly the scheduled hour to avoid log bloating during catch-up window
+        if (isScheduledTime) {
+          console.log(`📅 Weekly summary already sent for ${currentWeekKey}`);
+        }
         return;
       }
 
-      console.log(`📅 Monday morning - sending weekly summary email...`);
+      if (isCatchUpWindow) {
+        console.log(`⏳ Catching up on missed weekly summary email for ${currentWeekKey}...`);
+      } else {
+        console.log(`📅 Monday morning - sending weekly summary email...`);
+      }
+
       const success = await weeklySummaryEmailService.sendWeeklySummary(settings.recipientEmail);
 
       if (success) {
