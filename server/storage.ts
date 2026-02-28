@@ -281,7 +281,8 @@ export class DatabaseStorage implements IStorage {
     // Fetch related data in parallel batches
     const [usersList, vesselsList, allDocs, allContracts] = await Promise.all([
       userIds.length > 0 ? db.select().from(users).where(inArray(users.id, userIds)) : [],
-      vesselIds.length > 0 ? db.select().from(vessels).where(inArray(vessels.id, vesselIds)) : [],
+      // We need all vessels anyway to map contract vessel names
+      db.select().from(vessels),
       // For very large datasets, fetching ALL docs might be heavy, but it's better than N+1 queries.
       // If crewIds > 1000, we might need chunking, but for now this is safe.
       crewIds.length > 0 ? db.select().from(documents).where(inArray(documents.crewMemberId, crewIds)) : [],
@@ -299,22 +300,60 @@ export class DatabaseStorage implements IStorage {
       docsMap.get(d.crewMemberId)!.push(d);
     });
 
-    // Determine active contract for each crew
+    // Determine active contract for each crew and process all contracts for sailing history
     const activeContractMap = new Map<string, Contract>();
-    allContracts.forEach(c => {
-      // Use the same logic as getActiveContract: descending by createdAt (implicitly or explicitly)
-      // We filter for active statuses first if needed, but the original getActiveContract just took the latest contract regardless of status?
-      // Checking original implementation: 
-      // async getActiveContract(crewMemberId: string): Promise<Contract | undefined> {
-      //   const [contract] = await db.select().from(contracts).where(eq(contracts.crewMemberId, crewMemberId)).orderBy(desc(contracts.createdAt));
-      //   return contract || undefined;
-      // }
-      // Wait, the original implementation didn't check for status='active'! It just returned the *latest created* contract.
-      // We should replicate that behavior to maintain compatibility.
+    const sailingHistoryMap = new Map<string, {
+      vesselName: string;
+      durationDays: number;
+      durationMonths: number;
+    }[]>();
+    const totalSailedMap = new Map<string, number>();
 
+    allContracts.forEach(c => {
+      // 1. Determine local active contract
       const existing = activeContractMap.get(c.crewMemberId);
       if (!existing || (c.createdAt && existing.createdAt && c.createdAt > existing.createdAt)) {
         activeContractMap.set(c.crewMemberId, c);
+      }
+
+      // 2. Accumulate sailing history for 'completed' and 'active' contracts
+      const isCompleted = c.status === 'completed' && c.startDate && c.endDate;
+      const isActive = c.status === 'active' && c.startDate;
+
+      if ((isCompleted || isActive) && c.vesselId && c.startDate) {
+        if (!sailingHistoryMap.has(c.crewMemberId)) {
+          sailingHistoryMap.set(c.crewMemberId, []);
+        }
+
+        const historyList = sailingHistoryMap.get(c.crewMemberId)!;
+        const vessel = vesselMap.get(c.vesselId);
+        const vesselName = vessel ? vessel.name : 'Unknown Vessel';
+
+        // Duration logic: if active, calculate up to now
+        let durationDays = c.durationDays;
+        if (isActive || typeof durationDays !== 'number') {
+          const endDate = isCompleted ? c.endDate! : new Date();
+          durationDays = Math.ceil((endDate.getTime() - c.startDate.getTime()) / (1000 * 60 * 60 * 24));
+          // Don't allow negative duration if start date is in future
+          durationDays = Math.max(0, durationDays);
+        }
+
+        const durationMonths = Math.round((durationDays / 30) * 10) / 10;
+
+        // Find if vessel already exists in history array to aggregate
+        const existingEntry = historyList.find(entry => entry.vesselName === vesselName);
+        if (existingEntry) {
+          existingEntry.durationDays += durationDays;
+          existingEntry.durationMonths = Math.round((existingEntry.durationDays / 30) * 10) / 10;
+        } else {
+          historyList.push({ vesselName, durationDays, durationMonths });
+        }
+
+        // Add to total ONLY if active contract
+        if (isActive) {
+          const currentTotal = totalSailedMap.get(c.crewMemberId) || 0;
+          totalSailedMap.set(c.crewMemberId, currentTotal + durationMonths);
+        }
       }
     });
 
@@ -324,7 +363,9 @@ export class DatabaseStorage implements IStorage {
       currentVessel: member.currentVesselId ? vesselMap.get(member.currentVesselId) : undefined,
       lastVessel: member.lastVesselId ? vesselMap.get(member.lastVesselId) : undefined,
       documents: docsMap.get(member.id) || [],
-      activeContract: activeContractMap.get(member.id)
+      activeContract: activeContractMap.get(member.id),
+      sailingHistory: sailingHistoryMap.get(member.id) || [],
+      totalSailedMonths: Math.round((totalSailedMap.get(member.id) || 0) * 10) / 10
     }));
   }
 
@@ -339,6 +380,44 @@ export class DatabaseStorage implements IStorage {
 
     const lastVessel = member.lastVesselId ? await this.getVessel(member.lastVesselId) : undefined;
 
+    // Calculate sailing history
+    const allContracts = await this.getContractsByCrewMember(member.id);
+    const vesselsMap = new Map((await this.getVessels()).map(v => [v.id, v]));
+
+    const sailingHistory: { vesselName: string; durationDays: number; durationMonths: number; }[] = [];
+    let totalSailedMonths = 0;
+
+    allContracts.forEach(c => {
+      const isCompleted = c.status === 'completed' && c.startDate && c.endDate;
+      const isActive = c.status === 'active' && c.startDate;
+
+      if ((isCompleted || isActive) && c.vesselId && c.startDate) {
+        const vessel = vesselsMap.get(c.vesselId);
+        const vesselName = vessel ? vessel.name : 'Unknown Vessel';
+
+        let durationDays = c.durationDays;
+        if (isActive || typeof durationDays !== 'number') {
+          const endDate = isCompleted ? c.endDate! : new Date();
+          durationDays = Math.ceil((endDate.getTime() - c.startDate.getTime()) / (1000 * 60 * 60 * 24));
+          durationDays = Math.max(0, durationDays);
+        }
+        const durationMonths = Math.round((durationDays / 30) * 10) / 10;
+
+        const existingEntry = sailingHistory.find(entry => entry.vesselName === vesselName);
+        if (existingEntry) {
+          existingEntry.durationDays += durationDays;
+          existingEntry.durationMonths = Math.round((existingEntry.durationDays / 30) * 10) / 10;
+        } else {
+          sailingHistory.push({ vesselName, durationDays, durationMonths });
+        }
+
+        // Add to total ONLY if active contract
+        if (isActive) {
+          totalSailedMonths += durationMonths;
+        }
+      }
+    });
+
     return {
       ...member,
       user,
@@ -346,6 +425,8 @@ export class DatabaseStorage implements IStorage {
       lastVessel,
       documents: memberDocuments,
       activeContract,
+      sailingHistory,
+      totalSailedMonths: Math.round(totalSailedMonths * 10) / 10
     };
   }
 
@@ -358,14 +439,16 @@ export class DatabaseStorage implements IStorage {
     const crewIds = vesselCrew.map(c => c.id);
 
     // Fetch related data
-    const [usersList, currentVessel, allDocs, allContracts] = await Promise.all([
+    const [usersList, currentVessel, allVessels, allDocs, allContracts] = await Promise.all([
       userIds.length > 0 ? db.select().from(users).where(inArray(users.id, userIds)) : [],
       this.getVessel(vesselId),
+      db.select().from(vessels),
       crewIds.length > 0 ? db.select().from(documents).where(inArray(documents.crewMemberId, crewIds)) : [],
       crewIds.length > 0 ? db.select().from(contracts).where(inArray(contracts.crewMemberId, crewIds)) : []
     ]);
 
     const userMap = new Map(usersList.map(u => [u.id, u]));
+    const allVesselsMap = new Map(allVessels.map(v => [v.id, v]));
 
     // Group docs
     const docsMap = new Map<string, Document[]>();
@@ -374,12 +457,55 @@ export class DatabaseStorage implements IStorage {
       docsMap.get(d.crewMemberId)!.push(d);
     });
 
-    // Active contract logic (latest created)
+    // Active contract and history logic
     const activeContractMap = new Map<string, Contract>();
+    const sailingHistoryMap = new Map<string, { vesselName: string; durationDays: number; durationMonths: number; }[]>();
+    const totalSailedMap = new Map<string, number>();
+
     allContracts.forEach(c => {
-      const existing = activeContractMap.get(c.crewMemberId);
-      if (!existing || (c.createdAt && existing.createdAt && c.createdAt > existing.createdAt)) {
-        activeContractMap.set(c.crewMemberId, c);
+      // 1. Maintain active contract mapping
+      if (c.status === 'active') {
+        const existing = activeContractMap.get(c.crewMemberId);
+        if (!existing || (c.createdAt && existing.createdAt && c.createdAt > existing.createdAt)) {
+          activeContractMap.set(c.crewMemberId, c);
+        }
+      }
+
+      // 2. Accumulate sailing history for 'completed' and 'active' contracts
+      const isCompleted = c.status === 'completed' && c.startDate && c.endDate;
+      const isActive = c.status === 'active' && c.startDate;
+
+      if ((isCompleted || isActive) && c.vesselId && c.startDate) {
+        if (!sailingHistoryMap.has(c.crewMemberId)) {
+          sailingHistoryMap.set(c.crewMemberId, []);
+        }
+
+        const historyList = sailingHistoryMap.get(c.crewMemberId)!;
+        const vessel = allVesselsMap.get(c.vesselId);
+        const vesselName = vessel ? vessel.name : 'Unknown Vessel';
+
+        let durationDays = c.durationDays;
+        if (isActive || typeof durationDays !== 'number') {
+          const endDate = isCompleted ? c.endDate! : new Date();
+          durationDays = Math.ceil((endDate.getTime() - c.startDate.getTime()) / (1000 * 60 * 60 * 24));
+          durationDays = Math.max(0, durationDays);
+        }
+
+        const durationMonths = Math.round((durationDays / 30) * 10) / 10;
+
+        const existingEntry = historyList.find(entry => entry.vesselName === vesselName);
+        if (existingEntry) {
+          existingEntry.durationDays += durationDays;
+          existingEntry.durationMonths = Math.round((existingEntry.durationDays / 30) * 10) / 10;
+        } else {
+          historyList.push({ vesselName, durationDays, durationMonths });
+        }
+
+        // Add to total ONLY if active contract
+        if (isActive) {
+          const currentTotal = totalSailedMap.get(c.crewMemberId) || 0;
+          totalSailedMap.set(c.crewMemberId, currentTotal + durationMonths);
+        }
       }
     });
 
@@ -387,11 +513,10 @@ export class DatabaseStorage implements IStorage {
       ...member,
       user: member.userId ? userMap.get(member.userId) : undefined,
       currentVessel: currentVessel,
-      // Detailed view usually doesn't show lastVessel in the table list context, but checking type definition...
-      // The type CrewMemberWithDetails includes lastVessel. 
-      // Logic: The original function didn't fetch lastVessel. So we can leave it undefined.
       documents: docsMap.get(member.id) || [],
-      activeContract: activeContractMap.get(member.id)
+      activeContract: activeContractMap.get(member.id),
+      sailingHistory: sailingHistoryMap.get(member.id) || [],
+      totalSailedMonths: Math.round((totalSailedMap.get(member.id) || 0) * 10) / 10
     }));
   }
 
