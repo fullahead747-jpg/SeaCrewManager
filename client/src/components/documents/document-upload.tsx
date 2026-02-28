@@ -49,6 +49,7 @@ const documentTypes = [
   { value: 'nok', label: 'NOK' },
   { value: 'coe', label: 'COE' },
   { value: 'coe-extension', label: 'COE-Extension' },
+  { value: 'stcw_course', label: 'STCW Course (Training)' },
 ];
 
 export default function DocumentUpload({ crewMemberId, document, preselectedType, onSuccess }: DocumentUploadProps) {
