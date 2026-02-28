@@ -1503,7 +1503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const results: any[] = [];
-      const documentTypes = ['passport', 'cdc', 'coc', 'medical', 'visa', 'aoa', 'photo', 'nok', 'coe', 'coe-extension'];
+      const documentTypes = ['passport', 'cdc', 'coc', 'medical', 'visa', 'aoa', 'photo', 'nok', 'coe', 'coe-extension', 'stcw_course'];
 
       for (const file of files) {
         const originalName = file.originalname.toLowerCase();
@@ -1520,6 +1520,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Special case for 'med' abbreviation
         if (detectedType === 'other' && originalName.includes('med')) {
           detectedType = 'medical';
+        }
+
+        // Special case for course-related keywords mapping to stcw_course
+        if (detectedType === 'other' || detectedType === 'stcw_course') {
+          if (originalName.includes('course') || originalName.includes('stcw') || originalName.includes('training')) {
+            detectedType = 'stcw_course';
+          }
         }
 
         // Return relative path for temporary storage

@@ -18,7 +18,7 @@ export function STCWSection() {
             <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-blue-500" />
-                    STCW Course Details
+                    Course Details
                 </h3>
             </div>
 
@@ -30,7 +30,7 @@ export function STCWSection() {
                         <FormItem>
                             <FormLabel>Certificate Number</FormLabel>
                             <FormControl>
-                                <Input {...field} placeholder="STCW Certificate No." className="bg-white dark:bg-gray-950" />
+                                <Input {...field} placeholder="Certificate No." className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
