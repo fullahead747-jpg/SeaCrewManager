@@ -1,7 +1,7 @@
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Heart, Ship, Award, Eye, Upload, Edit, Trash2, Download, Mail, Camera, Users } from 'lucide-react';
+import { FileText, Heart, Ship, Award, Eye, Upload, Edit, Trash2, Download, Mail, Camera, Users, GraduationCap } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { getAuthHeaders } from '@/lib/auth';
 import { downloadFileFromResponse } from '@/lib/file-utils';
@@ -9,7 +9,7 @@ import type { Document } from '@shared/schema';
 
 interface DocumentCardDetailedProps {
     document: Document | null;
-    documentType: 'passport' | 'medical' | 'cdc' | 'coc' | 'photo' | 'nok' | 'coe' | 'coe-extension';
+    documentType: 'passport' | 'medical' | 'cdc' | 'coc' | 'photo' | 'nok' | 'coe' | 'coe-extension' | 'stcw_course';
     allDocuments: Document[];
     onView?: () => void;
     onUpload?: () => void;
@@ -28,6 +28,7 @@ const documentIcons = {
     nok: Users,
     coe: FileText,
     'coe-extension': FileText,
+    stcw_course: GraduationCap,
 };
 
 const documentLabels = {
@@ -39,6 +40,7 @@ const documentLabels = {
     nok: 'NOK',
     coe: 'COE',
     'coe-extension': 'COE-Extension',
+    stcw_course: 'STCW Course',
 };
 
 export function DocumentCardDetailed({ document, documentType, allDocuments, onView, onUpload, onViewDocument, onUploadDocument, onEditDocument, onDeleteDocument }: DocumentCardDetailedProps) {

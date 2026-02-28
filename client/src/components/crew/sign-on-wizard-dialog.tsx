@@ -726,6 +726,7 @@ export default function SignOnWizardDialog({
                                         { type: 'passport', doc: passport, label: 'Passport', icon: '🛂' },
                                         { type: 'cdc', doc: cdc, label: 'CDC (Continuous Discharge Certificate)', icon: '📋' },
                                         { type: 'coc', doc: coc, label: 'COC (Certificate of Competency)', icon: '📜' },
+                                        { type: 'stcw_course', doc: documents.find((d: any) => d.type === 'stcw_course'), label: 'STCW Course', icon: '🎓' },
                                         { type: 'medical', doc: medical, label: 'Medical Certificate', icon: '🏥' },
                                         { type: 'coe', doc: documents.find((d: any) => d.type === 'coe'), label: 'COE', icon: '📄' },
                                         { type: 'coe-extension', doc: documents.find((d: any) => d.type === 'coe-extension'), label: 'COE-Extension', icon: '📄' }

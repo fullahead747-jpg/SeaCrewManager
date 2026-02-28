@@ -182,6 +182,18 @@ export function CrewDetailPanel({ crew, documents, onDownloadAll, onViewDocument
                         onUploadDocument={onUploadDocument}
                     />
                     <DocumentCardDetailed
+                        document={getDocument('stcw_course')}
+                        documentType="stcw_course"
+                        allDocuments={documents}
+                        onView={() => {
+                            const doc = getDocument('stcw_course');
+                            if (doc) onViewDocument?.(doc);
+                        }}
+                        onUpload={() => onUploadDocument?.('stcw_course')}
+                        onViewDocument={onViewDocument}
+                        onUploadDocument={onUploadDocument}
+                    />
+                    <DocumentCardDetailed
                         document={getDocument('photo')}
                         documentType="photo"
                         allDocuments={documents}

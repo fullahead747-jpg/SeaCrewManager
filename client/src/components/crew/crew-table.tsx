@@ -156,7 +156,7 @@ const CrewTable = React.memo(() => {
   });
 
   // Document types to track in crew overview
-  const TRACKED_DOC_TYPES = ['passport', 'cdc', 'coc', 'medical', 'aoa', 'photo', 'nok', 'coe', 'coe-extension'] as const;
+  const TRACKED_DOC_TYPES = ['passport', 'cdc', 'coc', 'medical', 'aoa', 'photo', 'nok', 'coe', 'coe-extension', 'stcw_course'] as const;
 
   // Get document expiry status for a crew member
   const getCrewDocumentExpiry = (member: any) => {
@@ -275,7 +275,8 @@ const CrewTable = React.memo(() => {
       photo: 'Photo',
       nok: 'NOK',
       coe: 'COE',
-      'coe-extension': 'COE-Ext'
+      'coe-extension': 'COE-Ext',
+      stcw_course: 'STCW'
     };
     return labels[type] || type.toUpperCase();
   };
