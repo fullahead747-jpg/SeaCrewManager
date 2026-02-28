@@ -110,13 +110,14 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             photo: 'Photo',
             nok: 'NOK',
             coe: 'COE',
-            'coe-extension': 'COE-Extension'
+            'coe-extension': 'COE-Extension',
+            stcw_course: 'STCW Course'
         };
         return labels[type] || type.toUpperCase();
     }, []);
 
     const docStatuses = React.useMemo(() => {
-        const TRACKED_DOC_TYPES = ['medical', 'cdc', 'coc', 'aoa', 'photo', 'nok', 'passport', 'coe', 'coe-extension'] as const;
+        const TRACKED_DOC_TYPES = ['medical', 'cdc', 'coc', 'stcw_course', 'aoa', 'photo', 'nok', 'passport', 'coe', 'coe-extension'] as const;
         const crewDocs = documents.filter(doc => doc.crewMemberId === member.id);
 
         return TRACKED_DOC_TYPES.map(type => {
