@@ -346,6 +346,12 @@ export type CrewMemberWithDetails = CrewMember & {
   lastVessel?: Vessel;
   documents?: Document[];
   activeContract?: Contract;
+  sailingHistory?: {
+    vesselName: string;
+    durationDays: number;
+    durationMonths: number;
+  }[];
+  totalSailedMonths?: number;
 };
 
 export type VesselWithCrew = Vessel & {

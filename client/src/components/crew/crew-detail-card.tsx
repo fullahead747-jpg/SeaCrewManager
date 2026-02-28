@@ -20,6 +20,11 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import {
+    HoverCard,
+    HoverCardContent,
+    HoverCardTrigger,
+} from "@/components/ui/hover-card";
 
 interface CrewDetailCardProps {
     member: CrewMemberWithDetails;
@@ -230,6 +235,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
                 {/* Left Column: Identity & Info */}
                 <div className="lg:w-[48%] p-5">
+
                     {/* Header Identity Section */}
                     <div className="flex items-start justify-between mb-6">
                         <div className="flex items-center gap-3">
@@ -251,12 +257,50 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                 </p>
                             </div>
                         </div>
-                        <Badge className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold border-0 ${member.status === 'onBoard'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-[#10B981] text-white'
-                            }`}>
-                            {member.status === 'onBoard' ? 'On Board' : 'On Shore'}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-2">
+                            <Badge className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold border-0 ${member.status === 'onBoard'
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-[#10B981] text-white'
+                                }`}>
+                                {member.status === 'onBoard' ? 'On Board' : 'On Shore'}
+                            </Badge>
+
+                            {member.totalSailedMonths !== undefined && (
+                                <HoverCard>
+                                    <HoverCardTrigger asChild>
+                                        <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 text-slate-600 px-2 py-0.5 rounded-full cursor-help hover:bg-slate-100 transition-colors shadow-sm">
+                                            <History className="h-2.5 w-2.5" />
+                                            <span className="text-[9px] font-bold uppercase tracking-tight">
+                                                Current: {member.totalSailedMonths} Months
+                                            </span>
+                                        </div>
+                                    </HoverCardTrigger>
+                                    <HoverCardContent align="end" className="w-64 p-3 z-50">
+                                        <div className="space-y-2">
+                                            <h4 className="text-xs font-semibold uppercase text-slate-500 tracking-wider flex items-center gap-1.5 border-b pb-1.5">
+                                                <History className="h-3.5 w-3.5" /> Sailing History
+                                            </h4>
+                                            <div className="space-y-1.5 max-h-[160px] overflow-y-auto no-scrollbar">
+                                                {member.sailingHistory && member.sailingHistory.length > 0 ? (
+                                                    member.sailingHistory.map((history, idx) => (
+                                                        <div key={idx} className="flex justify-between items-center text-sm">
+                                                            <span className="font-medium text-slate-700 truncate pr-2">{history.vesselName}</span>
+                                                            <span className="text-slate-500 text-xs whitespace-nowrap">{history.durationMonths} mos</span>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="text-xs text-slate-400 italic">No historical data available.</div>
+                                                )}
+                                            </div>
+                                            <div className="border-t pt-1.5 mt-1.5 flex justify-between items-center text-xs font-bold text-slate-700">
+                                                <span>Current Vessel Experience</span>
+                                                <span className="text-blue-600">{member.totalSailedMonths} mos</span>
+                                            </div>
+                                        </div>
+                                    </HoverCardContent>
+                                </HoverCard>
+                            )}
+                        </div>
                     </div>
 
                     {/* Rank & Vessel Boxes */}
