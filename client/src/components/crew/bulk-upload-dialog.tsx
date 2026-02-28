@@ -133,8 +133,8 @@ export const BulkUploadDialog: React.FC<BulkUploadDialogProps> = ({
 
     return (
         <Dialog open={open} onOpenChange={(val) => !isUploading && onOpenChange(val)}>
-            <DialogContent className="sm:max-w-md">
-                <DialogHeader>
+            <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden">
+                <DialogHeader className="p-6 pb-0 flex-none">
                     <DialogTitle className="flex items-center gap-2">
                         <Upload className="h-5 w-5 text-blue-600" />
                         Bulk Upload Documents
@@ -145,7 +145,7 @@ export const BulkUploadDialog: React.FC<BulkUploadDialogProps> = ({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
                     {/* Dropzone */}
                     <div
                         onDrop={handleDrop}
@@ -175,7 +175,7 @@ export const BulkUploadDialog: React.FC<BulkUploadDialogProps> = ({
 
                     {/* File List */}
                     {files.length > 0 && (
-                        <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
+                        <div className="space-y-2 pr-1">
                             {files.map((f, i) => (
                                 <div key={i} className="flex flex-col p-3 border border-slate-100 rounded-lg bg-slate-50/50">
                                     <div className="flex items-center justify-between mb-2">
@@ -201,7 +201,7 @@ export const BulkUploadDialog: React.FC<BulkUploadDialogProps> = ({
                     )}
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="p-6 pt-2 flex-none border-t border-slate-100">
                     <Button
                         variant="ghost"
                         onClick={() => onOpenChange(false)}

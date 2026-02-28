@@ -329,10 +329,10 @@ export class DatabaseStorage implements IStorage {
         const vessel = vesselMap.get(c.vesselId);
         const vesselName = vessel ? vessel.name : 'Unknown Vessel';
 
-        // Duration logic: if active, calculate up to now
+        // Duration logic: use full contract duration
         let durationDays = c.durationDays;
         if (isActive || typeof durationDays !== 'number') {
-          const endDate = isCompleted ? c.endDate! : new Date();
+          const endDate = c.endDate!;
           durationDays = Math.ceil((endDate.getTime() - c.startDate.getTime()) / (1000 * 60 * 60 * 24));
           // Don't allow negative duration if start date is in future
           durationDays = Math.max(0, durationDays);
@@ -397,7 +397,7 @@ export class DatabaseStorage implements IStorage {
 
         let durationDays = c.durationDays;
         if (isActive || typeof durationDays !== 'number') {
-          const endDate = isCompleted ? c.endDate! : new Date();
+          const endDate = c.endDate!;
           durationDays = Math.ceil((endDate.getTime() - c.startDate.getTime()) / (1000 * 60 * 60 * 24));
           durationDays = Math.max(0, durationDays);
         }
@@ -486,7 +486,7 @@ export class DatabaseStorage implements IStorage {
 
         let durationDays = c.durationDays;
         if (isActive || typeof durationDays !== 'number') {
-          const endDate = isCompleted ? c.endDate! : new Date();
+          const endDate = c.endDate!;
           durationDays = Math.ceil((endDate.getTime() - c.startDate.getTime()) / (1000 * 60 * 60 * 24));
           durationDays = Math.max(0, durationDays);
         }

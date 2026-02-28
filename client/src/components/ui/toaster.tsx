@@ -7,19 +7,29 @@ import {
   ToastTitle,
   ToastViewport,
 } from "@/components/ui/toast"
+import { ErrorDetails } from "@/components/ui/ErrorDetails"
 
 export function Toaster() {
   const { toasts } = useToast()
 
   return (
     <ToastProvider>
-      {toasts.map(function ({ id, title, description, action, ...props }) {
+      {toasts.map(function ({ id, title, description, action, variant, ...props }) {
+        // Special rendering for error toasts with structured details
+        const isError = variant === 'destructive' || title === 'Error';
+
         return (
-          <Toast key={id} {...props}>
+          <Toast key={id} variant={variant} {...props}>
             <div className="grid gap-1">
               {title && <ToastTitle>{title}</ToastTitle>}
               {description && (
-                <ToastDescription>{description}</ToastDescription>
+                <ToastDescription>
+                  {isError ? (
+                    <ErrorDetails error={description} />
+                  ) : (
+                    description
+                  )}
+                </ToastDescription>
               )}
             </div>
             {action}

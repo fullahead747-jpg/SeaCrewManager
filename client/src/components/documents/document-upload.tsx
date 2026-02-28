@@ -18,6 +18,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn, formatDate, formatDateForInput } from '@/lib/utils';
 import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
+import { ErrorDetails } from '@/components/ui/ErrorDetails';
 import { z } from 'zod';
 
 const documentFormSchema = insertDocumentSchema.extend({
@@ -203,16 +204,25 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
       setUploadProgress(0);
       console.error("Upload error:", error);
 
+      // Extract info if it's an ApiError (from our new queryClient logic)
+      const errorInfo = error.info || error;
+
       // Check if this is a validation error that can be overridden
-      if (error.isValidationError) {
-        setValidationError(error.details);
+      if (errorInfo.isValidationError) {
+        setValidationError(errorInfo.details);
         setShowValidationDialog(true);
+        // We still show a toast to notify that something went wrong
+        toast({
+          title: 'Validation Failed',
+          description: error, // Pass the whole error object to use the new ErrorDetails UI
+          variant: 'destructive',
+        });
         return;
       }
 
       toast({
         title: 'Error',
-        description: error.message || 'Failed to upload document',
+        description: error, // Pass the whole error object
         variant: 'destructive',
       });
     },
@@ -726,7 +736,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
 
       {/* Validation Failure Dialog */}
       <AlertDialog open={showValidationDialog} onOpenChange={setShowValidationDialog}>
-        <AlertDialogContent className="rounded-2xl max-w-md">
+        <AlertDialogContent className="rounded-2xl max-w-md max-h-[90vh] overflow-y-auto">
           <AlertDialogHeader>
             <div className="mx-auto bg-red-100 p-3 rounded-full w-fit mb-2">
               <AlertCircle className="h-6 w-6 text-red-600" />
@@ -737,30 +747,15 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                 The system detected a mismatch between your entries and the uploaded document.
               </p>
 
-              {validationError?.isDoctorApprovalNumber && (
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-3 rounded-md text-amber-800 dark:text-amber-300 text-xs text-left">
-                  <p className="font-semibold mb-1 flex items-center gap-1">
-                    <AlertCircle className="h-3 w-3" /> Note on Doctor Approval Numbers
-                  </p>
-                  <p>
-                    Document number <strong>{pendingData?.documentNumber}</strong> looks like a Doctor's Approval Number.
-                    These are shared by many seafarers who visit the same doctor.
-                  </p>
-                </div>
-              )}
+              <ErrorDetails
+                error={{
+                  isValidationError: true,
+                  details: validationError,
+                  message: "Mismatch Detected"
+                }}
+              />
 
-              {validationError?.criticalErrors && validationError.criticalErrors.length > 0 && (
-                <div className="text-left bg-muted/50 p-3 rounded-md border border-border text-xs">
-                  <p className="font-semibold mb-2">Detected Discrepancies:</p>
-                  <ul className="list-disc pl-4 space-y-1">
-                    {validationError.criticalErrors.map((err: string, i: number) => (
-                      <li key={i}>{err}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <p className="text-sm font-medium">Are you sure the details you entered are correct according to the physical document?</p>
+              <p className="text-sm font-medium pt-2">Are you sure the details you entered are correct according to the physical document?</p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="sm:justify-center flex-col sm:flex-row gap-3 pt-2">
