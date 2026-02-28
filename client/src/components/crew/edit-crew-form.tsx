@@ -50,6 +50,11 @@ const editCrewSchema = z.object({
   passportTbd: z.boolean().optional(),
   cdcTbd: z.boolean().optional(),
   medicalTbd: z.boolean().optional(),
+  stcwNumber: z.string().optional(),
+  stcwIssuingAuthority: z.string().optional(),
+  stcwIssueDate: z.string().optional(),
+  stcwExpiryDate: z.string().optional(),
+  stcwTbd: z.boolean().optional(),
   statusChangeReason: z.string().optional(),
 });
 
@@ -81,6 +86,7 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
   const cdc = crewMember.documents?.find(d => d.type === 'cdc');
   const coc = crewMember.documents?.find(d => d.type === 'coc');
   const medical = crewMember.documents?.find(d => d.type === 'medical');
+  const stcw = crewMember.documents?.find(d => d.type === 'stcw_course');
 
   const form = useForm<EditCrewFormData>({
     resolver: zodResolver(editCrewSchema),
@@ -125,6 +131,11 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       passportTbd: passport?.expiryDate === null,
       cdcTbd: cdc?.expiryDate === null,
       medicalTbd: medical?.expiryDate === null,
+      stcwNumber: stcw?.documentNumber || '',
+      stcwIssuingAuthority: stcw?.issuingAuthority || '',
+      stcwIssueDate: formatDateForInput(stcw?.issueDate),
+      stcwExpiryDate: formatDateForInput(stcw?.expiryDate),
+      stcwTbd: stcw?.expiryDate === null,
     },
   });
 
@@ -240,6 +251,7 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       }
 
       await updateOrCreateDocument('medical', data.medicalApprovalNo, data.medicalIssuingAuthority, data.medicalIssueDate, data.medicalExpiryDate, medical, data.medicalTbd);
+      await updateOrCreateDocument('stcw_course', data.stcwNumber, data.stcwIssuingAuthority, data.stcwIssueDate, data.stcwExpiryDate, stcw, data.stcwTbd);
 
       const response = await fetch(`/api/crew/${crewMember.id}`, {
         method: 'PUT',

@@ -6,6 +6,7 @@ import { PassportSection } from './edit-sections/passport-form';
 import { CDCSection } from './edit-sections/cdc-form';
 import { COCSection } from './edit-sections/coc-form';
 import { MedicalSection } from './edit-sections/medical-form';
+import { STCWSection } from './edit-sections/stcw-form';
 import { ContractSection } from './edit-sections/contract-form';
 
 interface CrewFormContentProps {
@@ -31,6 +32,8 @@ export function CrewFormContent({ activeTab, crewMember, vessels }: CrewFormCont
                 return <COCSection />;
             case 'medical':
                 return <MedicalSection />;
+            case 'stcw':
+                return <STCWSection />;
             case 'contract':
                 return <ContractSection crewMember={crewMember} />;
             default:
