@@ -116,7 +116,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             nok: 'NOK',
             coe: 'COE',
             'coe-extension': 'COE-Extension',
-            stcw_course: 'STCW Course'
+            stcw_course: 'Courses'
         };
         return labels[type] || type.toUpperCase();
     }, []);

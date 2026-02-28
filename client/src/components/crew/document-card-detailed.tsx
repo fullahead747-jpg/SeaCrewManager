@@ -40,7 +40,7 @@ const documentLabels = {
     nok: 'NOK',
     coe: 'COE',
     'coe-extension': 'COE-Extension',
-    stcw_course: 'STCW Course',
+    stcw_course: 'Courses',
 };
 
 export function DocumentCardDetailed({ document, documentType, allDocuments, onView, onUpload, onViewDocument, onUploadDocument, onEditDocument, onDeleteDocument }: DocumentCardDetailedProps) {

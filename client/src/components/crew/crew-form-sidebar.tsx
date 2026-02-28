@@ -27,7 +27,7 @@ export function CrewFormSidebar({ activeTab, setActiveTab, title = "Crew Member"
         { id: 'cdc', label: 'CDC', icon: Plane }, // Plane icon for CDC (Seaman's Book)
         { id: 'coc', label: 'COC', icon: Award },
         { id: 'medical', label: 'Medical', icon: Activity },
-        { id: 'stcw', label: 'STCW Course', icon: GraduationCap },
+        { id: 'stcw', label: 'Courses', icon: GraduationCap },
         { id: 'contract', label: 'Contract', icon: FileSignature },
     ];
 
