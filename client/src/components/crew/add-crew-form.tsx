@@ -59,6 +59,12 @@ const addCrewSchema = z.object({
   medicalIssueDate: z.string().optional(),
   medicalExpiryDate: z.string().optional(),
   medicalTbd: z.boolean().optional(),
+
+  stcwNumber: z.string().optional(),
+  stcwIssuingAuthority: z.string().optional(),
+  stcwIssueDate: z.string().optional(),
+  stcwExpiryDate: z.string().optional(),
+  stcwTbd: z.boolean().optional(),
 });
 
 type AddCrewFormData = z.infer<typeof addCrewSchema>;
@@ -125,6 +131,11 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
       passportTbd: false,
       cdcTbd: false,
       medicalTbd: false,
+      stcwNumber: '',
+      stcwIssuingAuthority: '',
+      stcwIssueDate: '',
+      stcwExpiryDate: '',
+      stcwTbd: false,
     },
   });
 
@@ -329,6 +340,14 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
         issueDate: data.medicalIssueDate,
         expiryDate: data.medicalExpiryDate,
         tbd: data.medicalTbd
+      });
+
+      await createDocument('stcw_course', {
+        documentNumber: data.stcwNumber,
+        issuingAuthority: data.stcwIssuingAuthority,
+        issueDate: data.stcwIssueDate,
+        expiryDate: data.stcwExpiryDate,
+        tbd: data.stcwTbd
       });
 
       // 3. Create Contract (if details provided)
