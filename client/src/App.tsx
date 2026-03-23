@@ -7,7 +7,6 @@ import { AuthProvider, useAuth } from "./contexts/auth-context";
 import { ThemeProvider } from "./contexts/theme-context";
 import { ExtractedRecordsProvider } from "./contexts/extracted-records-context";
 import AppLayout from "@/components/layout/app-layout";
-import { motion, AnimatePresence } from "framer-motion";
 import { Suspense, lazy } from "react";
 import Loading from "@/components/ui/loading";
 
@@ -44,56 +43,54 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function Router() {
   return (
-    <AnimatePresence mode="wait">
-      <Suspense fallback={<Loading />}>
-        <Switch>
-          {/* Auth Pages */}
-          <Route path="/auth/login" component={LoginPage} />
-          <Route path="/auth/register" component={RegisterPage} />
-          <Route path="/auth/forgot-password" component={ForgotPasswordPage} />
-          <Route path="/auth/reset-password" component={ResetPasswordPage} />
+    <Suspense fallback={<Loading />}>
+      <Switch>
+        {/* Auth Pages */}
+        <Route path="/auth/login" component={LoginPage} />
+        <Route path="/auth/register" component={RegisterPage} />
+        <Route path="/auth/forgot-password" component={ForgotPasswordPage} />
+        <Route path="/auth/reset-password" component={ResetPasswordPage} />
 
-          {/* Protected App Pages */}
-          <Route path="/admin">
-            <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
-          </Route>
-          <Route path="/dashboard">
-            <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
-          </Route>
-          <Route path="/crew">
-            <ProtectedRoute><AppLayout><CrewManagement /></AppLayout></ProtectedRoute>
-          </Route>
-          <Route path="/fleet">
-            <ProtectedRoute><AppLayout><FleetManagement /></AppLayout></ProtectedRoute>
-          </Route>
-          <Route path="/scheduling">
-            <ProtectedRoute><AppLayout><Scheduling /></AppLayout></ProtectedRoute>
-          </Route>
-          <Route path="/documents">
-            <ProtectedRoute><AppLayout><CrewDocumentsSplitView /></AppLayout></ProtectedRoute>
-          </Route>
-          <Route path="/status-history">
-            <ProtectedRoute><AppLayout><StatusHistory /></AppLayout></ProtectedRoute>
-          </Route>
-          <Route path="/settings">
-            <ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>
-          </Route>
-          <Route path="/notifications">
-            <ProtectedRoute><AppLayout><Notifications /></AppLayout></ProtectedRoute>
-          </Route>
+        {/* Protected App Pages */}
+        <Route path="/admin">
+          <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
+        </Route>
+        <Route path="/dashboard">
+          <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
+        </Route>
+        <Route path="/crew">
+          <ProtectedRoute><AppLayout><CrewManagement /></AppLayout></ProtectedRoute>
+        </Route>
+        <Route path="/fleet">
+          <ProtectedRoute><AppLayout><FleetManagement /></AppLayout></ProtectedRoute>
+        </Route>
+        <Route path="/scheduling">
+          <ProtectedRoute><AppLayout><Scheduling /></AppLayout></ProtectedRoute>
+        </Route>
+        <Route path="/documents">
+          <ProtectedRoute><AppLayout><CrewDocumentsSplitView /></AppLayout></ProtectedRoute>
+        </Route>
+        <Route path="/status-history">
+          <ProtectedRoute><AppLayout><StatusHistory /></AppLayout></ProtectedRoute>
+        </Route>
+        <Route path="/settings">
+          <ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>
+        </Route>
+        <Route path="/notifications">
+          <ProtectedRoute><AppLayout><Notifications /></AppLayout></ProtectedRoute>
+        </Route>
 
-          {/* Default Route */}
-          <Route path="/">
-            <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
-          </Route>
+        {/* Default Route */}
+        <Route path="/">
+          <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
+        </Route>
 
-          {/* Fallback */}
-          <Route path="/:rest*">
-            <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
-          </Route>
-        </Switch>
-      </Suspense>
-    </AnimatePresence>
+        {/* Fallback */}
+        <Route path="/:rest*">
+          <ProtectedRoute><AppLayout><Dashboard /></AppLayout></ProtectedRoute>
+        </Route>
+      </Switch>
+    </Suspense>
   );
 }
 
