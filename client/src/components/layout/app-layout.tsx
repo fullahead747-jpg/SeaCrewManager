@@ -23,7 +23,7 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile';
 import { getAuthHeaders } from '@/lib/auth';
 import { formatDate } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { LogOut, User as UserIcon, Settings as SettingsIcon } from 'lucide-react';
 
 interface AppLayoutProps {
@@ -50,10 +50,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
   });
 
   const notificationCount = expiringDocuments?.length || 0;
-
-  const handleRoleChange = (newRole: string) => {
-    switchRole(newRole);
-  };
 
   const handleNotificationsClick = () => {
     if (notificationCount > 0) {

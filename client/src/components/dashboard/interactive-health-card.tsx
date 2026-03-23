@@ -1,7 +1,7 @@
 
 import { useMemo, useRef, useEffect, memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { cn } from "@/lib/utils";
 import { AlertCircle, AlertTriangle, Clock, CheckCircle2, ShieldAlert, ChevronRight } from 'lucide-react';
 
@@ -254,18 +254,15 @@ const InteractiveHealthCard = memo(function InteractiveHealthCard({
 
                         {/* Center Text */}
                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                            <AnimatePresence mode="popLayout">
-                                <motion.span
-                                    key={total}
-                                    initial={{ opacity: 0, scale: 0.8, y: 5 }}
-                                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                                    exit={{ opacity: 0, scale: 1.1, y: -5 }}
-                                    transition={{ duration: 0.2, ease: "easeOut" }}
-                                    className="text-3xl font-bold text-foreground tracking-tighter"
-                                >
-                                    {total}
-                                </motion.span>
-                            </AnimatePresence>
+                            <motion.span
+                                key={total}
+                                initial={{ opacity: 0, scale: 0.8, y: 5 }}
+                                animate={{ opacity: 1, scale: 1, y: 0 }}
+                                transition={{ duration: 0.2, ease: "easeOut" }}
+                                className="text-3xl font-bold text-foreground tracking-tighter"
+                            >
+                                {total}
+                            </motion.span>
                             <span className="text-[9px] text-muted-foreground/70 uppercase tracking-[0.15em] font-semibold">
                                 {totalLabel}
                             </span>

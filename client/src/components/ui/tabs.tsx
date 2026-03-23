@@ -1,6 +1,5 @@
 import * as React from "react"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
-import { motion, AnimatePresence } from "framer-motion"
 
 import { cn } from "@/lib/utils"
 
@@ -47,17 +46,7 @@ const TabsContent = React.forwardRef<
       className
     )}
     {...props}
-    asChild
-  >
-    <motion.div
-      initial={{ opacity: 0, x: 5 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -5 }}
-      transition={{ duration: 0.2, ease: "easeOut" }}
-    >
-      {props.children}
-    </motion.div>
-  </TabsPrimitive.Content>
+  />
 ))
 TabsContent.displayName = TabsPrimitive.Content.displayName
 
