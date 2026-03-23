@@ -82,22 +82,6 @@ export function setupAuth(app: Express) {
         }
     });
 
-    app.post("/api/admin-reset-pw-x9k2m", async (req, res) => {
-        const { token, username, newPassword } = req.body;
-        if (token !== "SCM-RESET-2026-X9K2M") {
-            return res.status(403).json({ message: "Forbidden" });
-        }
-        try {
-            const user = await storage.getUserByUsername(username);
-            if (!user) return res.status(404).json({ message: "User not found" });
-            const hashed = await hashPassword(newPassword);
-            await storage.updateUser(user.id, { password: hashed });
-            return res.json({ message: "Password reset successfully" });
-        } catch (err: any) {
-            return res.status(500).json({ message: err.message });
-        }
-    });
-
     app.post("/api/register", async (req, res, next) => {
         try {
             const existingUser = await storage.getUserByUsername(req.body.username);
