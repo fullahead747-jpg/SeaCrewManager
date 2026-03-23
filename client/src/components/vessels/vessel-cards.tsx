@@ -531,16 +531,16 @@ const VesselCards = React.memo(({ showUploadButton = true }: { showUploadButton?
     return stats;
   }, [vessels, crewMembers]);
 
-  // Initialize and maintain vessel order
+  // Initialize and maintain vessel order safely in useEffect
+  useEffect(() => {
+    if (vessels && vesselOrder.length === 0) {
+      setVesselOrder(vessels.map(v => v.id));
+    }
+  }, [vessels, vesselOrder.length]);
+
   const orderedVessels = useMemo(() => {
     if (!vessels) return [];
-
-    // Initialize vessel order if not set
-    if (vesselOrder.length === 0) {
-      const initialOrder = vessels.map(v => v.id);
-      setVesselOrder(initialOrder);
-      return vessels;
-    }
+    if (vesselOrder.length === 0) return vessels;
 
     // Sort vessels according to the current order
     return vesselOrder
