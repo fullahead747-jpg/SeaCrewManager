@@ -297,6 +297,21 @@ export class DocumentVerificationService {
             console.log(` - Expected DocNum: ${existingData.documentNumber}`);
             console.log(` - Expected Expiry: ${existingData.expiryDate || 'NONE'}`);
 
+            // BYPASS FOR PHOTOS & NON-CRITICAL DOCS: These don't have document numbers or dates to match predictably
+            const bypassTypes = ['photo', 'nok', 'next of kin', 'contract', 'agreement', 'letter', 'other'];
+            if (bypassTypes.some(t => existingData.type.toLowerCase().includes(t))) {
+                console.log(`[VERIFICATION-BYPASS] Bypassing strict OCR matching and forgery analysis for document type: ${existingData.type}`);
+                return {
+                    isValid: true,
+                    matchScore: 100,
+                    fieldComparisons: [],
+                    extractedData: {},
+                    warnings: [],
+                    allowManualCorrection: true,
+                    ocrConfidence: 100
+                };
+            }
+
             // Phase 3: Run forgery detection early in pipeline
             let forgeryAnalysis: ForgeryAnalysisResult | undefined;
             try {
@@ -422,13 +437,6 @@ export class DocumentVerificationService {
             if (forgeryAnalysis && forgeryAnalysis.riskLevel === 'high') {
                 console.warn('[PHASE3-FORGERY] High risk detected - flagging for manual review');
                 isValid = false;
-            }
-
-            // BYPASS FOR PHOTOS & NON-CRITICAL DOCS: These don't have document numbers or dates to match predictably
-            const bypassTypes = ['photo', 'nok', 'next of kin', 'contract', 'agreement', 'letter', 'other'];
-            if (bypassTypes.some(t => existingData.type.toLowerCase().includes(t))) {
-                console.log(`[VERIFICATION-BYPASS] Bypassing strict OCR matching for document type: ${existingData.type}`);
-                isValid = true;
             }
 
             console.log(`[VERIFICATION-RESULT] Score: ${matchScore}, isValid: ${isValid}`);
