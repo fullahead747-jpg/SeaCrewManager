@@ -175,6 +175,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return next();
     }
 
+    // Diagnostic log for non-authenticated requests in production
+    if (process.env.NODE_ENV === 'production' && req.path.startsWith('/api') && !['/login', '/register', '/forgot-password', '/reset-password', '/verify-otp', '/reset-password-otp'].some(p => req.path.includes(p))) {
+      console.log(`[AUTH-DEBUG] No session for ${req.method} ${req.path}. SessionID: ${req.sessionID}`);
+    }
+
     // 2. In development mode, allow access without authentication if no session
     if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
       req.user = {
