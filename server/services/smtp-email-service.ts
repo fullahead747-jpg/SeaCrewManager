@@ -24,6 +24,9 @@ export class SMTPEmailService {
             user: gmailUser,
             pass: gmailAppPassword,
           },
+          connectionTimeout: 10000,  // Fail fast if can't connect (10s)
+          greetingTimeout: 10000,    // Fail fast on greeting (10s)
+          socketTimeout: 30000,      // Socket timeout (30s)
         });
         this.isConfigured = true;
         console.log('✅ Gmail SMTP configured successfully with:', gmailUser);

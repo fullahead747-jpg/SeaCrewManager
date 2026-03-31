@@ -176,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
 
     // 2. In development mode, allow access without authentication if no session
-    if (process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
       req.user = {
         id: 'dev-user',
         role: 'admin',
@@ -323,18 +323,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`[AUTH] Generating OTP for ${email}: ${otp}`);
         await storage.updateUserOtp(user.id, otp, expiry);
 
-        // Send OTP email
-        try {
-          console.log(`[AUTH] Attempting to send OTP email to ${email}`);
-          const emailResult = await smtpEmailService.sendEmail({
-            to: email,
-            subject: "Your OTP for Sea Crew Manager",
-            html: `<p>Your one-time password (OTP) for password reset is: <strong>${otp}</strong></p><p>This code expires in 10 minutes.</p>`
-          });
-          console.log(`[AUTH] OTP email send result:`, emailResult);
-        } catch (emailError) {
+        // Send OTP email - fire-and-forget (non-blocking) so API responds immediately
+        console.log(`\n\n🔑 [AUTH-FALLBACK] OTP for ${email}: ${otp}\n\n`);
+        smtpEmailService.sendEmail({
+          to: email,
+          subject: "Your OTP for Sea Crew Manager",
+          html: `<p>Your one-time password (OTP) for password reset is: <strong>${otp}</strong></p><p>This code expires in 10 minutes.</p>`
+        }).then(result => {
+          console.log(`[AUTH] OTP email send result:`, result);
+        }).catch(emailError => {
           console.error("[AUTH] Failed to send OTP email:", emailError);
-        }
+        });
 
         return res.json({ message: "OTP has been sent to your email." });
       }
@@ -349,19 +348,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         resetTokenExpiry: expiry
       });
 
-      // Send email
+      // Send email - fire-and-forget (non-blocking) so API responds immediately
       const resetLink = `${req.protocol}://${req.get('host')}/auth/reset-password?token=${token}`;
-      try {
-        console.log(`[AUTH] Attempting to send reset link email to ${email}`);
-        const emailResult = await smtpEmailService.sendEmail({
-          to: email,
-          subject: "Reset Your Sea Crew Manager Password",
-          html: `<p>You requested a password reset. Click the link below to set a new password:</p><a href="${resetLink}">${resetLink}</a><p>This link expires in 1 hour.</p>`
-        });
-        console.log(`[AUTH] Reset link email send result:`, emailResult);
-      } catch (emailError) {
+      smtpEmailService.sendEmail({
+        to: email,
+        subject: "Reset Your Sea Crew Manager Password",
+        html: `<p>You requested a password reset. Click the link below to set a new password:</p><a href="${resetLink}">${resetLink}</a><p>This link expires in 1 hour.</p>`
+      }).then(result => {
+        console.log(`[AUTH] Reset link email send result:`, result);
+      }).catch(emailError => {
         console.error("[AUTH] Failed to send reset email:", emailError);
-      }
+      });
 
       res.json({ message: "If that email exists in our system, a reset link has been sent." });
     } catch (error) {

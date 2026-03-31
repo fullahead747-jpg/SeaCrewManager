@@ -48,7 +48,7 @@ export function setupAuth(app: Express) {
     };
 
     if (app.get("env") === "production") {
-        app.set("trust proxy", 1);
+        app.set("trust proxy", 1); // Required for cookies to work behind a proxy
     }
 
     app.use(session(sessionSettings));
