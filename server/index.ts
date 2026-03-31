@@ -1,10 +1,24 @@
 import { config } from 'dotenv';
-const dotenvResult = config();
+import path from 'path';
+
+// Improved .env loading for berbagai environment
+const envPath = path.resolve(process.cwd(), '.env');
+const dotenvResult = config({ path: envPath });
+
 if (dotenvResult.error) {
-  console.error('❌ Error loading .env file:', dotenvResult.error);
+  // Try one directory up if not found (common in some build setups)
+  const fallbackPath = path.resolve(process.cwd(), '..', '.env');
+  const fallbackResult = config({ path: fallbackPath });
+  
+  if (fallbackResult.error) {
+    console.warn('⚠️  Note: .env file not found in common locations. Using environment variables from system.');
+  } else {
+    const keys = Object.keys(fallbackResult.parsed || {}).length;
+    console.log(`✅ .env loaded from fallback location (${keys} keys injected)`);
+  }
 } else {
-  const keys = Object.keys(dotenvResult.parsed || {});
-  console.log(`✅ .env loaded successfully (${keys.length} keys injected)`);
+  const keys = Object.keys(dotenvResult.parsed || {}).length;
+  console.log(`✅ .env loaded successfully (${keys} keys injected)`);
 }
 
 console.log(`[SERVER-INIT] Application initialized at ${new Date().toISOString()}`);
