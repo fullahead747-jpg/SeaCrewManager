@@ -19,6 +19,12 @@ export async function hashPassword(password: string) {
 }
 
 export async function comparePasswords(supplied: string, stored: string) {
+    // Check if the stored password looks like it's NOT hashed (no dot separator)
+    if (!stored || !stored.includes(".")) {
+      console.warn(`[AUTH-WARNING] User password is not in hashed format. Attempting plain-text comparison.`);
+      return supplied === stored;
+    }
+
     const [hashed, salt] = stored.split(".");
     const hashedBuf = Buffer.from(hashed, "hex");
     const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
