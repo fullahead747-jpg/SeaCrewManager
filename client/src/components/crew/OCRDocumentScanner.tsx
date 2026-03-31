@@ -19,12 +19,26 @@ interface ExtractedCrewData {
   email?: string;
   seafarerIndosNumber?: string;
 
+  // Additional fields for getDemoData compatibility
+  seafarerName?: string;
+  seafarerNationality?: string;
+  seafarerDatePlaceOfBirth?: string;
+  seafarerPostalAddress?: string;
+  seafarerEmail?: string;
+  seafarerMobile?: string;
+
   // Emergency Contact (Next of Kin)
   emergencyContactName?: string;
   emergencyContactRelationship?: string;
   emergencyContactPhone?: string;
   emergencyContactEmail?: string;
   emergencyContactPostalAddress?: string;
+
+  // Additional fields for NOK
+  nokName?: string;
+  nokRelationship?: string;
+  nokTelephone?: string;
+  nokPostalAddress?: string;
 
   // Documents - Passport
   passportNumber?: string;
@@ -52,7 +66,14 @@ interface ExtractedCrewData {
 
   // Employment
   contractStartDate?: string;
+  contractEndDate?: string;
   engagementPeriodMonths?: number;
+
+  // Ship Owner Details
+  shipOwnerName?: string;
+  shipOwnerContactPerson?: string;
+  shipOwnerPostalAddress?: string;
+  shipName?: string;
 
   // Metadata
   recordId?: string;
@@ -64,7 +85,6 @@ interface ExtractedCrewData {
   // Legacy/Alias support (internal)
   name?: string;
   position?: string;
-  seafarerName?: string;
   seafarerRank?: string;
 }
 

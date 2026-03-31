@@ -79,6 +79,7 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('overview');
+  const [scannedAoaFile, setScannedAoaFile] = useState<File | null>(null);
 
   const { data: vessels = [] } = useQuery<Vessel[]>({
     queryKey: ['/api/vessels'],
@@ -187,6 +188,11 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
   const handleOCRDataExtracted = (extractedData: any) => {
     const setValueOptions = { shouldDirty: true, shouldTouch: true, shouldValidate: true };
 
+    // Capture the scanned file if present
+    if (extractedData.scannedFile) {
+      setScannedAoaFile(extractedData.scannedFile);
+    }
+
     // Standard Identity Fields
     if (extractedData.firstName) form.setValue('firstName', extractedData.firstName, setValueOptions);
     if (extractedData.lastName) form.setValue('lastName', extractedData.lastName, setValueOptions);
@@ -291,9 +297,36 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
 
       const newCrewMember = await crewResponse.json();
 
+      // 1.5 Handle Scanned AOA File Upload
+      let aoaFilePath = undefined;
+      if (scannedAoaFile) {
+        try {
+          const formData = new FormData();
+          formData.append('file', scannedAoaFile);
+          const uploadRes = await fetch('/api/upload', {
+            method: 'POST',
+            headers: { ...getAuthHeaders() }, // Browser sets boundary automatically
+            body: formData,
+          });
+
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            aoaFilePath = uploadData.filePath;
+            console.log('[AddCrew] Scanned AOA file uploaded:', aoaFilePath);
+          }
+        } catch (uploadError) {
+          console.error('[AddCrew] Failed to upload scanned AOA file:', uploadError);
+        }
+      }
+
       // 2. Create Documents
-      const createDocument = async (type: string, docData: any) => {
-        if (!docData.documentNumber && !docData.tbd && !docData.notApplicable) return;
+      const createDocument = async (type: string, docData: any, filePath?: string) => {
+        if (!docData.documentNumber && !docData.tbd && !docData.notApplicable && !filePath) return;
+
+        // Ensure we have a document number for required field if it's AOA
+        const documentNumber = docData.documentNumber || (type === 'aoa' ? `AOA-${Date.now()}` : '');
+        const issuingAuthority = docData.issuingAuthority || (type === 'aoa' ? 'OCR Scanner' : '');
+        const issueDate = docData.issueDate ? new Date(docData.issueDate + 'T00:00:00.000Z') : (type === 'aoa' ? new Date() : null);
 
         await fetch('/api/documents', {
           method: 'POST',
@@ -301,10 +334,11 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
           body: JSON.stringify({
             crewMemberId: newCrewMember.id,
             type,
-            documentNumber: docData.documentNumber || '',
-            issuingAuthority: docData.issuingAuthority || '',
-            issueDate: docData.issueDate ? new Date(docData.issueDate + 'T00:00:00.000Z') : null,
+            documentNumber,
+            issuingAuthority,
+            issueDate,
             expiryDate: docData.tbd ? null : (docData.expiryDate ? new Date(docData.expiryDate + 'T00:00:00.000Z') : null),
+            filePath: filePath,
           }),
         });
       };
@@ -350,6 +384,16 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
         tbd: data.stcwTbd
       });
 
+      // Create AOA document record if we have a file
+      if (aoaFilePath) {
+        await createDocument('aoa', {
+          documentNumber: `AOA-${Date.now()}`,
+          issuingAuthority: 'System',
+          issueDate: data.contractStartDate || new Date().toISOString().split('T')[0],
+          expiryDate: data.contractEndDate
+        }, aoaFilePath);
+      }
+
       // 3. Create Contract (if details provided)
       if (data.contractStartDate && data.contractDurationDays) {
         const contractData = {
@@ -360,6 +404,7 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
           durationDays: data.contractDurationDays,
           status: 'active',
           contractType: 'SEA',
+          filePath: aoaFilePath, // Associate the AOA file with the contract
         };
 
         // Only create contract if we have a vessel ID (either selected or fallback logic)
@@ -382,6 +427,7 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
         title: 'Success',
         description: 'Crew member added successfully',
       });
+      setScannedAoaFile(null); // Clear the scanned file
       form.reset();
       onOpenChange(false);
       setActiveTab('overview');
