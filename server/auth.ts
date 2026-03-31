@@ -32,9 +32,10 @@ export async function comparePasswords(supplied: string, stored: string) {
 }
 
 export function setupAuth(app: Express) {
+    const dbUrl = process.env.CUSTOM_DB_URL || process.env.DATABASE_URL;
     const pool = new pg.Pool({
-        connectionString: process.env.DATABASE_URL,
-        ssl: process.env.DATABASE_URL?.includes('helium') ? false : { rejectUnauthorized: false }
+        connectionString: dbUrl,
+        ssl: dbUrl?.includes('helium') ? false : { rejectUnauthorized: false }
     });
 
     const sessionSettings: session.SessionOptions = {

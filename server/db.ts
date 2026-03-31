@@ -6,20 +6,22 @@ import { config } from 'dotenv';
 // Load environment variables from .env file
 config();
 
-if (!process.env.DATABASE_URL) {
+const dbUrl = process.env.CUSTOM_DB_URL || process.env.DATABASE_URL;
+
+if (!dbUrl) {
   throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
+    "DATABASE_URL or CUSTOM_DB_URL must be set. Did you forget to provision a database?",
   );
 }
 
-const isHelium = process.env.DATABASE_URL?.includes('helium');
+const isHelium = dbUrl.includes('helium');
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: dbUrl,
   ssl: isHelium ? false : { rejectUnauthorized: false }
 });
 
 // Log database host for identification (safe)
-const dbHost = process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : 'unknown';
+const dbHost = new URL(dbUrl).hostname;
 console.log(`🔌 Database connection initialized to host: ${dbHost}`);
 if (isHelium) {
   console.log('🔹 Using internal Replit database (helium)');
