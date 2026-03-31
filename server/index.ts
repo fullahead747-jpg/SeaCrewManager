@@ -72,6 +72,12 @@ app.use((req, res, next) => {
     process.exit(1);
   }
 
+  // Safety check for SESSION_SECRET in production
+  if (app.get("env") === "production" && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET === "seacrewmanager-secret-key")) {
+    console.warn('\n\n⚠️ WARNING: You are running in PRODUCTION with a default or missing SESSION_SECRET.');
+    console.warn('Please set a strong SESSION_SECRET in your environment variables for security.\n\n');
+  }
+
   // CRITICAL: Log database host for identification
   const dbUrl = process.env.DATABASE_URL;
   const dbHost = new URL(dbUrl).hostname;
@@ -87,8 +93,14 @@ app.use((req, res, next) => {
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
+    
+    // Log detailed error for server console
+    console.error(`[ERROR] ${new Date().toISOString()} - ${status}: ${message}`);
+    if (err.stack) {
+      console.error(err.stack);
+    }
+    
     res.status(status).json({ message });
-    console.error('Error:', err);
   });
 
   if (app.get("env") === "development") {

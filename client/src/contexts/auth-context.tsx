@@ -33,8 +33,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify(credentials),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || 'Login failed');
+        let errMessage = 'Login failed';
+        try {
+          const err = await res.json();
+          errMessage = err.message || errMessage;
+        } catch (e) {
+          errMessage = `Server error (${res.status}): ${res.statusText || 'Internal Server Error'}`;
+        }
+        throw new Error(errMessage);
       }
       return res.json();
     },
@@ -63,8 +69,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify(data),
       });
       if (!res.ok) {
-        const err = await res.text();
-        throw new Error(err || 'Registration failed');
+        const errText = await res.text();
+        let errMessage = 'Registration failed';
+        try {
+          // Try to see if it's JSON anyway
+          const errJson = JSON.parse(errText);
+          errMessage = errJson.message || errMessage;
+        } catch (e) {
+          errMessage = errText || `Server error (${res.status}): ${res.statusText || 'Internal Server Error'}`;
+        }
+        throw new Error(errMessage);
       }
       return res.json();
     },

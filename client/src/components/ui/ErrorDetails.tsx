@@ -12,7 +12,7 @@ export function ErrorDetails({ error, className }: ErrorDetailsProps) {
 
     // Handle ApiError info or raw error object
     const info = error.info || error;
-    const message = error.message || info.message || 'An unexpected error occurred';
+    const message = typeof error === 'string' ? error : (error.message || info.message || 'An unexpected error occurred');
     const isValidationError = info.isValidationError;
     const details = info.details;
     const zodErrors = info.errors; // Standard Zod errors from backend

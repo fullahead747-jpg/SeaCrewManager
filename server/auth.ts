@@ -65,12 +65,24 @@ export function setupAuth(app: Express) {
     passport.use(
         new LocalStrategy(async (username, password, done) => {
             try {
+                console.log(`[AUTH-DEBUG] Attempting login for user: ${username}`);
                 const user = await storage.getUserByUsername(username);
-                if (!user || !(await comparePasswords(password, user.password))) {
+                
+                if (!user) {
+                    console.log(`[AUTH-DEBUG] User not found: ${username}`);
                     return done(null, false, { message: "Invalid username or password" });
                 }
+                
+                const isMatch = await comparePasswords(password, user.password);
+                if (!isMatch) {
+                    console.log(`[AUTH-DEBUG] Password mismatch for user: ${username}`);
+                    return done(null, false, { message: "Invalid username or password" });
+                }
+                
+                console.log(`[AUTH-DEBUG] Authentication successful for: ${username} (Role: ${user.role})`);
                 return done(null, user);
             } catch (err) {
+                console.error(`[AUTH-DEBUG] Error in LocalStrategy for ${username}:`, err);
                 return done(err);
             }
         }),
@@ -112,13 +124,22 @@ export function setupAuth(app: Express) {
     });
 
     app.post("/api/login", (req, res, next) => {
+        console.log(`[AUTH-DEBUG] POST /api/login request received`);
         passport.authenticate("local", (err: any, user: any, info: any) => {
-            if (err) return next(err);
+            if (err) {
+                console.error(`[AUTH-DEBUG] Passport authentication error:`, err);
+                return next(err);
+            }
             if (!user) {
+                console.log(`[AUTH-DEBUG] Passport authentication failed: ${info?.message}`);
                 return res.status(401).json({ message: info?.message || "Login failed" });
             }
             req.login(user, (err) => {
-                if (err) return next(err);
+                if (err) {
+                    console.error(`[AUTH-DEBUG] req.login error:`, err);
+                    return next(err);
+                }
+                console.log(`[AUTH-DEBUG] User ${user.username || user.id} logged in successfully`);
                 res.status(200).json(user);
             });
         })(req, res, next);
