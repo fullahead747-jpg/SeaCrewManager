@@ -176,11 +176,11 @@ export class DocumentStorageService {
 
     // LOCAL FALLBACK: If path starts with 'uploads/' or cloud storage is unavailable
     // Note: On Replit, Object Storage paths start with /replit-objstore... 
-    // If the Secret is missing, we try to see if we can find it as a local absolute path.
-    if (filePath.startsWith('uploads/') || !isCloudAvailable) {
+    // If it's a local filesystem path (like 'uploads/'), it should ONLY be served from local disk.
+    const isLocalPath = filePath.startsWith('uploads/');
+
+    if (isLocalPath || !isCloudAvailable) {
       try {
-        // If it's an absolute path (like /replit-objstore-...), use it as is.
-        // Otherwise, join with process.cwd()
         const fullPath = filePath.startsWith('/') ? filePath : path.join(process.cwd(), filePath);
         console.log(`[STORAGE-DOWNLOAD-LOCAL] Checking local file: ${fullPath}`);
 
@@ -192,19 +192,31 @@ export class DocumentStorageService {
             res.setHeader('Content-Disposition', `${disposition}; filename="${fileName}"`);
           }
 
-          // Use the headers option for sendFile to ensure they aren't overridden
           return res.sendFile(fullPath, {
             headers: fileName ? { 'Content-Disposition': `${disposition}; filename="${fileName}"` } : {}
           });
-        } else if (!isCloudAvailable) {
-          console.error(`[STORAGE-DOWNLOAD-LOCAL] Local file not found and cloud unavailable: ${fullPath}`);
+        } 
+        
+        // If it's a local path and we've reached here, the file is MISSING from local disk.
+        // On Replit, this often happens because 'uploads/' is not persistent.
+        if (isLocalPath) {
+          console.error(`[STORAGE-DOWNLOAD-LOCAL] ❌ Local file MISSING: ${fullPath}`);
           return res.status(404).json({
-            error: "File not found locally",
-            details: `Looked at: ${fullPath}. Cloud storage is also not configured (PRIVATE_OBJECT_DIR missing).`
+            error: "Document not found on server",
+            message: "The document was stored locally and might have been lost during a server restart. Please re-upload this document.",
+            path: filePath
           });
         }
-        // If it doesn't exist locally but cloud IS available, continue to cloud download
-        console.log(`[STORAGE-DOWNLOAD-LOCAL] Local file not found, but cloud is available. Continuing to cloud...`);
+
+        // Only reach here if !isCloudAvailable AND it wasn't an 'uploads/' path,
+        // which would be highly unusual given our system architecture.
+        if (!isCloudAvailable) {
+          console.error(`[STORAGE-DOWNLOAD-LOCAL] Local file not found and cloud unavailable: ${fullPath}`);
+          return res.status(404).json({
+            error: "File not found",
+            details: `Looked at: ${fullPath}. Cloud storage is also not configured.`
+          });
+        }
       } catch (localError: any) {
         console.error(`[STORAGE-DOWNLOAD-LOCAL] Error checking local file:`, localError);
       }
