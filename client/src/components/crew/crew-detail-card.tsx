@@ -511,16 +511,14 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                     >
                                                         <Mail className="h-3.5 w-3.5" />
                                                     </Button>
-                                                    {!(doc as any).isContract && (
-                                                        <Button
-                                                            size="icon"
-                                                            variant="ghost"
-                                                            className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                            onClick={() => onDeleteDocument?.(doc.docId!, doc.type)}
-                                                        >
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    )}
+                                                    <Button
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                        onClick={() => onDeleteDocument?.(doc.docId!, doc.type)}
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
                                                 </div>
                                             )}
                                         </div>

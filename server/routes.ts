@@ -2173,53 +2173,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/documents/:id", authenticate, async (req, res) => {
     try {
-      // Get the document first to access its filePath
-      const document = await storage.getDocument(req.params.id);
+      const id = req.params.id;
+      // Try to get as document first, then fallback to contract
+      const document = await storage.getDocument(id);
+      const contract = !document ? await storage.getContract(id) : null;
 
-      if (!document) {
-        console.warn(`[DELETE-DOCUMENT-NOT-FOUND] Document with ID ${req.params.id} not found.`);
-        return res.status(404).json({ message: "Document not found" });
+      if (!document && !contract) {
+        console.warn(`[DELETE-RECORD-NOT-FOUND] Record with ID ${id} not found.`);
+        return res.status(404).json({ message: "Document/Contract not found" });
       }
 
+      const target = (document || contract)!;
+      
       // Delete the physical file if it exists
-      if (document.filePath) {
+      if (target.filePath) {
         try {
           const fs = await import('fs');
           const path = await import('path');
 
-          // Remove leading slash if present to create relative path
-          const relativePath = document.filePath.startsWith('/') ? document.filePath.slice(1) : document.filePath;
+          const relativePath = target.filePath.startsWith('/') ? target.filePath.slice(1) : target.filePath;
           const fullPath = path.resolve(relativePath);
 
-          // Delete the file if it exists
           if (fs.existsSync(fullPath)) {
             fs.unlinkSync(fullPath);
             console.log(`Deleted file: ${fullPath}`);
           }
         } catch (fileError) {
           console.error('Error deleting physical file:', fileError);
-          // Continue with soft delete even if file deletion fails
         }
       }
 
-      // Soft delete: Clear filePath and set status to pending_upload
-      const updatedDocument = await storage.updateDocument(req.params.id, {
-        filePath: null,
-        status: 'pending_upload'
-      });
+      // Soft delete: Clear filePath on the appropriate record
+      let updatedRecord;
+      if (document) {
+        updatedRecord = await storage.updateDocument(id, {
+          filePath: null,
+          status: 'pending_upload'
+        });
+      } else {
+        updatedRecord = await storage.updateContract(id, {
+          filePath: null
+        });
+      }
 
-      if (!updatedDocument) {
-        console.error(`[DELETE-DOCUMENT-UPDATE-FAILED] Could not update document with ID ${req.params.id} after file deletion.`);
-        return res.status(404).json({ message: "Document not found" });
+      if (!updatedRecord) {
+        console.error(`[DELETE-UPDATE-FAILED] Could not update record with ID ${id} after file deletion.`);
+        return res.status(404).json({ message: "Record not found" });
       }
 
       res.json({
-        message: "Document file removed successfully. Document data has been preserved.",
-        document: updatedDocument
+        message: `${document ? 'Document' : 'Contract'} file removed successfully.`,
+        record: updatedRecord
       });
     } catch (error) {
       console.error('Error in soft delete:', error);
-      res.status(500).json({ message: "Failed to remove document file" });
+      res.status(500).json({ message: "Failed to remove file" });
     }
   });
 
