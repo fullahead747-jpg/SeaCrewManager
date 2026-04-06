@@ -150,7 +150,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
 
             // Bypass expiry logic for COE and COE-Extension
             if (type === 'coe' || type === 'coe-extension') {
-                return { type, status: 'valid' as const, expiryDate: doc.expiryDate ? new Date(doc.expiryDate) : null, daysUntil: null, docId: doc.id, filePath: doc.filePath, isTbd: doc.expiryDate === null };
+                return { type, status: 'valid' as const, expiryDate: doc.expiryDate ? new Date(doc.expiryDate) : null, daysUntil: null, docId: doc.id, filePath: doc.filePath, isTbd: doc.expiryDate === null, isContract: false };
             }
 
             const expiryDate = doc.expiryDate ? new Date(doc.expiryDate) : null;
@@ -164,7 +164,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                 else if (daysUntil !== null && daysUntil <= threshold) status = 'expiring';
             }
 
-            return { type, status, expiryDate, daysUntil, docId: doc.id, filePath: doc.filePath, isTbd };
+            return { type, status, expiryDate, daysUntil, docId: doc.id, filePath: doc.filePath, isTbd, isContract: false };
         });
     }, [member.id, member.activeContract, documents, now]);
 
@@ -511,14 +511,16 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                     >
                                                         <Mail className="h-3.5 w-3.5" />
                                                     </Button>
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                        onClick={() => onDeleteDocument?.(doc.docId!, doc.type)}
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
+                                                    {!(doc as any).isContract && (
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                            onClick={() => onDeleteDocument?.(doc.docId!, doc.type)}
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>

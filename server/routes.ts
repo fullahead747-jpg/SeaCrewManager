@@ -2177,6 +2177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const document = await storage.getDocument(req.params.id);
 
       if (!document) {
+        console.warn(`[DELETE-DOCUMENT-NOT-FOUND] Document with ID ${req.params.id} not found.`);
         return res.status(404).json({ message: "Document not found" });
       }
 
@@ -2208,6 +2209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       if (!updatedDocument) {
+        console.error(`[DELETE-DOCUMENT-UPDATE-FAILED] Could not update document with ID ${req.params.id} after file deletion.`);
         return res.status(404).json({ message: "Document not found" });
       }
 
