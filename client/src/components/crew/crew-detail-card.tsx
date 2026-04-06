@@ -153,8 +153,15 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                 return { type, status: 'valid' as const, expiryDate: doc.expiryDate ? new Date(doc.expiryDate) : null, daysUntil: null, docId: doc.id, filePath: doc.filePath, isTbd: doc.expiryDate === null, isContract: false };
             }
 
-            const expiryDate = doc.expiryDate ? new Date(doc.expiryDate) : null;
-            const isTbd = doc.expiryDate === null;
+            let expiryDate = doc.expiryDate ? new Date(doc.expiryDate) : null;
+            let isTbd = doc.expiryDate === null;
+
+            // Inheritance logic: AOA inherits contract expiry if its own expiry date is not set
+            if (type === 'aoa' && !expiryDate && member.activeContract?.endDate) {
+                expiryDate = new Date(member.activeContract.endDate);
+                isTbd = false; 
+            }
+
             const daysUntil = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
 
             let status: any = 'valid';
