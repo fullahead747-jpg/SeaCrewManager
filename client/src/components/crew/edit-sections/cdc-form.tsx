@@ -30,7 +30,7 @@ export function CDCSection() {
                         <FormItem>
                             <FormLabel>CDC Number</FormLabel>
                             <FormControl>
-                                <Input {...field} placeholder="CDC No." className="bg-white dark:bg-gray-950" />
+                                <Input {...field} disabled={form.watch('cdcNotApplicable')} placeholder="CDC No." className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -44,7 +44,7 @@ export function CDCSection() {
                         <FormItem>
                             <FormLabel>Place of Issue</FormLabel>
                             <FormControl>
-                                <Input {...field} placeholder="City/Country" className="bg-white dark:bg-gray-950" />
+                                <Input {...field} disabled={form.watch('cdcNotApplicable')} placeholder="City/Country" className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -58,7 +58,7 @@ export function CDCSection() {
                         <FormItem>
                             <FormLabel>Issue Date</FormLabel>
                             <FormControl>
-                                <Input type="date" {...field} className="bg-white dark:bg-gray-950" />
+                                <Input type="date" {...field} disabled={form.watch('cdcNotApplicable')} className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -72,39 +72,51 @@ export function CDCSection() {
                         <FormItem>
                             <FormLabel>Expiry Date</FormLabel>
                             <FormControl>
-                                <div className="space-y-2">
-                                    <Input
-                                        type="date"
-                                        {...field}
-                                        disabled={form.watch('cdcTbd')}
-                                        className="bg-white dark:bg-gray-950"
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="cdcTbd"
-                                        render={({ field: tbdField }) => (
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="edit-cdc-tbd"
-                                                    checked={tbdField.value}
-                                                    onCheckedChange={(checked) => {
-                                                        tbdField.onChange(checked);
-                                                        if (checked) form.setValue('cdcExpiryDate', '');
-                                                    }}
-                                                />
-                                                <Label htmlFor="edit-cdc-tbd" className="text-sm font-medium leading-none cursor-pointer text-gray-500">
-                                                    TBD (To Be Determined)
-                                                </Label>
-                                            </div>
-                                        )}
-                                    />
-                                </div>
+                                <Input
+                                    type="date"
+                                    {...field}
+                                    disabled={form.watch('cdcNotApplicable')}
+                                    className="bg-white dark:bg-gray-950"
+                                />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
             </div>
+            <div className="pt-2 flex items-center justify-start">
+                <FormField
+                    control={form.control}
+                    name="cdcNotApplicable"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                            <FormControl>
+                                <Checkbox
+                                    id="cdc-na"
+                                    checked={field.value}
+                                    onCheckedChange={(checked) => {
+                                        field.onChange(checked);
+                                        if (checked) {
+                                            form.setValue('cdcNumber', '');
+                                            form.setValue('cdcPlaceOfIssue', '');
+                                            form.setValue('cdcIssueDate', '');
+                                            form.setValue('cdcExpiryDate', '');
+                                        }
+                                    }}
+                                />
+                            </FormControl>
+                            <Label htmlFor="cdc-na" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+                                N/A (Not Applicable)
+                            </Label>
+                        </FormItem>
+                    )}
+                />
+            </div>
+            {form.watch('cdcNotApplicable') && (
+                <p className="text-sm text-gray-500 italic">
+                    * CDC is marked as not applicable for this crew member.
+                </p>
+            )}
         </div>
     );
 }

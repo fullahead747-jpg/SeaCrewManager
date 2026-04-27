@@ -6,10 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import {
     Eye, Edit, History, LogOut, LogIn,
     FileText, Download, Upload, Mail, ChevronDown, Trash2,
-    CheckCircle2, AlertCircle, UserCog, Check, FileDown
+    CheckCircle2, AlertCircle, UserCog, Check, FileDown, Loader2
 } from 'lucide-react';
 import { CrewMemberWithDetails, Document } from '@shared/schema';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatShortDate } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthHeaders } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,7 @@ interface CrewDetailCardProps {
     onSignOff?: (member: CrewMemberWithDetails) => void;
     onUpload?: (member: CrewMemberWithDetails, type: string) => void;
     onBulkUpload?: (member: CrewMemberWithDetails) => void;
+    onToggleNA?: (member: CrewMemberWithDetails, type: string, value: boolean) => void;
     isMailPending?: boolean;
 }
 
@@ -59,10 +60,13 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
     onSignOff,
     onUpload,
     onBulkUpload,
+    onToggleNA,
     isMailPending
 }) => {
     const { toast } = useToast();
     const now = React.useMemo(() => new Date(), []);
+    const [loadingViewDocId, setLoadingViewDocId] = React.useState<string | null>(null);
+    const [loadingDownloadDocId, setLoadingDownloadDocId] = React.useState<string | null>(null);
 
     const contractStats = React.useMemo(() => {
         const startDate = member.activeContract?.startDate ? new Date(member.activeContract.startDate) : null;
@@ -126,6 +130,12 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
         const crewDocs = documents.filter(doc => doc.crewMemberId === member.id);
 
         return TRACKED_DOC_TYPES.map(type => {
+            const isNA = (member as any)[`${type}NotApplicable`] === true ||
+                (type === 'stcw_course' && (member as any)['stcwNotApplicable'] === true) ||
+                (type === 'coe-extension' && (member as any)['coeExtensionNotApplicable'] === true);
+
+            if (isNA) return { type, status: 'na' as const, expiryDate: null, daysUntil: null, docId: null, filePath: null, isTbd: false };
+
             let doc = crewDocs.find(d => {
                 const docType = d.type.toLowerCase();
                 const searchType = type.toLowerCase();
@@ -157,32 +167,47 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             let isTbd = doc.expiryDate === null;
 
             // Inheritance logic: AOA inherits contract expiry if its own expiry date is not set
-            if (type === 'aoa' && !expiryDate && member.activeContract?.endDate) {
-                expiryDate = new Date(member.activeContract.endDate);
-                isTbd = false; 
+            // OR if the contract expiry is sooner.
+            if (type === 'aoa' && member.activeContract?.endDate) {
+                const contractEndDate = new Date(member.activeContract.endDate);
+                if (!expiryDate || contractEndDate < expiryDate) {
+                    expiryDate = contractEndDate;
+                    isTbd = false; 
+                }
             }
 
             const daysUntil = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
 
             let status: any = 'valid';
-            if (expiryDate) {
+            if (expiryDate && daysUntil !== null) {
                 const threshold = type === 'aoa' ? 30 : 60;
-                if (daysUntil !== null && daysUntil < 0) status = 'expired';
-                else if (daysUntil !== null && daysUntil <= threshold) status = 'expiring';
+                if (daysUntil < 0) status = 'expired';
+                else if (daysUntil <= threshold) status = 'expiring';
             }
 
-            return { type, status, expiryDate, daysUntil, docId: doc.id, filePath: doc.filePath, isTbd, isContract: false };
+            if (type === 'aoa') {
+                console.log(`[AOA Debug] ${member.firstName} ${member.lastName}:`, {
+                    expiryDate: expiryDate?.toISOString(),
+                    now: now.toISOString(),
+                    daysUntil,
+                    threshold: type === 'aoa' ? 30 : 60,
+                    status
+                });
+            }
+
+            return { type, status, expiryDate, daysUntil, docId: (doc as any)?.id || (doc as any)?.docId || null, filePath: (doc as any)?.filePath || null, isTbd, isContract: (doc as any)?.isContract || false };
         });
-    }, [member.id, member.activeContract, documents, now]);
+    }, [member, documents, now]);
 
     const stats = React.useMemo(() => {
         // Only count compliance documents for Valid/Expiring/Expired
-        const complianceDocs = docStatuses.filter(d => d.type !== 'photo' && d.type !== 'nok');
+        // Exclude N/A documents from all counts
+        const complianceDocs = docStatuses.filter(d => d.type !== 'photo' && d.type !== 'nok' && d.status !== 'na');
 
         const validCount = complianceDocs.filter(d => d.status === 'valid').length;
         const expiringCount = complianceDocs.filter(d => d.status === 'expiring').length;
         const expiredCount = complianceDocs.filter(d => d.status === 'expired').length;
-        const pendingCount = docStatuses.filter(d => d.status === 'missing').length;
+        const pendingCount = complianceDocs.filter(d => d.status === 'missing').length;
 
         return { validCount, expiringCount, expiredCount, pendingCount };
     }, [docStatuses]);
@@ -194,6 +219,8 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             toast({ title: 'Not Available', description: 'No document file has been uploaded for this type.' });
             return;
         }
+        
+        setLoadingViewDocId(doc.docId);
         try {
             // Use token-based viewing system to preserve inline view and secure access
             const tokenEndpoint = doc.isContract ? `/api/contracts/${doc.docId}/view-token` : `/api/documents/${doc.docId}/view-token`;
@@ -218,6 +245,8 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
         } catch (error) {
             console.error('Document viewer error:', error);
             toast({ title: 'Error', description: 'Failed to open document', variant: 'destructive' });
+        } finally {
+            setLoadingViewDocId(null);
         }
     }, [toast, member]);
 
@@ -226,6 +255,8 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             toast({ title: 'Not Available', description: 'No document file has been uploaded for this type.' });
             return;
         }
+        
+        setLoadingDownloadDocId(doc.docId);
         try {
             const endpoint = doc.isContract ? `/api/contracts/${doc.docId}/view` : `/api/documents/${doc.docId}/view`;
             const response = await fetch(endpoint, { headers: getAuthHeaders() });
@@ -234,11 +265,13 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
         } catch (error) {
             console.error('Document download error:', error);
             toast({ title: 'Error', description: 'Failed to download document', variant: 'destructive' });
+        } finally {
+            setLoadingDownloadDocId(null);
         }
     }, [toast, member]);
 
     return (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden mb-6 hover:shadow-lg transition-shadow duration-300">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden mb-6 hover:shadow-lg transition-all duration-300 transform-gpu will-change-transform [content-visibility:auto] [contain-intrinsic-size:auto_350px]">
             <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
                 {/* Left Column: Identity & Info */}
                 <div className="lg:w-[48%] p-5">
@@ -457,7 +490,11 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                 return (
                                     <div key={doc.type} className="flex items-center justify-between py-1.5 px-3 rounded-xl hover:bg-slate-50 transition-colors group">
                                         <div className="flex items-center gap-4">
-                                            {isInvalid ? (
+                                            {doc.status === 'na' ? (
+                                                <div className="w-4 h-4 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center">
+                                                    <span className="text-slate-300 text-[10px] font-bold">-</span>
+                                                </div>
+                                            ) : isInvalid ? (
                                                 <div className="w-4 h-4 rounded-full bg-white border-2 border-[#EF4444] flex items-center justify-center">
                                                     <span className="text-[#EF4444] text-[8px] font-black">!</span>
                                                 </div>
@@ -466,12 +503,15 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                     <Check className="h-2.5 w-2.5 text-[#10B981] stroke-[4]" />
                                                 </div>
                                             )}
-                                            <span className="text-[13px] font-semibold text-slate-700 uppercase tracking-tight">
+                                            <span className={`text-[13px] font-semibold text-slate-700 uppercase tracking-tight ${doc.status === 'na' ? 'line-through opacity-50' : ''}`}>
                                                 {getDocTypeLabel(doc.type)}
                                             </span>
                                         </div>
 
                                         <div className="flex items-center gap-2">
+                                            {doc.status === 'na' && (
+                                                <span className="text-slate-400 text-[10px] font-bold bg-slate-50 px-2 py-0.5 rounded-full border border-slate-100">N/A</span>
+                                            )}
                                             {doc.status === 'missing' && (
                                                 <span className="text-[#EF4444] text-[10px] font-bold bg-red-50 px-2 py-0.5 rounded-full border border-red-100">PENDING</span>
                                             )}
@@ -482,49 +522,73 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                 <span className="text-[#F59E0B] text-[10px] font-bold bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">EXPIRING</span>
                                             )}
 
-                                            {isInvalid ? (
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    className="h-8 px-3 bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE] rounded-lg font-bold text-[11px] transition-all active:scale-95"
-                                                    onClick={() => onUpload?.(member, doc.type)}
-                                                >
-                                                    <Upload className="h-3 w-3 mr-1.5" />
-                                                    Upload
-                                                </Button>
+                                            {isInvalid && doc.status !== 'na' ? (
+                                                <div className="flex items-center gap-1">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-8 px-3 bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE] rounded-lg font-bold text-[11px] transition-all active:scale-95"
+                                                        onClick={() => onUpload?.(member, doc.type)}
+                                                    >
+                                                        <Upload className="h-3 w-3 mr-1.5" />
+                                                        Upload
+                                                    </Button>
+                                                    {doc.type === 'coe-extension' && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-8 px-3 bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg font-bold text-[11px] transition-all active:scale-95"
+                                                            onClick={() => onToggleNA?.(member, doc.type, true)}
+                                                        >
+                                                            N/A
+                                                        </Button>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                                                    {doc.status !== 'na' && (
+                                                        <>
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                                onClick={() => handleDocClick(doc)}
+                                                                disabled={loadingViewDocId === doc.docId}
+                                                            >
+                                                                {loadingViewDocId === doc.docId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                                                            </Button>
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                className="h-8 w-8 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                                onClick={() => handleDocDownload(doc)}
+                                                                disabled={loadingDownloadDocId === doc.docId}
+                                                            >
+                                                                {loadingDownloadDocId === doc.docId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                                                            </Button>
+                                                            <Button
+                                                                size="icon"
+                                                                variant="ghost"
+                                                                className="h-8 w-8 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                                                onClick={() => onSendMail(member)}
+                                                            >
+                                                                <Mail className="h-3.5 w-3.5" />
+                                                            </Button>
+                                                        </>
+                                                    )}
                                                     <Button
                                                         size="icon"
                                                         variant="ghost"
-                                                        className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                                                        onClick={() => handleDocClick(doc)}
+                                                        className={`h-8 w-8 rounded-lg transition-colors ${doc.status === 'na' ? 'text-slate-300 hover:text-blue-600 hover:bg-blue-50' : 'text-red-400 hover:text-red-600 hover:bg-red-50'}`}
+                                                        onClick={() => {
+                                                            if (doc.status === 'na') {
+                                                                onToggleNA?.(member, doc.type, false);
+                                                                return;
+                                                            }
+                                                            onDeleteDocument?.(doc.docId!, doc.type);
+                                                        }}
                                                     >
-                                                        <Eye className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        className="h-8 w-8 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                                        onClick={() => handleDocDownload(doc)}
-                                                    >
-                                                        <FileDown className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        className="h-8 w-8 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                                                        onClick={() => onSendMail(member)}
-                                                    >
-                                                        <Mail className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button
-                                                        size="icon"
-                                                        variant="ghost"
-                                                        className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                        onClick={() => onDeleteDocument?.(doc.docId!, doc.type)}
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                        {doc.status === 'na' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
                                                     </Button>
                                                 </div>
                                             )}

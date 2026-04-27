@@ -71,23 +71,92 @@ const addCrewSchema = z.object({
   passportPlaceOfIssue: z.string().optional(),
   passportIssueDate: z.string().optional(),
   passportExpiryDate: z.string().optional(),
+  passportNotApplicable: z.boolean().optional().default(false),
   cdcNumber: z.string().optional(),
   cdcPlaceOfIssue: z.string().optional(),
   cdcIssueDate: z.string().optional(),
   cdcExpiryDate: z.string().optional(),
+  cdcNotApplicable: z.boolean().optional().default(false),
   cocGradeNo: z.string().optional(),
   cocPlaceOfIssue: z.string().optional(),
   cocIssueDate: z.string().optional(),
   cocExpiryDate: z.string().optional(),
+  cocNotApplicable: z.boolean().optional().default(false),
   medicalIssuingAuthority: z.string().optional(),
   medicalApprovalNo: z.string().optional(),
   medicalIssueDate: z.string().optional(),
   medicalExpiryDate: z.string().optional(),
-  cocNotApplicable: z.boolean().optional().default(false),
-  passportTbd: z.boolean().optional().default(false),
-  cdcTbd: z.boolean().optional().default(false),
-  cocTbd: z.boolean().optional().default(false),
-  medicalTbd: z.boolean().optional().default(false),
+  medicalNotApplicable: z.boolean().optional().default(false),
+  stcwNumber: z.string().optional(),
+  stcwIssuingAuthority: z.string().optional(),
+  stcwIssueDate: z.string().optional(),
+  stcwExpiryDate: z.string().optional(),
+  stcwNotApplicable: z.boolean().optional().default(false),
+}).superRefine((data, ctx) => {
+  // Passport validation
+  if (!data.passportNotApplicable) {
+    if (!data.passportNumber || data.passportNumber.trim() === '') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Passport Number is required", path: ["passportNumber"] });
+    }
+    if (!data.passportIssueDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Issue Date is required", path: ["passportIssueDate"] });
+    }
+    if (!data.passportExpiryDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Expiry Date is required", path: ["passportExpiryDate"] });
+    }
+  }
+
+  // CDC validation
+  if (!data.cdcNotApplicable) {
+    if (!data.cdcNumber || data.cdcNumber.trim() === '') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "CDC Number is required", path: ["cdcNumber"] });
+    }
+    if (!data.cdcIssueDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Issue Date is required", path: ["cdcIssueDate"] });
+    }
+    if (!data.cdcExpiryDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Expiry Date is required", path: ["cdcExpiryDate"] });
+    }
+  }
+
+  // COC validation
+  if (!data.cocNotApplicable) {
+    if (!data.cocGradeNo || data.cocGradeNo.trim() === '') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "COC Grade/Number is required", path: ["cocGradeNo"] });
+    }
+    if (!data.cocIssueDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Issue Date is required", path: ["cocIssueDate"] });
+    }
+    if (!data.cocExpiryDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Expiry Date is required", path: ["cocExpiryDate"] });
+    }
+  }
+
+  // Medical validation
+  if (!data.medicalNotApplicable) {
+    if (!data.medicalApprovalNo || data.medicalApprovalNo.trim() === '') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Medical Approval Number is required", path: ["medicalApprovalNo"] });
+    }
+    if (!data.medicalIssueDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Issue Date is required", path: ["medicalIssueDate"] });
+    }
+    if (!data.medicalExpiryDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Expiry Date is required", path: ["medicalExpiryDate"] });
+    }
+  }
+
+  // STCW validation
+  if (!data.stcwNotApplicable) {
+    if (!data.stcwNumber || data.stcwNumber.trim() === '') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "STCW Number is required", path: ["stcwNumber"] });
+    }
+    if (!data.stcwIssueDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Issue Date is required", path: ["stcwIssueDate"] });
+    }
+    if (!data.stcwExpiryDate) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Expiry Date is required", path: ["stcwExpiryDate"] });
+    }
+  }
 });
 
 type AddCrewFormData = z.infer<typeof addCrewSchema>;
@@ -129,6 +198,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
   const [selectedCrewForDeletion, setSelectedCrewForDeletion] = useState<CrewMemberWithDetails | null>(null);
   const [showVesselHistoryDialog, setShowVesselHistoryDialog] = useState(false);
   const [selectedCrewForHistory, setSelectedCrewForHistory] = useState<CrewMemberWithDetails | null>(null);
+  const [loadingAoaDocId, setLoadingAoaDocId] = useState<string | null>(null);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -168,11 +238,11 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       medicalApprovalNo: '',
       medicalIssueDate: '',
       medicalExpiryDate: '',
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
       cocNotApplicable: false,
-      passportTbd: false,
-      cdcTbd: false,
-      cocTbd: false,
-      medicalTbd: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
     },
   });
 
@@ -183,6 +253,8 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       const cdc = selectedCrewForEdit.documents?.find(d => d.type === 'cdc');
       const coc = selectedCrewForEdit.documents?.find(d => d.type === 'coc');
       const medical = selectedCrewForEdit.documents?.find(d => d.type === 'medical');
+      const stcw = selectedCrewForEdit.documents?.find(d => d.type === 'stcw_course');
+      const contract = selectedCrewForEdit.activeContract;
 
       editCrewForm.reset({
         firstName: selectedCrewForEdit.firstName,
@@ -200,27 +272,51 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
         emergencyContactPhone: (selectedCrewForEdit.emergencyContact as any)?.phone || '',
         emergencyContactEmail: (selectedCrewForEdit.emergencyContact as any)?.email || '',
         emergencyContactPostalAddress: (selectedCrewForEdit.emergencyContact as any)?.postalAddress || '',
+        
+        // Contract details
+        contractStartDate: contract?.startDate ? new Date(contract.startDate).toISOString().split('T')[0] : '',
+        contractDurationDays: contract?.durationDays || 0,
+        contractEndDate: contract?.endDate ? new Date(contract.endDate).toISOString().split('T')[0] : '',
+
+        // Passport details
         passportNumber: passport?.documentNumber || '',
         passportPlaceOfIssue: passport?.issuingAuthority || '',
         passportIssueDate: passport?.issueDate ? new Date(passport.issueDate).toISOString().split('T')[0] : '',
         passportExpiryDate: passport?.expiryDate ? new Date(passport.expiryDate).toISOString().split('T')[0] : '',
+        passportNotApplicable: selectedCrewForEdit.passportNotApplicable || false,
+
+        // CDC details
         cdcNumber: cdc?.documentNumber || '',
         cdcPlaceOfIssue: cdc?.issuingAuthority || '',
         cdcIssueDate: cdc?.issueDate ? new Date(cdc.issueDate).toISOString().split('T')[0] : '',
         cdcExpiryDate: cdc?.expiryDate ? new Date(cdc.expiryDate).toISOString().split('T')[0] : '',
+        cdcNotApplicable: selectedCrewForEdit.cdcNotApplicable || false,
+
+        // COC details
         cocGradeNo: coc?.documentNumber || '',
         cocPlaceOfIssue: coc?.issuingAuthority || '',
         cocIssueDate: coc?.issueDate ? new Date(coc.issueDate).toISOString().split('T')[0] : '',
         cocExpiryDate: coc?.expiryDate ? new Date(coc.expiryDate).toISOString().split('T')[0] : '',
+        cocNotApplicable: selectedCrewForEdit.cocNotApplicable || false,
+
+        // Medical details
         medicalIssuingAuthority: medical?.issuingAuthority || '',
         medicalApprovalNo: medical?.documentNumber || '',
         medicalIssueDate: medical?.issueDate ? new Date(medical.issueDate).toISOString().split('T')[0] : '',
         medicalExpiryDate: medical?.expiryDate ? new Date(medical.expiryDate).toISOString().split('T')[0] : '',
-        cocNotApplicable: selectedCrewForEdit.cocNotApplicable || false,
+        medicalNotApplicable: selectedCrewForEdit.medicalNotApplicable || false,
+
+        // STCW / Course details
+        stcwNumber: stcw?.documentNumber || '',
+        stcwIssuingAuthority: stcw?.issuingAuthority || '',
+        stcwIssueDate: stcw?.issueDate ? new Date(stcw.issueDate).toISOString().split('T')[0] : '',
+        stcwExpiryDate: stcw?.expiryDate ? new Date(stcw.expiryDate).toISOString().split('T')[0] : '',
+        stcwNotApplicable: selectedCrewForEdit.stcwNotApplicable || false,
       });
       setOriginalStatus(selectedCrewForEdit.status === 'active' ? 'onBoard' : selectedCrewForEdit.status);
     }
   }, [selectedCrewForEdit, editCrewForm]);
+
 
   const { data: crewMembers = [], isLoading } = useQuery<CrewMemberWithDetails[]>({
     queryKey: ['/api/crew', { vesselId: vessel?.id }],
@@ -691,6 +787,10 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           postalAddress: data.emergencyContactPostalAddress || '',
         } : null,
         cocNotApplicable: data.cocNotApplicable || false,
+        passportNotApplicable: data.passportNotApplicable || false,
+        cdcNotApplicable: data.cdcNotApplicable || false,
+        medicalNotApplicable: data.medicalNotApplicable || false,
+        stcwNotApplicable: data.stcwNotApplicable || false,
         currentVesselId: data.currentVesselId, // Ensure vessel assignment is passed
       };
 
@@ -716,9 +816,17 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       const existingDocs = selectedCrewForEdit?.documents || [];
 
       // Helper to update or create document
-      const saveDocument = async (type: string, docData: { documentNumber: string; issuingAuthority: string; issueDate: string; expiryDate: string | null }) => {
+      const saveDocument = async (type: string, docData: { documentNumber: string; issuingAuthority: string; issueDate: string; expiryDate: string | null }, notApplicable: boolean) => {
         const existing = existingDocs.find(d => d.type === type);
         try {
+          if (notApplicable) {
+            if (existing) {
+              console.log('Deleting document because it is now N/A:', type);
+              await fetch(`/api/documents/${existing.id}`, { method: 'DELETE', headers: getAuthHeaders() });
+            }
+            return;
+          }
+
           if (existing) {
             console.log('Updating document:', type, existing.id);
             const resp = await fetch(`/api/documents/${existing.id}`, {
@@ -730,7 +838,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
               const errData = await resp.json().catch(() => ({}));
               console.error('Failed to update document:', type, errData);
             }
-          } else if (docData.documentNumber || docData.expiryDate) {
+          } else if (docData.documentNumber) {
             console.log('Creating new document:', type, docData);
             const resp = await fetch('/api/documents', {
               method: 'POST',
@@ -750,51 +858,44 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       };
 
       // Save passport document
-      if (data.passportNumber || data.passportExpiryDate || data.passportTbd || existingDocs.find(d => d.type === 'passport')) {
-        await saveDocument('passport', {
-          documentNumber: data.passportNumber || 'N/A',
-          issuingAuthority: data.passportPlaceOfIssue || 'Unknown',
-          issueDate: data.passportIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.passportTbd ? null : (data.passportExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
-        });
-      }
+      await saveDocument('passport', {
+        documentNumber: data.passportNumber || 'N/A',
+        issuingAuthority: data.passportPlaceOfIssue || 'Unknown',
+        issueDate: data.passportIssueDate || new Date().toISOString().split('T')[0],
+        expiryDate: data.passportExpiryDate || null,
+      }, data.passportNotApplicable || false);
 
       // Save CDC document
-      if (data.cdcNumber || data.cdcExpiryDate || data.cdcTbd || existingDocs.find(d => d.type === 'cdc')) {
-        await saveDocument('cdc', {
-          documentNumber: data.cdcNumber || 'N/A',
-          issuingAuthority: data.cdcPlaceOfIssue || 'Unknown',
-          issueDate: data.cdcIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.cdcTbd ? null : (data.cdcExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
-        });
-      }
+      await saveDocument('cdc', {
+        documentNumber: data.cdcNumber || 'N/A',
+        issuingAuthority: data.cdcPlaceOfIssue || 'Unknown',
+        issueDate: data.cdcIssueDate || new Date().toISOString().split('T')[0],
+        expiryDate: data.cdcExpiryDate || null,
+      }, data.cdcNotApplicable || false);
 
       // Save COC document
-      const cocDoc = existingDocs.find(d => d.type === 'coc');
-      if (data.cocNotApplicable) {
-        // If N/A but document exists, delete it
-        if (cocDoc) {
-          console.log('Deleting COC document because it is now N/A');
-          await fetch(`/api/documents/${cocDoc.id}`, { method: 'DELETE', headers: getAuthHeaders() });
-        }
-      } else if (data.cocGradeNo || data.cocExpiryDate || data.cocTbd || cocDoc) {
-        await saveDocument('coc', {
-          documentNumber: data.cocGradeNo || 'N/A',
-          issuingAuthority: data.cocPlaceOfIssue || 'Unknown',
-          issueDate: data.cocIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.cocTbd ? null : (data.cocExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
-        });
-      }
+      await saveDocument('coc', {
+        documentNumber: data.cocGradeNo || 'N/A',
+        issuingAuthority: data.cocPlaceOfIssue || 'Unknown',
+        issueDate: data.cocIssueDate || new Date().toISOString().split('T')[0],
+        expiryDate: data.cocExpiryDate || null,
+      }, data.cocNotApplicable || false);
 
       // Save Medical document
-      if (data.medicalApprovalNo || data.medicalExpiryDate || data.medicalTbd || existingDocs.find(d => d.type === 'medical')) {
-        await saveDocument('medical', {
-          documentNumber: data.medicalApprovalNo || 'N/A',
-          issuingAuthority: data.medicalIssuingAuthority || 'Unknown',
-          issueDate: data.medicalIssueDate || new Date().toISOString().split('T')[0],
-          expiryDate: data.medicalTbd ? null : (data.medicalExpiryDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]),
-        });
-      }
+      await saveDocument('medical', {
+        documentNumber: data.medicalApprovalNo || 'N/A',
+        issuingAuthority: data.medicalIssuingAuthority || 'Unknown',
+        issueDate: data.medicalIssueDate || new Date().toISOString().split('T')[0],
+        expiryDate: data.medicalExpiryDate || null,
+      }, data.medicalNotApplicable || false);
+
+      // Save STCW document
+      await saveDocument('stcw_course', {
+        documentNumber: data.stcwNumber || 'N/A',
+        issuingAuthority: data.stcwIssuingAuthority || 'Unknown',
+        issueDate: data.stcwIssueDate || new Date().toISOString().split('T')[0],
+        expiryDate: data.stcwExpiryDate || null,
+      }, data.stcwNotApplicable || false);
 
       // Save Contract Details
       if (data.contractStartDate && data.contractDurationDays) {
@@ -1098,11 +1199,54 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
     setIsBulkUploadModalOpen(true);
   };
 
+  const toggleNAMutation = useMutation({
+    mutationFn: async ({ crewId, type, value }: { crewId: string; type: string; value: boolean }) => {
+      const updates: any = {};
+      if (type === 'coe-extension') {
+        updates.coeExtensionNotApplicable = value;
+      }
+
+      const response = await fetch(`/api/crew/${crewId}`, {
+        method: 'PUT',
+        headers: {
+          ...getAuthHeaders(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update document status');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/vessels'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      toast({
+        title: 'Status Updated',
+        description: 'Document status has been updated successfully.',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Update Failed',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleToggleNA = (member: CrewMemberWithDetails, type: string, value: boolean) => {
+    toggleNAMutation.mutate({ crewId: member.id, type, value });
+  };
+
   if (!vessel) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl h-[90vh] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-white/20 shadow-2xl">
+      <DialogContent className="sm:max-w-5xl h-[90vh] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-white/20 shadow-2xl transform-gpu will-change-transform">
         {/* Clean Header */}
         <div className="flex-shrink-0 p-3 pb-0 border-b bg-white dark:bg-gray-900">
           <DialogHeader>
@@ -1199,6 +1343,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         onBulkUpload={handleBulkUploadClick}
                         onDelete={handleDeleteClick}
                         onDeleteDocument={handleDeleteDocument}
+                        onToggleNA={handleToggleNA}
                         isMailPending={sendCrewEmailMutation.isPending}
                       />
                     ))}
@@ -1395,8 +1540,10 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                           <p className="font-medium mb-2">AOA Document:</p>
                           <Button
                             size="sm"
+                            disabled={loadingAoaDocId === displayAoa.id}
                             onClick={async () => {
                               try {
+                                setLoadingAoaDocId(displayAoa.id);
                                 // For documents, use the new token-based viewing system
                                 if (!(displayAoa as any).isContract) {
                                   const tokenResponse = await fetch(`/api/documents/${displayAoa.id}/view-token`, {
@@ -1426,11 +1573,13 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                                   description: 'Failed to open AOA document',
                                   variant: 'destructive',
                                 });
+                              } finally {
+                                setLoadingAoaDocId(null);
                               }
                             }}
                             className="inline-flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700 text-white"
                           >
-                            <FileText className="h-4 w-4" />
+                            {loadingAoaDocId === displayAoa.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}
                             View AOA Document
                           </Button>
                         </div>
@@ -1490,7 +1639,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
               preselectedType={uploadDocumentType || undefined}
               onSuccess={() => {
                 setShowUploadDialog(false);
-                queryClient.invalidateQueries({ queryKey: [`/api/vessels/${vessel?.id}/crew`] });
+                queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+                queryClient.invalidateQueries({ queryKey: ['/api/vessels'] });
+                queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
               }}
             />
           </div>
@@ -1899,7 +2050,6 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                                 type="date"
                                 {...field}
                                 readOnly
-                                disabled
                                 className="bg-muted"
                                 data-testid="edit-input-contractEndDate"
                               />
@@ -1916,6 +2066,30 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                     <h3 className="text-lg font-semibold text-purple-900 dark:text-purple-100 flex items-center">
                       <div className="w-2 h-2 bg-purple-600 rounded-full mr-3"></div>
                       Passport Details
+                      <FormField
+                        control={editCrewForm.control}
+                        name="passportNotApplicable"
+                        render={({ field }) => (
+                          <div className="ml-auto flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="edit-passportNotApplicable"
+                              checked={field.value}
+                              onChange={(e) => {
+                                field.onChange(e.target.checked);
+                                if (e.target.checked) {
+                                  editCrewForm.setValue('passportNumber', '');
+                                  editCrewForm.setValue('passportPlaceOfIssue', '');
+                                  editCrewForm.setValue('passportIssueDate', '');
+                                  editCrewForm.setValue('passportExpiryDate', '');
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            <Label htmlFor="edit-passportNotApplicable" className="text-sm font-medium cursor-pointer">N/A (Not Applicable)</Label>
+                          </div>
+                        )}
+                      />
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
@@ -1923,9 +2097,11 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="passportNumber"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Passport Number</FormLabel>
+                            <FormLabel className={editCrewForm.watch('passportNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Passport Number {!editCrewForm.watch('passportNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter passport number" {...field} data-testid="edit-input-passportNumber" />
+                              <Input placeholder="Enter passport number" {...field} disabled={editCrewForm.watch('passportNotApplicable')} data-testid="edit-input-passportNumber" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1936,9 +2112,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="passportPlaceOfIssue"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Place of Issue</FormLabel>
+                            <FormLabel className={editCrewForm.watch('passportNotApplicable') ? 'text-muted-foreground' : ''}>Place of Issue</FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter place of issue" {...field} data-testid="edit-input-passportPlaceOfIssue" />
+                              <Input placeholder="Enter place of issue" {...field} disabled={editCrewForm.watch('passportNotApplicable')} data-testid="edit-input-passportPlaceOfIssue" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1949,9 +2125,11 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="passportIssueDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Issue Date</FormLabel>
+                            <FormLabel className={editCrewForm.watch('passportNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Issue Date {!editCrewForm.watch('passportNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="edit-input-passportIssueDate" />
+                              <Input type="date" {...field} disabled={editCrewForm.watch('passportNotApplicable')} data-testid="edit-input-passportIssueDate" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -1962,40 +2140,18 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="passportExpiryDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Expiry Date</FormLabel>
+                            <FormLabel className={editCrewForm.watch('passportNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Expiry Date {!editCrewForm.watch('passportNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
                               <Input
                                 type="date"
                                 {...field}
-                                disabled={editCrewForm.watch('passportTbd')}
+                                disabled={editCrewForm.watch('passportNotApplicable')}
                                 data-testid="edit-input-passportExpiryDate"
                               />
                             </FormControl>
                             <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={editCrewForm.control}
-                        name="passportTbd"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={(checked) => {
-                                  field.onChange(checked);
-                                  if (checked) {
-                                    editCrewForm.setValue('passportExpiryDate', '');
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
-                                TBD (To Be Determined)
-                              </FormLabel>
-                            </div>
                           </FormItem>
                         )}
                       />
@@ -2007,6 +2163,30 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                     <h3 className="text-lg font-semibold text-teal-900 dark:text-teal-100 flex items-center">
                       <div className="w-2 h-2 bg-teal-600 rounded-full mr-3"></div>
                       CDC Details
+                      <FormField
+                        control={editCrewForm.control}
+                        name="cdcNotApplicable"
+                        render={({ field }) => (
+                          <div className="ml-auto flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="edit-cdcNotApplicable"
+                              checked={field.value}
+                              onChange={(e) => {
+                                field.onChange(e.target.checked);
+                                if (e.target.checked) {
+                                  editCrewForm.setValue('cdcNumber', '');
+                                  editCrewForm.setValue('cdcPlaceOfIssue', '');
+                                  editCrewForm.setValue('cdcIssueDate', '');
+                                  editCrewForm.setValue('cdcExpiryDate', '');
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                            />
+                            <Label htmlFor="edit-cdcNotApplicable" className="text-sm font-medium cursor-pointer">N/A (Not Applicable)</Label>
+                          </div>
+                        )}
+                      />
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
@@ -2014,9 +2194,11 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cdcNumber"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>CDC Number</FormLabel>
+                            <FormLabel className={editCrewForm.watch('cdcNotApplicable') ? 'text-muted-foreground' : ''}>
+                              CDC Number {!editCrewForm.watch('cdcNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter CDC number" {...field} data-testid="edit-input-cdcNumber" />
+                              <Input placeholder="Enter CDC number" {...field} disabled={editCrewForm.watch('cdcNotApplicable')} data-testid="edit-input-cdcNumber" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -2027,9 +2209,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cdcPlaceOfIssue"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Place of Issue</FormLabel>
+                            <FormLabel className={editCrewForm.watch('cdcNotApplicable') ? 'text-muted-foreground' : ''}>Place of Issue</FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter place of issue" {...field} data-testid="edit-input-cdcPlaceOfIssue" />
+                              <Input placeholder="Enter place of issue" {...field} disabled={editCrewForm.watch('cdcNotApplicable')} data-testid="edit-input-cdcPlaceOfIssue" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -2040,9 +2222,11 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cdcIssueDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Issue Date</FormLabel>
+                            <FormLabel className={editCrewForm.watch('cdcNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Issue Date {!editCrewForm.watch('cdcNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="edit-input-cdcIssueDate" />
+                              <Input type="date" {...field} disabled={editCrewForm.watch('cdcNotApplicable')} data-testid="edit-input-cdcIssueDate" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -2053,40 +2237,18 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cdcExpiryDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Expiry Date</FormLabel>
+                            <FormLabel className={editCrewForm.watch('cdcNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Expiry Date {!editCrewForm.watch('cdcNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
                               <Input
                                 type="date"
                                 {...field}
-                                disabled={editCrewForm.watch('cdcTbd')}
+                                disabled={editCrewForm.watch('cdcNotApplicable')}
                                 data-testid="edit-input-cdcExpiryDate"
                               />
                             </FormControl>
                             <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={editCrewForm.control}
-                        name="cdcTbd"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={(checked) => {
-                                  field.onChange(checked);
-                                  if (checked) {
-                                    editCrewForm.setValue('cdcExpiryDate', '');
-                                  }
-                                }}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
-                                TBD (To Be Determined)
-                              </FormLabel>
-                            </div>
                           </FormItem>
                         )}
                       />
@@ -2107,10 +2269,18 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                               type="checkbox"
                               id="edit-cocNotApplicable"
                               checked={field.value}
-                              onChange={field.onChange}
+                              onChange={(e) => {
+                                field.onChange(e.target.checked);
+                                if (e.target.checked) {
+                                  editCrewForm.setValue('cocGradeNo', '');
+                                  editCrewForm.setValue('cocPlaceOfIssue', '');
+                                  editCrewForm.setValue('cocIssueDate', '');
+                                  editCrewForm.setValue('cocExpiryDate', '');
+                                }
+                              }}
                               className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                             />
-                            <Label htmlFor="edit-cocNotApplicable" className="text-sm font-medium cursor-pointer">TBD (To Be Determined)</Label>
+                            <Label htmlFor="edit-cocNotApplicable" className="text-sm font-medium cursor-pointer">N/A (Not Applicable)</Label>
                           </div>
                         )}
                       />
@@ -2121,7 +2291,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cocGradeNo"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className={editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Grade / Certificate Number</FormLabel>
+                            <FormLabel className={editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Grade / Certificate Number {!editCrewForm.watch('cocNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
                               <Input placeholder="Enter COC grade/number" {...field} disabled={editCrewForm.watch('cocNotApplicable')} data-testid="edit-input-cocGradeNo" />
                             </FormControl>
@@ -2147,7 +2319,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cocIssueDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className={editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Issue Date</FormLabel>
+                            <FormLabel className={editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Issue Date {!editCrewForm.watch('cocNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
                               <Input type="date" {...field} disabled={editCrewForm.watch('cocNotApplicable')} data-testid="edit-input-cocIssueDate" />
                             </FormControl>
@@ -2160,41 +2334,18 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="cocExpiryDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel className={editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>Expiry Date</FormLabel>
+                            <FormLabel className={editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Expiry Date {!editCrewForm.watch('cocNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
                               <Input
                                 type="date"
                                 {...field}
-                                disabled={editCrewForm.watch('cocNotApplicable') || editCrewForm.watch('cocTbd')}
+                                disabled={editCrewForm.watch('cocNotApplicable')}
                                 data-testid="edit-input-cocExpiryDate"
                               />
                             </FormControl>
                             <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={editCrewForm.control}
-                        name="cocTbd"
-                        render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
-                            <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={(checked) => {
-                                  field.onChange(checked);
-                                  if (checked) {
-                                    editCrewForm.setValue('cocExpiryDate', '');
-                                  }
-                                }}
-                                disabled={editCrewForm.watch('cocNotApplicable')}
-                              />
-                            </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel className={`font-normal cursor-pointer ${editCrewForm.watch('cocNotApplicable') ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
-                                TBD (To Be Determined)
-                              </FormLabel>
-                            </div>
                           </FormItem>
                         )}
                       />
@@ -2206,6 +2357,30 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                     <h3 className="text-lg font-semibold text-rose-900 dark:text-rose-100 flex items-center">
                       <div className="w-2 h-2 bg-rose-600 rounded-full mr-3"></div>
                       Medical Certificate Details
+                      <FormField
+                        control={editCrewForm.control}
+                        name="medicalNotApplicable"
+                        render={({ field }) => (
+                          <div className="ml-auto flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="edit-medicalNotApplicable"
+                              checked={field.value}
+                              onChange={(e) => {
+                                field.onChange(e.target.checked);
+                                if (e.target.checked) {
+                                  editCrewForm.setValue('medicalIssuingAuthority', '');
+                                  editCrewForm.setValue('medicalApprovalNo', '');
+                                  editCrewForm.setValue('medicalIssueDate', '');
+                                  editCrewForm.setValue('medicalExpiryDate', '');
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-gray-300 text-rose-600 focus:ring-rose-500"
+                            />
+                            <Label htmlFor="edit-medicalNotApplicable" className="text-sm font-medium cursor-pointer">N/A (Not Applicable)</Label>
+                          </div>
+                        )}
+                      />
                     </h3>
                     <div className="grid grid-cols-2 gap-4">
                       <FormField
@@ -2213,9 +2388,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="medicalIssuingAuthority"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Issuing Authority</FormLabel>
+                            <FormLabel className={editCrewForm.watch('medicalNotApplicable') ? 'text-muted-foreground' : ''}>Issuing Authority</FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter issuing authority" {...field} data-testid="edit-input-medicalIssuingAuthority" />
+                              <Input placeholder="Enter issuing authority" {...field} disabled={editCrewForm.watch('medicalNotApplicable')} data-testid="edit-input-medicalIssuingAuthority" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -2226,9 +2401,11 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="medicalApprovalNo"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Approval Number</FormLabel>
+                            <FormLabel className={editCrewForm.watch('medicalNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Approval Number {!editCrewForm.watch('medicalNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
-                              <Input placeholder="Enter approval number" {...field} data-testid="edit-input-medicalApprovalNo" />
+                              <Input placeholder="Enter approval number" {...field} disabled={editCrewForm.watch('medicalNotApplicable')} data-testid="edit-input-medicalApprovalNo" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -2239,9 +2416,11 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="medicalIssueDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Issue Date</FormLabel>
+                            <FormLabel className={editCrewForm.watch('medicalNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Issue Date {!editCrewForm.watch('medicalNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
-                              <Input type="date" {...field} data-testid="edit-input-medicalIssueDate" />
+                              <Input type="date" {...field} disabled={editCrewForm.watch('medicalNotApplicable')} data-testid="edit-input-medicalIssueDate" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -2252,12 +2431,14 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                         name="medicalExpiryDate"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Expiry Date</FormLabel>
+                            <FormLabel className={editCrewForm.watch('medicalNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Expiry Date {!editCrewForm.watch('medicalNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
                             <FormControl>
                               <Input
                                 type="date"
                                 {...field}
-                                disabled={editCrewForm.watch('medicalTbd')}
+                                disabled={editCrewForm.watch('medicalNotApplicable')}
                                 data-testid="edit-input-medicalExpiryDate"
                               />
                             </FormControl>
@@ -2265,27 +2446,100 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
                           </FormItem>
                         )}
                       />
+                    </div>
+                  </div>
+
+                  {/* Course / STCW Details */}
+                  <div className="space-y-3 p-4 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg">
+                    <h3 className="text-lg font-semibold text-orange-900 dark:text-orange-100 flex items-center">
+                      <div className="w-2 h-2 bg-orange-600 rounded-full mr-3"></div>
+                      Course / STCW Details
                       <FormField
                         control={editCrewForm.control}
-                        name="medicalTbd"
+                        name="stcwNotApplicable"
                         render={({ field }) => (
-                          <FormItem className="flex flex-row items-center space-x-2 space-y-0 col-span-2">
+                          <div className="ml-auto flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="edit-stcwNotApplicable"
+                              checked={field.value}
+                              onChange={(e) => {
+                                field.onChange(e.target.checked);
+                                if (e.target.checked) {
+                                  editCrewForm.setValue('stcwNumber', '');
+                                  editCrewForm.setValue('stcwIssuingAuthority', '');
+                                  editCrewForm.setValue('stcwIssueDate', '');
+                                  editCrewForm.setValue('stcwExpiryDate', '');
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                            />
+                            <Label htmlFor="edit-stcwNotApplicable" className="text-sm font-medium cursor-pointer">N/A (Not Applicable)</Label>
+                          </div>
+                        )}
+                      />
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <FormField
+                        control={editCrewForm.control}
+                        name="stcwNumber"
+                        render={({ field }) => (
+                          <FormItem>
+                             <FormLabel className={editCrewForm.watch('stcwNotApplicable') ? 'text-muted-foreground' : ''}>
+                               Certificate Number {!editCrewForm.watch('stcwNotApplicable') && <span className="text-red-500">*</span>}
+                             </FormLabel>
                             <FormControl>
-                              <Checkbox
-                                checked={field.value}
-                                onCheckedChange={(checked) => {
-                                  field.onChange(checked);
-                                  if (checked) {
-                                    editCrewForm.setValue('medicalExpiryDate', '');
-                                  }
-                                }}
+                              <Input placeholder="Enter certificate number" {...field} disabled={editCrewForm.watch('stcwNotApplicable')} data-testid="edit-input-stcwNumber" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editCrewForm.control}
+                        name="stcwIssuingAuthority"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className={editCrewForm.watch('stcwNotApplicable') ? 'text-muted-foreground' : ''}>Issuing Authority</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Enter issuing authority" {...field} disabled={editCrewForm.watch('stcwNotApplicable')} data-testid="edit-input-stcwIssuingAuthority" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editCrewForm.control}
+                        name="stcwIssueDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className={editCrewForm.watch('stcwNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Issue Date {!editCrewForm.watch('stcwNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
+                            <FormControl>
+                              <Input type="date" {...field} disabled={editCrewForm.watch('stcwNotApplicable')} data-testid="edit-input-stcwIssueDate" />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={editCrewForm.control}
+                        name="stcwExpiryDate"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className={editCrewForm.watch('stcwNotApplicable') ? 'text-muted-foreground' : ''}>
+                              Expiry Date {!editCrewForm.watch('stcwNotApplicable') && <span className="text-red-500">*</span>}
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                type="date"
+                                {...field}
+                                disabled={editCrewForm.watch('stcwNotApplicable')}
+                                data-testid="edit-input-stcwExpiryDate"
                               />
                             </FormControl>
-                            <div className="space-y-1 leading-none">
-                              <FormLabel className="font-normal cursor-pointer text-muted-foreground">
-                                TBD (To Be Determined)
-                              </FormLabel>
-                            </div>
+                            <FormMessage />
                           </FormItem>
                         )}
                       />
@@ -2618,9 +2872,10 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
         crewMember={selectedCrewForBulkUpload}
         onSuccess={() => {
           setIsBulkUploadModalOpen(false);
-          queryClient.invalidateQueries({ queryKey: [`/api/vessels/${vessel?.id}/crew`] });
-          queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
           queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/vessels'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
         }}
       />
     </Dialog>

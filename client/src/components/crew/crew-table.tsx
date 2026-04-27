@@ -1,4 +1,4 @@
-﻿import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAuthHeaders } from '@/lib/auth';
 import { useAuth } from '@/contexts/auth-context';
 import { useToast } from '@/hooks/use-toast';
@@ -165,6 +165,9 @@ const CrewTable = React.memo(() => {
     const isShore = member.status === 'onShore' || !member.currentVesselId;
 
     return TRACKED_DOC_TYPES.map(type => {
+      const isNA = member[`${type}NotApplicable`] === true || (type === 'stcw_course' && member['stcwNotApplicable'] === true);
+      if (isNA) return { type, status: 'na' as const, expiryDate: null, daysUntil: null, docId: null, filePath: null };
+
       // For COC, also check for 'stcw' type since they're used interchangeably
       // Smart matching: Prioritize documents with file paths to avoid placeholders (from legacy data)
       let doc = crewDocs.find(d => {
@@ -287,6 +290,7 @@ const CrewTable = React.memo(() => {
       case 'expiring': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400';
       case 'runway_alert': return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border border-orange-200';
       case 'expired': return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+      case 'na': return 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500';
       default: return 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400';
     }
   };
@@ -1375,8 +1379,8 @@ const CrewTable = React.memo(() => {
                     {getCrewDocumentExpiry(member).map((doc) => (
                       <div
                         key={doc.type}
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getDocStatusColor(doc.status)}`}
-                        title={doc.expiryDate ? `Expires: ${formatDate(doc.expiryDate)}` : 'Not uploaded'}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${getDocStatusColor(doc.status)} ${doc.status === 'na' ? 'line-through opacity-50' : ''}`}
+                        title={doc.status === 'na' ? 'Not Applicable' : (doc.expiryDate ? `Expires: ${formatDate(doc.expiryDate)}` : 'Not uploaded')}
                       >
                         {getDocTypeLabel(doc.type)}
                         {doc.status === 'expiring' && doc.daysUntil !== null && (
@@ -1384,6 +1388,7 @@ const CrewTable = React.memo(() => {
                         )}
                         {doc.status === 'expired' && <span className="ml-0.5">!</span>}
                         {doc.status === 'missing' && <span className="ml-0.5">-</span>}
+                        {doc.status === 'na' && <span className="ml-0.5">~</span>}
                       </div>
                     ))}
                   </div>

@@ -30,7 +30,7 @@ export function STCWSection() {
                         <FormItem>
                             <FormLabel>Certificate Number</FormLabel>
                             <FormControl>
-                                <Input {...field} placeholder="Certificate No." className="bg-white dark:bg-gray-950" />
+                                <Input {...field} disabled={form.watch('stcwNotApplicable')} placeholder="Certificate No." className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -44,7 +44,7 @@ export function STCWSection() {
                         <FormItem>
                             <FormLabel>Issuing Authority</FormLabel>
                             <FormControl>
-                                <Input {...field} placeholder="Training Center / Authority" className="bg-white dark:bg-gray-950" />
+                                <Input {...field} disabled={form.watch('stcwNotApplicable')} placeholder="Training Center / Authority" className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -58,7 +58,7 @@ export function STCWSection() {
                         <FormItem>
                             <FormLabel>Issue Date</FormLabel>
                             <FormControl>
-                                <Input type="date" {...field} className="bg-white dark:bg-gray-950" />
+                                <Input type="date" {...field} disabled={form.watch('stcwNotApplicable')} className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -72,39 +72,51 @@ export function STCWSection() {
                         <FormItem>
                             <FormLabel>Expiry Date</FormLabel>
                             <FormControl>
-                                <div className="space-y-2">
-                                    <Input
-                                        type="date"
-                                        {...field}
-                                        disabled={form.watch('stcwTbd')}
-                                        className="bg-white dark:bg-gray-950"
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="stcwTbd"
-                                        render={({ field: tbdField }) => (
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="edit-stcw-tbd"
-                                                    checked={tbdField.value}
-                                                    onCheckedChange={(checked) => {
-                                                        tbdField.onChange(checked);
-                                                        if (checked) form.setValue('stcwExpiryDate', '');
-                                                    }}
-                                                />
-                                                <Label htmlFor="edit-stcw-tbd" className="text-sm font-medium leading-none cursor-pointer text-gray-500">
-                                                    TBD (To Be Determined) / Lifetime
-                                                </Label>
-                                            </div>
-                                        )}
-                                    />
-                                </div>
+                                <Input
+                                    type="date"
+                                    {...field}
+                                    disabled={form.watch('stcwNotApplicable')}
+                                    className="bg-white dark:bg-gray-950"
+                                />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
             </div>
+            <div className="pt-2 flex items-center justify-start">
+                <FormField
+                    control={form.control}
+                    name="stcwNotApplicable"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                            <FormControl>
+                                <Checkbox
+                                    id="stcw-na"
+                                    checked={field.value}
+                                    onCheckedChange={(checked) => {
+                                        field.onChange(checked);
+                                        if (checked) {
+                                            form.setValue('stcwNumber', '');
+                                            form.setValue('stcwIssuingAuthority', '');
+                                            form.setValue('stcwIssueDate', '');
+                                            form.setValue('stcwExpiryDate', '');
+                                        }
+                                    }}
+                                />
+                            </FormControl>
+                            <Label htmlFor="stcw-na" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+                                N/A (Not Applicable)
+                            </Label>
+                        </FormItem>
+                    )}
+                />
+            </div>
+            {form.watch('stcwNotApplicable') && (
+                <p className="text-sm text-gray-500 italic">
+                    * Course/STCW certificate is marked as not applicable for this crew member.
+                </p>
+            )}
         </div>
     );
 }

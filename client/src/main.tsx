@@ -44,6 +44,7 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </ErrorBoundary>
 );
+/* 
 // Register service worker and handle updates
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
@@ -62,3 +63,4 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+*/

@@ -40,13 +40,13 @@ const addCrewSchema = z.object({
   passportPlaceOfIssue: z.string().optional(),
   passportIssueDate: z.string().optional(),
   passportExpiryDate: z.string().optional(),
-  passportTbd: z.boolean().optional(),
+  passportNotApplicable: z.boolean().optional(),
 
   cdcNumber: z.string().optional(),
   cdcPlaceOfIssue: z.string().optional(),
   cdcIssueDate: z.string().optional(),
   cdcExpiryDate: z.string().optional(),
-  cdcTbd: z.boolean().optional(),
+  cdcNotApplicable: z.boolean().optional(),
 
   cocGradeNo: z.string().optional(),
   cocPlaceOfIssue: z.string().optional(),
@@ -58,13 +58,13 @@ const addCrewSchema = z.object({
   medicalApprovalNo: z.string().optional(),
   medicalIssueDate: z.string().optional(),
   medicalExpiryDate: z.string().optional(),
-  medicalTbd: z.boolean().optional(),
+  medicalNotApplicable: z.boolean().optional(),
 
   stcwNumber: z.string().optional(),
   stcwIssuingAuthority: z.string().optional(),
   stcwIssueDate: z.string().optional(),
   stcwExpiryDate: z.string().optional(),
-  stcwTbd: z.boolean().optional(),
+  stcwNotApplicable: z.boolean().optional(),
 });
 
 type AddCrewFormData = z.infer<typeof addCrewSchema>;
@@ -116,10 +116,12 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
       passportPlaceOfIssue: '',
       passportIssueDate: '',
       passportExpiryDate: '',
+      passportNotApplicable: false,
       cdcNumber: '',
       cdcPlaceOfIssue: '',
       cdcIssueDate: '',
       cdcExpiryDate: '',
+      cdcNotApplicable: false,
       cocGradeNo: '',
       cocPlaceOfIssue: '',
       cocIssueDate: '',
@@ -129,14 +131,12 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
       medicalApprovalNo: '',
       medicalIssueDate: '',
       medicalExpiryDate: '',
-      passportTbd: false,
-      cdcTbd: false,
-      medicalTbd: false,
+      medicalNotApplicable: false,
       stcwNumber: '',
       stcwIssuingAuthority: '',
       stcwIssueDate: '',
       stcwExpiryDate: '',
-      stcwTbd: false,
+      stcwNotApplicable: false,
     },
   });
 
@@ -269,6 +269,11 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
         email: data.email || undefined,
         currentVesselId: data.currentVesselId || null,
         status: data.status,
+        passportNotApplicable: data.passportNotApplicable || false,
+        cdcNotApplicable: data.cdcNotApplicable || false,
+        cocNotApplicable: data.cocNotApplicable || false,
+        medicalNotApplicable: data.medicalNotApplicable || false,
+        stcwNotApplicable: data.stcwNotApplicable || false,
         emergencyContact: {
           name: data.emergencyContactName,
           relationship: data.emergencyContactRelationship,
@@ -321,7 +326,8 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
 
       // 2. Create Documents
       const createDocument = async (type: string, docData: any, filePath?: string) => {
-        if (!docData.documentNumber && !docData.tbd && !docData.notApplicable && !filePath) return;
+        if (!docData.documentNumber && !docData.notApplicable && !filePath) return;
+        if (docData.notApplicable) return;
 
         // Ensure we have a document number for required field if it's AOA
         const documentNumber = docData.documentNumber || (type === 'aoa' ? `AOA-${Date.now()}` : '');
@@ -337,7 +343,7 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
             documentNumber,
             issuingAuthority,
             issueDate,
-            expiryDate: docData.tbd ? null : (docData.expiryDate ? new Date(docData.expiryDate + 'T00:00:00.000Z') : null),
+            expiryDate: docData.expiryDate ? new Date(docData.expiryDate + 'T00:00:00.000Z') : null,
             filePath: filePath,
           }),
         });
@@ -348,7 +354,7 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
         issuingAuthority: data.passportPlaceOfIssue,
         issueDate: data.passportIssueDate,
         expiryDate: data.passportExpiryDate,
-        tbd: data.passportTbd
+        notApplicable: data.passportNotApplicable
       });
 
       await createDocument('cdc', {
@@ -356,24 +362,23 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
         issuingAuthority: data.cdcPlaceOfIssue,
         issueDate: data.cdcIssueDate,
         expiryDate: data.cdcExpiryDate,
-        tbd: data.cdcTbd
+        notApplicable: data.cdcNotApplicable
       });
 
-      if (!data.cocNotApplicable) {
-        await createDocument('coc', {
-          documentNumber: data.cocGradeNo,
-          issuingAuthority: data.cocPlaceOfIssue,
-          issueDate: data.cocIssueDate,
-          expiryDate: data.cocExpiryDate
-        });
-      }
+      await createDocument('coc', {
+        documentNumber: data.cocGradeNo,
+        issuingAuthority: data.cocPlaceOfIssue,
+        issueDate: data.cocIssueDate,
+        expiryDate: data.cocExpiryDate,
+        notApplicable: data.cocNotApplicable
+      });
 
       await createDocument('medical', {
         documentNumber: data.medicalApprovalNo,
         issuingAuthority: data.medicalIssuingAuthority,
         issueDate: data.medicalIssueDate,
         expiryDate: data.medicalExpiryDate,
-        tbd: data.medicalTbd
+        notApplicable: data.medicalNotApplicable
       });
 
       await createDocument('stcw_course', {
@@ -381,7 +386,7 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
         issuingAuthority: data.stcwIssuingAuthority,
         issueDate: data.stcwIssueDate,
         expiryDate: data.stcwExpiryDate,
-        tbd: data.stcwTbd
+        notApplicable: data.stcwNotApplicable
       });
 
       // Create AOA document record if we have a file

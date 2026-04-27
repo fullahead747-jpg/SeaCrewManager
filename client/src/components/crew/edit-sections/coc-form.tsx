@@ -1,4 +1,5 @@
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     FormControl,
     FormField,
@@ -6,6 +7,7 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form';
+import { Label } from '@/components/ui/label';
 import { useFormContext } from 'react-hook-form';
 
 export function COCSection() {
@@ -18,25 +20,6 @@ export function COCSection() {
                     <div className="w-2 h-2 rounded-full bg-blue-500" />
                     COC Details
                 </h3>
-                <FormField
-                    control={form.control}
-                    name="cocNotApplicable"
-                    render={({ field }) => (
-                        <FormItem className="flex flex-row items-center space-x-2 space-y-0">
-                            <FormControl>
-                                <input
-                                    type="checkbox"
-                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                    checked={field.value}
-                                    onChange={field.onChange}
-                                />
-                            </FormControl>
-                            <FormLabel className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
-                                N/A (Not Applicable)
-                            </FormLabel>
-                        </FormItem>
-                    )}
-                />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -96,6 +79,34 @@ export function COCSection() {
                     )}
                 />
             </div>
+            <div className="pt-2 flex items-center justify-start">
+                <FormField
+                    control={form.control}
+                    name="cocNotApplicable"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                            <FormControl>
+                                <Checkbox
+                                    id="coc-na"
+                                    checked={field.value}
+                                    onCheckedChange={(checked) => {
+                                        field.onChange(checked);
+                                        if (checked) {
+                                            form.setValue('cocGradeNo', '');
+                                            form.setValue('cocPlaceOfIssue', '');
+                                            form.setValue('cocIssueDate', '');
+                                            form.setValue('cocExpiryDate', '');
+                                        }
+                                    }}
+                                />
+                            </FormControl>
+                            <Label htmlFor="coc-na" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+                                N/A (Not Applicable)
+                            </Label>
+                        </FormItem>
+                    )}
+                />
+            </div>
             {form.watch('cocNotApplicable') && (
                 <p className="text-sm text-gray-500 italic">
                     * COC requirement is marked as not applicable for this crew member.
@@ -104,3 +115,4 @@ export function COCSection() {
         </div>
     );
 }
+

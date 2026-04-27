@@ -30,7 +30,7 @@ export function MedicalSection() {
                         <FormItem>
                             <FormLabel>Issuing Authority</FormLabel>
                             <FormControl>
-                                <Input {...field} className="bg-white dark:bg-gray-950" />
+                                <Input {...field} disabled={form.watch('medicalNotApplicable')} className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -44,7 +44,7 @@ export function MedicalSection() {
                         <FormItem>
                             <FormLabel>Approval Number</FormLabel>
                             <FormControl>
-                                <Input {...field} className="bg-white dark:bg-gray-950" />
+                                <Input {...field} disabled={form.watch('medicalNotApplicable')} className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -58,7 +58,7 @@ export function MedicalSection() {
                         <FormItem>
                             <FormLabel>Issue Date</FormLabel>
                             <FormControl>
-                                <Input type="date" {...field} className="bg-white dark:bg-gray-950" />
+                                <Input type="date" {...field} disabled={form.watch('medicalNotApplicable')} className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -72,39 +72,51 @@ export function MedicalSection() {
                         <FormItem>
                             <FormLabel>Expiry Date</FormLabel>
                             <FormControl>
-                                <div className="space-y-2">
-                                    <Input
-                                        type="date"
-                                        {...field}
-                                        disabled={form.watch('medicalTbd')}
-                                        className="bg-white dark:bg-gray-950"
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="medicalTbd"
-                                        render={({ field: tbdField }) => (
-                                            <div className="flex items-center space-x-2">
-                                                <Checkbox
-                                                    id="edit-medical-tbd"
-                                                    checked={tbdField.value}
-                                                    onCheckedChange={(checked) => {
-                                                        tbdField.onChange(checked);
-                                                        if (checked) form.setValue('medicalExpiryDate', '');
-                                                    }}
-                                                />
-                                                <Label htmlFor="edit-medical-tbd" className="text-sm font-medium leading-none cursor-pointer text-gray-500">
-                                                    TBD (To Be Determined)
-                                                </Label>
-                                            </div>
-                                        )}
-                                    />
-                                </div>
+                                <Input
+                                    type="date"
+                                    {...field}
+                                    disabled={form.watch('medicalNotApplicable')}
+                                    className="bg-white dark:bg-gray-950"
+                                />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
             </div>
+            <div className="pt-2 flex items-center justify-start">
+                <FormField
+                    control={form.control}
+                    name="medicalNotApplicable"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center space-x-2 space-y-0">
+                            <FormControl>
+                                <Checkbox
+                                    id="medical-na"
+                                    checked={field.value}
+                                    onCheckedChange={(checked) => {
+                                        field.onChange(checked);
+                                        if (checked) {
+                                            form.setValue('medicalIssuingAuthority', '');
+                                            form.setValue('medicalApprovalNo', '');
+                                            form.setValue('medicalIssueDate', '');
+                                            form.setValue('medicalExpiryDate', '');
+                                        }
+                                    }}
+                                />
+                            </FormControl>
+                            <Label htmlFor="medical-na" className="text-sm font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+                                N/A (Not Applicable)
+                            </Label>
+                        </FormItem>
+                    )}
+                />
+            </div>
+            {form.watch('medicalNotApplicable') && (
+                <p className="text-sm text-gray-500 italic">
+                    * Medical certificate is marked as not applicable for this crew member.
+                </p>
+            )}
         </div>
     );
 }
