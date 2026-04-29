@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import {
     Eye, Edit, History, LogOut, LogIn,
     FileText, Download, Upload, Mail, ChevronDown, Trash2,
-    CheckCircle2, AlertCircle, UserCog, Check, FileDown, Loader2
+    CheckCircle2, AlertCircle, AlertTriangle, UserCog, Check, FileDown, Loader2
 } from 'lucide-react';
 import { CrewMemberWithDetails, Document } from '@shared/schema';
 import { formatDate, formatShortDate } from '@/lib/utils';
@@ -36,7 +36,7 @@ interface CrewDetailCardProps {
     onDownload: (id: string, name: string) => void;
     onViewAOA: (member: CrewMemberWithDetails) => void;
     onDelete?: (member: CrewMemberWithDetails) => void;
-    onDeleteDocument?: (docId: string, type: string) => void;
+    onDeleteDocument?: (docId: string, type: string, customMessage?: string) => void;
     onSignOn?: (member: CrewMemberWithDetails) => void;
     onSignOff?: (member: CrewMemberWithDetails) => void;
     onUpload?: (member: CrewMemberWithDetails, type: string) => void;
@@ -140,7 +140,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                 const docType = d.type.toLowerCase();
                 const searchType = type.toLowerCase();
                 const isMatch = searchType === 'coc' ? (docType === 'coc' || docType === 'stcw') : (docType === searchType);
-                return isMatch && d.filePath;
+                return isMatch;
             });
 
             if (type === 'aoa' && !doc && member.activeContract) {
@@ -152,7 +152,16 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                     const threshold = 30; // AOA is always 30 days
                     if (daysUntil !== null && daysUntil < 0) status = 'expired';
                     else if (daysUntil !== null && daysUntil <= threshold) status = 'expiring';
-                    return { type, status, expiryDate, daysUntil, docId: contract.id, filePath: contract.filePath, isContract: true };
+                    return { 
+                        type, 
+                        status, 
+                        expiryDate, 
+                        daysUntil, 
+                        docId: contract.id, 
+                        filePath: contract.filePath, 
+                        isContract: true,
+                        isNoFile: !(contract.filePath)
+                    };
                 }
             }
 
@@ -195,7 +204,17 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                 });
             }
 
-            return { type, status, expiryDate, daysUntil, docId: (doc as any)?.id || (doc as any)?.docId || null, filePath: (doc as any)?.filePath || null, isTbd, isContract: (doc as any)?.isContract || false };
+            return { 
+                type, 
+                status, 
+                expiryDate, 
+                daysUntil, 
+                docId: (doc as any)?.id || (doc as any)?.docId || null, 
+                filePath: (doc as any)?.filePath || null, 
+                isTbd, 
+                isContract: (doc as any)?.isContract || false,
+                isNoFile: !((doc as any)?.filePath)
+            };
         });
     }, [member, documents, now]);
 
@@ -503,9 +522,14 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                     <Check className="h-2.5 w-2.5 text-[#10B981] stroke-[4]" />
                                                 </div>
                                             )}
-                                            <span className={`text-[13px] font-semibold text-slate-700 uppercase tracking-tight ${doc.status === 'na' ? 'line-through opacity-50' : ''}`}>
-                                                {getDocTypeLabel(doc.type)}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <span className={`text-[13px] font-semibold text-slate-700 uppercase tracking-tight ${doc.status === 'na' ? 'line-through opacity-50' : ''}`}>
+                                                    {getDocTypeLabel(doc.type)}
+                                                </span>
+                                                {doc.isNoFile && doc.status !== 'na' && doc.status !== 'missing' && (
+                                                    <AlertTriangle className="h-3 w-3 text-orange-500" title="Data exists but no file uploaded" />
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="flex items-center gap-2">
@@ -544,6 +568,42 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                         </Button>
                                                     )}
                                                 </div>
+                                            ) : (doc.isContract || doc.isNoFile) && doc.status !== 'na' ? (
+                                                <div className="flex items-center gap-1">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        className="h-8 px-3 bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE] rounded-lg font-bold text-[11px] transition-all active:scale-95"
+                                                        onClick={() => onUpload?.(member, doc.type)}
+                                                    >
+                                                        <Upload className="h-3 w-3 mr-1.5" />
+                                                        Upload
+                                                    </Button>
+                                                    <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                            onClick={() => handleDocClick(doc)}
+                                                            disabled={loadingViewDocId === doc.docId || doc.isNoFile}
+                                                        >
+                                                            {loadingViewDocId === doc.docId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                                                        </Button>
+                                                        <Button
+                                                            size="icon"
+                                                            variant="ghost"
+                                                            className="h-8 w-8 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                            onClick={() => {
+                                                                const message = doc.isContract 
+                                                                    ? `This AOA is inherited from the contract. Do you want to unlink it?`
+                                                                    : undefined;
+                                                                onDeleteDocument?.(doc.docId!, doc.type, message);
+                                                            }}
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
                                             ) : (
                                                 <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                                                     {doc.status !== 'na' && (
@@ -562,7 +622,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                                 variant="ghost"
                                                                 className="h-8 w-8 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                                                                 onClick={() => handleDocDownload(doc)}
-                                                                disabled={loadingDownloadDocId === doc.docId}
+                                                                disabled={loadingDownloadDocId === doc.docId || doc.isNoFile}
                                                             >
                                                                 {loadingDownloadDocId === doc.docId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
                                                             </Button>
@@ -585,7 +645,12 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                                 onToggleNA?.(member, doc.type, false);
                                                                 return;
                                                             }
-                                                            onDeleteDocument?.(doc.docId!, doc.type);
+                                                            
+                                                            const message = (doc as any).isContract 
+                                                                ? `This AOA is inherited from the contract. Do you want to unlink it and upload a separate AOA document instead?`
+                                                                : undefined;
+                                                                
+                                                            onDeleteDocument?.(doc.docId!, doc.type, message);
                                                         }}
                                                     >
                                                         {doc.status === 'na' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}

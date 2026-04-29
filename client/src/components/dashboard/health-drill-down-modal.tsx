@@ -599,8 +599,9 @@ const HealthDrillDownModal = memo(({
         setSignOnDialogOpen(true);
     };
 
-    const handleDeleteDocument = (docId: string, type: string) => {
-        if (window.confirm(`Are you sure you want to delete this ${type.toUpperCase()} document?`)) {
+    const handleDeleteDocument = (docId: string, type: string, customMessage?: string) => {
+        const defaultMessage = `Are you sure you want to delete this ${type.toUpperCase()} document? This will remove the uploaded file but keep the document record.`;
+        if (window.confirm(customMessage || defaultMessage)) {
             deleteDocumentMutation.mutate(docId);
         }
     };
