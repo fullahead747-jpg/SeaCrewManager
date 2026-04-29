@@ -1204,9 +1204,19 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
   const toggleNAMutation = useMutation({
     mutationFn: async ({ crewId, type, value }: { crewId: string; type: string; value: boolean }) => {
       const updates: any = {};
-      if (type === 'coe-extension') {
-        updates.coeExtensionNotApplicable = value;
-      }
+      
+      // Map document types to their respective "NotApplicable" fields in the database
+      const typeMap: Record<string, string> = {
+        'passport': 'passportNotApplicable',
+        'cdc': 'cdcNotApplicable',
+        'coc': 'cocNotApplicable',
+        'medical': 'medicalNotApplicable',
+        'stcw_course': 'stcwNotApplicable',
+        'coe-extension': 'coeExtensionNotApplicable'
+      };
+
+      const fieldName = typeMap[type] || `${type}NotApplicable`;
+      updates[fieldName] = value;
 
       const response = await fetch(`/api/crew/${crewId}`, {
         method: 'PUT',
