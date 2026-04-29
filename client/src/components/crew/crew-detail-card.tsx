@@ -136,12 +136,22 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
 
             if (isNA) return { type, status: 'na' as const, expiryDate: null, daysUntil: null, docId: null, filePath: null, isTbd: false };
 
-            let doc = crewDocs.find(d => {
+            const matchingDocs = crewDocs.filter(d => {
                 const docType = d.type.toLowerCase();
                 const searchType = type.toLowerCase();
                 const isMatch = searchType === 'coc' ? (docType === 'coc' || docType === 'stcw') : (docType === searchType);
                 return isMatch;
+            }).sort((a, b) => {
+                // 1. Prioritize those with files
+                if (a.filePath && !b.filePath) return -1;
+                if (!a.filePath && b.filePath) return 1;
+                // 2. Otherwise sort by creation date (newest first)
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                return dateB - dateA;
             });
+
+            let doc = matchingDocs[0];
 
             if (type === 'aoa' && !doc && member.activeContract) {
                 const contract = member.activeContract;
