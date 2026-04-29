@@ -173,8 +173,23 @@ export default function SignOnWizardDialog({
 
         // General runway alert (industry best practice)
         if (daysUntilExpiry <= 180) return 'runway_alert';
-
         return 'valid';
+    };
+    
+    // Helper for smart document selection
+    const findSmartDoc = (type: string) => {
+        const matching = documents.filter((d: any) => {
+            const docType = d.type.toLowerCase();
+            const searchType = type.toLowerCase();
+            return docType === searchType;
+        }).sort((a: any, b: any) => {
+            if (a.filePath && !b.filePath) return -1;
+            if (!a.filePath && b.filePath) return 1;
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return dateB - dateA;
+        });
+        return matching[0];
     };
 
     const statusConfig = {
@@ -194,7 +209,7 @@ export default function SignOnWizardDialog({
         }
 
         return criticalTypes.filter(type => {
-            const doc = documents.find((d: any) => d.type === type);
+            const doc = findSmartDoc(type);
             const status = getDocumentStatus(doc, endDate);
             return status === 'expired' || status === 'expiring' || status === 'contract_block';
         });
@@ -205,7 +220,7 @@ export default function SignOnWizardDialog({
 
     // Check for runway alerts on critical documents
     const hasRunwayAlertDocs = ['passport', 'cdc', 'medical'].some(type => {
-        const doc = documents.find((d: any) => d.type === type);
+        const doc = findSmartDoc(type);
         return getDocumentStatus(doc, endDate) === 'runway_alert';
     });
 
@@ -723,13 +738,13 @@ export default function SignOnWizardDialog({
 
                                     {/* Document Cards */}
                                     {[
-                                        { type: 'passport', doc: passport, label: 'Passport', icon: '🛂' },
-                                        { type: 'cdc', doc: cdc, label: 'CDC (Continuous Discharge Certificate)', icon: '📋' },
-                                        { type: 'coc', doc: coc, label: 'COC (Certificate of Competency)', icon: '📜' },
-                                        { type: 'stcw_course', doc: documents.find((d: any) => d.type === 'stcw_course'), label: 'Courses', icon: '🎓' },
-                                        { type: 'medical', doc: medical, label: 'Medical Certificate', icon: '🏥' },
-                                        { type: 'coe', doc: documents.find((d: any) => d.type === 'coe'), label: 'COE', icon: '📄' },
-                                        { type: 'coe-extension', doc: documents.find((d: any) => d.type === 'coe-extension'), label: 'COE-Extension', icon: '📄' }
+                                        { type: 'passport', doc: findSmartDoc('passport'), label: 'Passport', icon: '🛂' },
+                                        { type: 'cdc', doc: findSmartDoc('cdc'), label: 'CDC (Continuous Discharge Certificate)', icon: '📋' },
+                                        { type: 'coc', doc: findSmartDoc('coc'), label: 'COC (Certificate of Competency)', icon: '📜' },
+                                        { type: 'stcw_course', doc: findSmartDoc('stcw_course'), label: 'Courses', icon: '🎓' },
+                                        { type: 'medical', doc: findSmartDoc('medical'), label: 'Medical Certificate', icon: '🏥' },
+                                        { type: 'coe', doc: findSmartDoc('coe'), label: 'COE', icon: '📄' },
+                                        { type: 'coe-extension', doc: findSmartDoc('coe-extension'), label: 'COE-Extension', icon: '📄' }
                                     ].map(({ type, doc, label, icon }) => {
                                         const status = getDocumentStatus(doc, endDate);
                                         const config = statusConfig[status];
@@ -822,7 +837,7 @@ export default function SignOnWizardDialog({
                                                             <p>You cannot sign on this crew member due to the following document issues:</p>
                                                             <ul className="list-disc pl-5 space-y-1">
                                                                 {getBlockers().map(type => {
-                                                                    const doc = documents.find((d: any) => d.type === type);
+                                                                    const doc = findSmartDoc(type);
                                                                     const status = getDocumentStatus(doc, endDate);
                                                                     const label = type.toUpperCase();
                                                                     const expiryStr = doc?.expiryDate ? formatDate(new Date(doc.expiryDate), 'MMM dd, yyyy') : 'N/A';
