@@ -140,7 +140,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                 const docType = d.type.toLowerCase();
                 const searchType = type.toLowerCase();
                 const isMatch = searchType === 'coc' ? (docType === 'coc' || docType === 'stcw') : (docType === searchType);
-                return isMatch && d.filePath;
+                return isMatch;
             });
 
             if (type === 'aoa' && !doc && member.activeContract) {
@@ -486,7 +486,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
 
                         <div className="space-y-1">
                             {docStatuses.map((doc) => {
-                                const isInvalid = doc.status === 'missing' || (doc.status === 'expired' && !doc.filePath);
+                                const isInvalid = doc.status === 'missing' || !doc.filePath;
                                 return (
                                     <div key={doc.type} className="flex items-center justify-between py-1.5 px-3 rounded-xl hover:bg-slate-50 transition-colors group">
                                         <div className="flex items-center gap-4">
