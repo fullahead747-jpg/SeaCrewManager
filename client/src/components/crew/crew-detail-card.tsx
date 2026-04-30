@@ -39,7 +39,7 @@ interface CrewDetailCardProps {
     onDeleteDocument?: (docId: string, type: string) => void;
     onSignOn?: (member: CrewMemberWithDetails) => void;
     onSignOff?: (member: CrewMemberWithDetails) => void;
-    onUpload?: (member: CrewMemberWithDetails, type: string) => void;
+    onUpload?: (member: CrewMemberWithDetails, type: string, existingDocId?: string | null) => void;
     onBulkUpload?: (member: CrewMemberWithDetails) => void;
     onToggleNA?: (member: CrewMemberWithDetails, type: string, value: boolean) => void;
     isMailPending?: boolean;
@@ -528,7 +528,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                         size="sm"
                                                         variant="ghost"
                                                         className="h-8 px-3 bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE] rounded-lg font-bold text-[11px] transition-all active:scale-95"
-                                                        onClick={() => onUpload?.(member, doc.type)}
+                                                        onClick={() => onUpload?.(member, doc.type, doc.docId)}
                                                     >
                                                         <Upload className="h-3 w-3 mr-1.5" />
                                                         Upload

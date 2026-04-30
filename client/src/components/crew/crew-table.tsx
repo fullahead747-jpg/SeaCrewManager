@@ -103,6 +103,7 @@ const CrewTable = React.memo(() => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [selectedCrewForUpload, setSelectedCrewForUpload] = useState<any>(null);
   const [selectedUploadType, setSelectedUploadType] = useState<string | undefined>(undefined);
+  const [selectedDocumentForUpload, setSelectedDocumentForUpload] = useState<Document | null>(null);
   const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
   const [selectedCrewForBulkUpload, setSelectedCrewForBulkUpload] = useState<CrewMemberWithDetails | null>(null);
 
@@ -393,9 +394,17 @@ const CrewTable = React.memo(() => {
     getInitials
   };
 
-  const handleUpload = (member: any, type: string) => {
+  const handleUpload = (member: any, type: string, existingDocId?: string | null) => {
     setSelectedCrewForUpload(member);
     setSelectedUploadType(type);
+    
+    if (existingDocId) {
+      const doc = documents.find(d => d.id === existingDocId);
+      setSelectedDocumentForUpload(doc || null);
+    } else {
+      setSelectedDocumentForUpload(null);
+    }
+    
     setIsUploadModalOpen(true);
   };
 
@@ -2361,6 +2370,7 @@ const CrewTable = React.memo(() => {
         <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">
           <DocumentUpload
             crewMemberId={selectedCrewForUpload?.id}
+            document={selectedDocumentForUpload}
             preselectedType={selectedUploadType}
             onSuccess={() => {
               setIsUploadModalOpen(false);

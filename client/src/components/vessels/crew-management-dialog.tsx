@@ -47,7 +47,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { CrewMemberWithDetails } from '@shared/schema';
+import { CrewMemberWithDetails, Document } from '@shared/schema';
 import type { VesselWithDetails } from './vessel-cards';
 import { formatDate } from '@/lib/utils';
 import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
@@ -181,6 +181,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [selectedCrewForUpload, setSelectedCrewForUpload] = useState<CrewMemberWithDetails | null>(null);
   const [uploadDocumentType, setUploadDocumentType] = useState<string | null>(null);
+  const [selectedDocumentForUpload, setSelectedDocumentForUpload] = useState<Document | null>(null);
   const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
   const [selectedCrewForBulkUpload, setSelectedCrewForBulkUpload] = useState<CrewMemberWithDetails | null>(null);
   const [contractDialogOpen, setContractDialogOpen] = useState(false);
@@ -1190,9 +1191,17 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
     setShowVesselHistoryDialog(true);
   };
 
-  const handleUploadClick = (member: CrewMemberWithDetails, type: string) => {
+  const handleUploadClick = (member: CrewMemberWithDetails, type: string, existingDocId?: string | null) => {
     setSelectedCrewForUpload(member);
     setUploadDocumentType(type);
+    
+    if (existingDocId) {
+      const doc = member.documents?.find(d => d.id === existingDocId);
+      setSelectedDocumentForUpload(doc || null);
+    } else {
+      setSelectedDocumentForUpload(null);
+    }
+    
     setShowUploadDialog(true);
   };
 
@@ -1393,6 +1402,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
           <div className="h-full w-full">
             <DocumentUpload
               crewMemberId={selectedCrewForUpload?.id}
+              document={selectedDocumentForUpload}
               preselectedType={uploadDocumentType || undefined}
               onSuccess={() => {
                 setShowUploadDialog(false);

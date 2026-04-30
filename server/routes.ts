@@ -1624,6 +1624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/documents/:id", authenticate, async (req, res) => {
     try {
+      const forceSave = !!req.body.forceSave;
       const updates = insertDocumentSchema.partial().parse(req.body);
 
       // Get existing document first (needed for validation and other checks)
@@ -1738,7 +1739,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const verification = await documentVerificationService.verifyDocument(fullPath, verifyData, cachedData);
 
-          if (!verification.isValid) {
+          if (!verification.isValid && !forceSave) {
             console.warn(`[STRICT-VALIDATION-PUT] Blocked update due to validation failure`);
 
             const changedFields = Object.keys(updates).filter(key => {
@@ -1755,16 +1756,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
             const criticalMismatches = verification.fieldComparisons
               .filter(c => !c.matches && ['documentNumber', 'expiryDate', 'issueDate'].includes(c.field))
-              // Only report mismatches for fields that actually changed compared to the system record
-              .filter(c => changedFields.includes(c.field))
+              // Report mismatches if the field was changed OR if a new file was uploaded
+              .filter(c => changedFields.includes(c.field) || changedFields.includes('filePath'))
               .map(c => {
-                const newValue = formatDate(c.existingValue);
-                // Find the original verified value from the record
-                let originalValue: any = (existingDocument as any)[c.field];
-                if (originalValue instanceof Date) originalValue = originalValue.toISOString();
-                const formattedOriginal = formatDate(originalValue);
+                const enteredValue = formatDate(c.existingValue);
+                const foundValue = formatDate(c.extractedValue);
 
-                return `${c.displayName}: You entered '${newValue}', but our verified record shows '${formattedOriginal}'`;
+                return `${c.displayName}: You entered '${enteredValue}', but the document appears to show '${foundValue || 'NONE'}'`;
               });
 
             const mainMessage = criticalMismatches.length > 0
@@ -1795,34 +1793,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (updates.filePath && !updates.filePath.startsWith('/')) {
             const documentStorageService = new DocumentStorageService();
             try {
-              const localPath = path.join(process.cwd(), updates.filePath);
-              const fileName = path.basename(localPath);
-              const uploadUrl = await documentStorageService.getDocumentUploadURL('crew', crewMember.id, fileName);
-
-              const fileBuffer = fs.readFileSync(localPath);
-              const response = await fetch(uploadUrl, {
-                method: 'PUT',
-                body: new Uint8Array(fileBuffer),
-                headers: {
-                  'Content-Type': getMimeType(localPath)
-                }
-              });
-
-              if (!response.ok) {
-                throw new Error(`Failed to upload to Object Storage: ${response.statusText}`);
-              }
-
-              const cloudPath = documentStorageService.normalizeDocumentPath(uploadUrl);
-              console.log(`[CLOUD-STORAGE-PUT] Successfully uploaded to ${cloudPath}`);
-              updates.filePath = cloudPath;
-
-              // Cleanup local file
-              fs.unlink(localPath, (err) => {
-                if (err) console.error(`[CLOUD-STORAGE-PUT] Failed to delete local file ${localPath}:`, err);
-              });
+              updates.filePath = await documentStorageService.uploadLocalFileToCloud(
+                updates.filePath,
+                crewMember.id,
+                'crew'
+              );
             } catch (storageError) {
               console.error("[CLOUD-STORAGE-PUT] Error uploading to Object Storage:", storageError);
-              return res.status(500).json({ message: "Failed to save updated document to persistent storage" });
+              // Fallback to local path already handled inside helper
             }
           }
         } catch (validationError) {

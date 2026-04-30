@@ -190,6 +190,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/drilldown'] });
       queryClient.invalidateQueries({ queryKey: ['/api/alerts/expiring-documents'] });
       toast({
         title: 'Success',
@@ -208,8 +209,11 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
       const errorInfo = error.info || error;
 
       // Check if this is a validation error that can be overridden
-      if (errorInfo.isValidationError) {
-        setValidationError(errorInfo.details);
+      const isValidationErr = errorInfo.isValidationError || 
+                              (errorInfo.message && (errorInfo.message.includes("Update Rejected") || errorInfo.message.includes("Validation")));
+      
+      if (isValidationErr) {
+        setValidationError(errorInfo.details || { message: errorInfo.message });
         setShowValidationDialog(true);
         // We still show a toast to notify that something went wrong
         toast({

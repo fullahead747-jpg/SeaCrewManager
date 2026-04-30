@@ -39,6 +39,7 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [selectedCrewForUpload, setSelectedCrewForUpload] = useState<CrewMemberWithDetails | null>(null);
     const [selectedUploadType, setSelectedUploadType] = useState<string | undefined>(undefined);
+    const [selectedDocumentForUpload, setSelectedDocumentForUpload] = useState<Document | null>(null);
     const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
     const [selectedCrewForBulkUpload, setSelectedCrewForBulkUpload] = useState<CrewMemberWithDetails | null>(null);
 
@@ -239,9 +240,17 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
     };
 
     // ── Handlers ───────────────────────────────────────────────────────────────
-    const handleUpload = (member: CrewMemberWithDetails, type: string) => {
+    const handleUpload = (member: CrewMemberWithDetails, type: string, existingDocId?: string | null) => {
         setSelectedCrewForUpload(member);
         setSelectedUploadType(type);
+        
+        if (existingDocId) {
+            const doc = documents.find(d => d.id === existingDocId);
+            setSelectedDocumentForUpload(doc || null);
+        } else {
+            setSelectedDocumentForUpload(null);
+        }
+        
         setIsUploadModalOpen(true);
     };
 
@@ -715,6 +724,7 @@ export default function SignOffDueModal({ isOpen, onClose }: SignOffDueModalProp
                     {selectedCrewForUpload && (
                         <DocumentUpload
                             crewMemberId={selectedCrewForUpload.id}
+                            document={selectedDocumentForUpload}
                             preselectedType={selectedUploadType}
                             onSuccess={() => {
                                 queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
