@@ -764,9 +764,8 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
     deleteCrewMutation.mutate(selectedCrewForDeletion.id);
   };
 
-  const handleDeleteDocument = (docId: string, type: string, customMessage?: string) => {
-    const defaultMessage = `Are you sure you want to delete this ${type.toUpperCase()} document? This will remove the uploaded file but keep the document record.`;
-    if (confirm(customMessage || defaultMessage)) {
+  const handleDeleteDocument = (docId: string, type: string) => {
+    if (confirm(`Are you sure you want to delete this ${type.toUpperCase()} document? This will remove the uploaded file but keep the document record.`)) {
       deleteDocumentMutation.mutate(docId);
     }
   };
@@ -1205,19 +1204,9 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
   const toggleNAMutation = useMutation({
     mutationFn: async ({ crewId, type, value }: { crewId: string; type: string; value: boolean }) => {
       const updates: any = {};
-      
-      // Map document types to their respective "NotApplicable" fields in the database
-      const typeMap: Record<string, string> = {
-        'passport': 'passportNotApplicable',
-        'cdc': 'cdcNotApplicable',
-        'coc': 'cocNotApplicable',
-        'medical': 'medicalNotApplicable',
-        'stcw_course': 'stcwNotApplicable',
-        'coe-extension': 'coeExtensionNotApplicable'
-      };
-
-      const fieldName = typeMap[type] || `${type}NotApplicable`;
-      updates[fieldName] = value;
+      if (type === 'coe-extension') {
+        updates.coeExtensionNotApplicable = value;
+      }
 
       const response = await fetch(`/api/crew/${crewId}`, {
         method: 'PUT',
