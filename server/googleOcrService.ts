@@ -438,7 +438,8 @@ export const googleOcrService = {
       }
 
       console.log(`[Google Document AI] Raw text extracted. Length: ${text.length} chars. Parsing AOA fields...`);
-      const debugFileName = `ocr_debug_${crewMemberId}_${Date.now()}.txt`;
+      const sanitizedFn = (filename || 'doc').replace(/[^a-zA-Z0-9]/g, '_');
+      const debugFileName = `ocr_debug_${sanitizedFn}_${Date.now()}.txt`;
       fs.writeFileSync(path.join(process.cwd(), debugFileName), text);
       console.log(`[OCR-DEBUG] Detailed text saved to: ${debugFileName}`);
 

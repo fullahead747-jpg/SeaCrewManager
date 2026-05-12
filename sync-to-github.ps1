@@ -17,7 +17,7 @@ if (-not $status) {
 
 # 3. Commit with timestamp
 $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-$message = "Fix: GCS Permission Denied - Unified Storage Client ($timestamp)"
+$message = "Fix: OCR ReferenceError and improved error reporting ($timestamp)"
 git commit -m $message
 
 # 4. Push to GitHub

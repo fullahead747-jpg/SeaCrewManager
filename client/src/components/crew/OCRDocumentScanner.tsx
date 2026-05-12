@@ -218,7 +218,8 @@ export function OCRDocumentScanner({ onDataExtracted, className, mode = 'crew' }
       });
 
       if (!response.ok) {
-        throw new Error('Failed to process document');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to process document');
       }
 
       const data = await response.json();
