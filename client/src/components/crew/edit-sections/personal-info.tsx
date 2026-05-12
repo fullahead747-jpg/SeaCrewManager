@@ -7,6 +7,7 @@ import {
     FormMessage,
 } from '@/components/ui/form';
 import { useFormContext } from 'react-hook-form';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface PersonalInfoSectionProps {
     crewMember?: any;
@@ -97,7 +98,7 @@ export function PersonalInfoSection({ crewMember }: PersonalInfoSectionProps) {
                         <FormItem>
                             <FormLabel>Date of Birth</FormLabel>
                             <FormControl>
-                                <Input type="date" {...field} className="bg-white dark:bg-gray-950" />
+                                <DatePicker {...field} className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>

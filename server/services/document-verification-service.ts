@@ -521,11 +521,18 @@ export class DocumentVerificationService {
             return extractedData;
 
         } catch (error) {
-            console.error('[OCR-ERROR] Extraction failed:', error);
-
-            // Fallback for non-critical errors or when offline (optional)
-            // For now, we throw the error as expected by the caller
-            throw new Error(`OCR processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            console.error('[OCR-RESILIENCE] Extraction failed (External Service Error):', error);
+            
+            // CRITICAL: Instead of throwing and causing a 500 error, we return an empty result.
+            // This allows the verification pipeline to continue with empty fields, which will
+            // trigger a validation mismatch in the UI, allowing the user to "Force Upload".
+            return {
+                documentNumber: undefined,
+                expiryDate: undefined,
+                issueDate: undefined,
+                holderName: undefined,
+                issuingAuthority: undefined
+            };
         }
     }
 
@@ -680,8 +687,8 @@ export class DocumentVerificationService {
         } else {
             // Generic mapping
             data = {
-                documentNumber: ocrData.documentNumber || ocrData.passportNo || ocrData.cdcNo || ocrData.cocGrade || ocrData.medicalApprovalNo,
-                issuingAuthority: ocrData.issuingAuthority || ocrData.passportPlace || ocrData.cdcPlace || ocrData.cocPlace || ocrData.medicalAuthority,
+                documentNumber: ocrData.documentNumber || ocrData.passportNumber || ocrData.cdcNumber || ocrData.cocGradeNo || ocrData.medicalApprovalNo || ocrData.passportNo || ocrData.cdcNo,
+                issuingAuthority: ocrData.issuingAuthority || ocrData.passportPlaceOfIssue || ocrData.cdcPlaceOfIssue || ocrData.cocPlaceOfIssue || ocrData.medicalIssuingAuthority || ocrData.passportPlace || ocrData.cdcPlace || ocrData.medicalAuthority,
                 issueDate: ocrData.issueDate || ocrData.passportIssueDate || ocrData.cdcIssueDate || ocrData.cocIssueDate || ocrData.medicalIssueDate,
                 expiryDate: ocrData.expiryDate || ocrData.passportExpiryDate || ocrData.cdcExpiryDate || ocrData.cocExpiryDate || ocrData.medicalExpiryDate,
                 holderName: this.cleanExtractedName(ocrData.detectedHolderName || ocrData.seafarerName || ocrData.name),

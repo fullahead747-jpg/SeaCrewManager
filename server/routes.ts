@@ -1803,11 +1803,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Fallback to local path already handled inside helper
             }
           }
-        } catch (validationError) {
-          console.error("Validation service error (PUT):", validationError);
+        } catch (validationError: any) {
+          console.error("[CRITICAL] Validation service error (PUT):", {
+            error: validationError.message,
+            stack: validationError.stack,
+            docId: req.params.id,
+            updates: updates
+          });
           return res.status(500).json({
             message: "Document verification service failed during update",
-            error: validationError instanceof Error ? validationError.message : 'Unknown error'
+            error: validationError instanceof Error ? validationError.message : 'Unknown error',
+            details: validationError.stack
           });
         }
       }

@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/form';
 import { Label } from '@/components/ui/label';
 import { useFormContext } from 'react-hook-form';
+import { DatePicker } from '@/components/ui/date-picker';
 
 export function STCWSection() {
     const form = useFormContext();
@@ -58,7 +59,7 @@ export function STCWSection() {
                         <FormItem>
                             <FormLabel>Issue Date</FormLabel>
                             <FormControl>
-                                <Input type="date" {...field} disabled={form.watch('stcwNotApplicable')} className="bg-white dark:bg-gray-950" />
+                                <DatePicker {...field} disabled={form.watch('stcwNotApplicable')} className="bg-white dark:bg-gray-950" />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
@@ -72,8 +73,7 @@ export function STCWSection() {
                         <FormItem>
                             <FormLabel>Expiry Date</FormLabel>
                             <FormControl>
-                                <Input
-                                    type="date"
+                                <DatePicker
                                     {...field}
                                     disabled={form.watch('stcwNotApplicable')}
                                     className="bg-white dark:bg-gray-950"

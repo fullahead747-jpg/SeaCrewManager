@@ -485,12 +485,9 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                           <div className="relative">
                             <Input
                               {...field}
-                              placeholder="e.g. DR. SUDHIR B. PATIL"
-                              className="h-14 pb-4 bg-background border-input"
+                              placeholder="e.g. DG SHIPPING, DR. SUDHIR B. PATIL"
+                              className="h-11 bg-background border-input"
                             />
-                            <span className="absolute bottom-1.5 left-3 text-[10px] text-muted-foreground font-medium uppercase tracking-wider">
-                              (MANGALA DIAGNOSTIC CENTRE)
-                            </span>
                           </div>
                         </FormControl>
                         <FormMessage />

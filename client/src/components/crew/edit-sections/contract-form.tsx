@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthHeaders } from '@/lib/auth';
 import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface ContractSectionProps {
     crewMember?: any;
@@ -72,14 +73,13 @@ export function ContractSection({ crewMember }: ContractSectionProps) {
                         <FormItem>
                             <FormLabel>Contract Start Date</FormLabel>
                             <FormControl>
-                                <Input
-                                    type="date"
+                                <DatePicker
                                     {...field}
                                     className="bg-white dark:bg-gray-950"
-                                    onChange={(e) => {
-                                        field.onChange(e);
+                                    onChange={(val) => {
+                                        field.onChange(val);
                                         // Calculate end date when start date changes
-                                        const startDate = e.target.value;
+                                        const startDate = val;
                                         const duration = form.getValues('contractDurationDays');
                                         if (startDate && duration) {
                                             const start = new Date(startDate);
@@ -136,10 +136,9 @@ export function ContractSection({ crewMember }: ContractSectionProps) {
                     <FormItem>
                         <FormLabel>Contract End Date (Auto-calculated)</FormLabel>
                         <FormControl>
-                            <Input
-                                type="date"
+                            <DatePicker
                                 {...field}
-                                readOnly
+                                disabled
                                 className="bg-gray-50 dark:bg-gray-900 cursor-not-allowed"
                             />
                         </FormControl>

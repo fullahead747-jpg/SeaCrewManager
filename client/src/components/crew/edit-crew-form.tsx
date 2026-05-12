@@ -42,19 +42,19 @@ const editCrewSchema = z.object({
   cocPlaceOfIssue: z.string().optional(),
   cocIssueDate: z.string().optional(),
   cocExpiryDate: z.string().optional(),
-  cocNotApplicable: z.boolean().optional(),
   medicalIssuingAuthority: z.string().optional(),
   medicalApprovalNo: z.string().optional(),
   medicalIssueDate: z.string().optional(),
   medicalExpiryDate: z.string().optional(),
-  passportTbd: z.boolean().optional(),
-  cdcTbd: z.boolean().optional(),
-  medicalTbd: z.boolean().optional(),
+  passportNotApplicable: z.boolean().optional(),
+  cdcNotApplicable: z.boolean().optional(),
+  cocNotApplicable: z.boolean().optional(),
+  medicalNotApplicable: z.boolean().optional(),
   stcwNumber: z.string().optional(),
   stcwIssuingAuthority: z.string().optional(),
   stcwIssueDate: z.string().optional(),
   stcwExpiryDate: z.string().optional(),
-  stcwTbd: z.boolean().optional(),
+  stcwNotApplicable: z.boolean().optional(),
   statusChangeReason: z.string().optional(),
 });
 
@@ -123,19 +123,19 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       cocPlaceOfIssue: coc?.issuingAuthority || '',
       cocIssueDate: formatDateForInput(coc?.issueDate),
       cocExpiryDate: formatDateForInput(coc?.expiryDate),
-      cocNotApplicable: crewMember.cocNotApplicable || false,
       medicalIssuingAuthority: medical?.issuingAuthority || '',
       medicalApprovalNo: medical?.documentNumber || '',
       medicalIssueDate: formatDateForInput(medical?.issueDate),
       medicalExpiryDate: formatDateForInput(medical?.expiryDate),
-      passportTbd: passport?.expiryDate === null,
-      cdcTbd: cdc?.expiryDate === null,
-      medicalTbd: medical?.expiryDate === null,
+      passportNotApplicable: crewMember.passportNotApplicable || false,
+      cdcNotApplicable: crewMember.cdcNotApplicable || false,
+      cocNotApplicable: crewMember.cocNotApplicable || false,
+      medicalNotApplicable: crewMember.medicalNotApplicable || false,
       stcwNumber: stcw?.documentNumber || '',
       stcwIssuingAuthority: stcw?.issuingAuthority || '',
       stcwIssueDate: formatDateForInput(stcw?.issueDate),
       stcwExpiryDate: formatDateForInput(stcw?.expiryDate),
-      stcwTbd: stcw?.expiryDate === null,
+      stcwNotApplicable: crewMember.stcwNotApplicable || false,
     },
   });
 
@@ -147,10 +147,15 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
     issueDate: string | undefined,
     expiryDate: string | undefined,
     existingDoc: any,
-    isTbd: boolean = false
+    isNotApplicable: boolean = false
   ) => {
-    const hasData = documentNumber || issueDate || expiryDate || isTbd;
+    const hasData = documentNumber || issueDate || expiryDate;
     if (!hasData && !existingDoc) return;
+    if (isNotApplicable && existingDoc) {
+      // If marked as N/A, we should probably delete the document or mark it as such
+      // For now, we'll just skip updating it or let it remain as is
+      return;
+    }
 
     if (existingDoc) {
       const docData = {
@@ -158,22 +163,22 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
         type,
         documentNumber: documentNumber || '',
         issuingAuthority: issuingAuthority || '',
-        issueDate: issueDate ? new Date(issueDate + 'T00:00:00.000Z') : (existingDoc.issueDate ? new Date(existingDoc.issueDate) : null),
-        expiryDate: isTbd ? null : (expiryDate ? new Date(expiryDate + 'T00:00:00.000Z') : (existingDoc.expiryDate ? new Date(existingDoc.expiryDate) : null)),
+        issueDate: issueDate ? new Date(issueDate + 'T00:00:00.000Z') : null,
+        expiryDate: expiryDate ? new Date(expiryDate + 'T00:00:00.000Z') : null,
       };
       await fetch(`/api/documents/${existingDoc.id}`, {
         method: 'PUT',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(docData),
       });
-    } else if (documentNumber && issueDate && expiryDate) {
+    } else if (documentNumber && (issueDate || expiryDate)) {
       const docData = {
         crewMemberId: crewMember.id,
         type,
         documentNumber: documentNumber,
         issuingAuthority: issuingAuthority || '',
-        issueDate: new Date(issueDate + 'T00:00:00.000Z'),
-        expiryDate: isTbd ? null : new Date(expiryDate + 'T00:00:00.000Z'),
+        issueDate: issueDate ? new Date(issueDate + 'T00:00:00.000Z') : null,
+        expiryDate: expiryDate ? new Date(expiryDate + 'T00:00:00.000Z') : null,
       };
       await fetch('/api/documents', {
         method: 'POST',
@@ -203,7 +208,11 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
           postalAddress: data.emergencyContactPostalAddress || '',
         } : null,
         postalAddress: data.postalAddress || null,
+        passportNotApplicable: data.passportNotApplicable || false,
+        cdcNotApplicable: data.cdcNotApplicable || false,
         cocNotApplicable: data.cocNotApplicable || false,
+        medicalNotApplicable: data.medicalNotApplicable || false,
+        stcwNotApplicable: data.stcwNotApplicable || false,
       };
 
       if (data.statusChangeReason) {
@@ -240,18 +249,15 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       }
 
       // Update Documents
-      await updateOrCreateDocument('passport', data.passportNumber, data.passportPlaceOfIssue, data.passportIssueDate, data.passportExpiryDate, passport, data.passportTbd);
-      await updateOrCreateDocument('cdc', data.cdcNumber, data.cdcPlaceOfIssue, data.cdcIssueDate, data.cdcExpiryDate, cdc, data.cdcTbd);
+      await updateOrCreateDocument('passport', data.passportNumber, data.passportPlaceOfIssue, data.passportIssueDate, data.passportExpiryDate, passport, data.passportNotApplicable);
+      await updateOrCreateDocument('cdc', data.cdcNumber, data.cdcPlaceOfIssue, data.cdcIssueDate, data.cdcExpiryDate, cdc, data.cdcNotApplicable);
 
       if (!data.cocNotApplicable) {
         await updateOrCreateDocument('coc', data.cocGradeNo, data.cocPlaceOfIssue, data.cocIssueDate, data.cocExpiryDate, coc, false);
-      } else if (coc) {
-        // If marked N/A but existed, logic to delete or ignore. Original did nothing/delete.
-        // We'll leave it as is for now.
       }
 
-      await updateOrCreateDocument('medical', data.medicalApprovalNo, data.medicalIssuingAuthority, data.medicalIssueDate, data.medicalExpiryDate, medical, data.medicalTbd);
-      await updateOrCreateDocument('stcw_course', data.stcwNumber, data.stcwIssuingAuthority, data.stcwIssueDate, data.stcwExpiryDate, stcw, data.stcwTbd);
+      await updateOrCreateDocument('medical', data.medicalApprovalNo, data.medicalIssuingAuthority, data.medicalIssueDate, data.medicalExpiryDate, medical, data.medicalNotApplicable);
+      await updateOrCreateDocument('stcw_course', data.stcwNumber, data.stcwIssuingAuthority, data.stcwIssueDate, data.stcwExpiryDate, stcw, data.stcwNotApplicable);
 
       const response = await fetch(`/api/crew/${crewMember.id}`, {
         method: 'PUT',

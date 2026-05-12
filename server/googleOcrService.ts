@@ -131,9 +131,15 @@ function parseAoaFields(text: string): Record<string, string | number> {
     /(?:4|5)\.\s+INDoS\s*No\.?[:\s]+([A-Za-z0-9]{8,15})/im,
   ]) || '';
 
+  // Generic document number extraction for miscellaneous types (like COE)
+  result.documentNumber = extract(t, [
+    /(?:Endorsement|Certificate|Document|COE|Ref)\s*(?:No\.?|Number)[:\s]*([A-Z0-9\-\/]{5,})/i,
+    /No\.?\s*:\s*([A-Z0-9\-\/]{5,})/i,
+  ]) || '';
+
   // ── Next of Kin (NOK) / Emergency Contact ──────────────────────────────
   result.emergencyContactName = extract(nokScope, [
-    /(?:Name|Full\s*Name)[:\s]*([A-Z][A-A .]{3,})/i,
+    /(?:Name|Full\s*Name)[:\s]*([A-Z][A-Z .]{3,})/i,
     /Name[\s:]*\n?([A-Z][A-Z .]{3,})/im,
   ]) || '';
 
@@ -432,16 +438,24 @@ export const googleOcrService = {
       }
 
       console.log(`[Google Document AI] Raw text extracted. Length: ${text.length} chars. Parsing AOA fields...`);
-      fs.writeFileSync(path.join(process.cwd(), 'ocr_debug.txt'), text);
+      const debugFileName = `ocr_debug_${crewMemberId}_${Date.now()}.txt`;
+      fs.writeFileSync(path.join(process.cwd(), debugFileName), text);
+      console.log(`[OCR-DEBUG] Detailed text saved to: ${debugFileName}`);
 
       const extractedData = parseAoaFields(text);
 
       const fieldCount = Object.keys(extractedData).filter(k => k !== 'rawText' && k !== 'serviceOrigin').length;
       console.log(`[Google Document AI] Parsed ${fieldCount} fields from document.`);
 
+      console.log('[OCR-EXTRACT] Successfully extracted data structure.');
       return extractedData;
-    } catch (error) {
-      console.error('[Google Document AI] Error:', error);
+    } catch (error: any) {
+      console.error('[OCR-CRITICAL-ERROR] Google Document AI failed:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        filename: filename
+      });
       throw error;
     }
   },
