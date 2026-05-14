@@ -259,37 +259,48 @@ export async function generateFleetPDFBuffer(storage: IStorage): Promise<{ buffe
                     doc.fillColor('#64748b').fontSize(10).font('Helvetica').text(`Count: ${unassignedCrew.length}`, 40, doc.y);
                     doc.moveDown(0.5);
 
-                    const colWidths = [200, 150, 150];
-                    const headers = ['Crew Name', 'Rank', 'Status'];
+                    const colWidths = [180, 120, 100, 120, 120];
+                    const headers = ['Crew Name', 'Rank', 'Status', 'Sign Off Date', 'Contact Number'];
+
+                    const drawUnassignedRow = (y: number, row: string[], isHeader = false) => {
+                        let x = 40;
+                        doc.fillColor(isHeader ? '#ffffff' : '#334155');
+                        doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+
+                        if (isHeader) {
+                            doc.rect(x, y - 5, colWidths.reduce((a, b) => a + b, 0), 20).fill('#b91c1c');
+                            doc.fillColor('#ffffff');
+                        }
+
+                        row.forEach((cell, i) => {
+                            doc.text(cell || 'N/A', x + 5, y, { width: colWidths[i] - 10, lineBreak: false });
+                            x += colWidths[i];
+                        });
+                    };
 
                     let currentY = doc.y;
-
-                    doc.font('Helvetica-Bold').fontSize(9).fillColor('#ffffff');
-                    doc.rect(40, currentY - 5, 500, 20).fill('#b91c1c');
-                    doc.fillColor('#ffffff');
-                    doc.text(headers[0], 45, currentY);
-                    doc.text(headers[1], 245, currentY);
-                    doc.text(headers[2], 395, currentY);
+                    drawUnassignedRow(currentY, headers, true);
                     currentY += 22;
 
                     unassignedCrew.forEach((member, i) => {
                         if (currentY > doc.page.height - 80) {
                             doc.addPage();
                             currentY = 40;
+                            drawUnassignedRow(currentY, headers, true);
+                            currentY += 22;
                         }
 
                         if (i % 2 === 0) {
-                            doc.rect(40, currentY - 4, 500, 18).fill('#fef2f2');
+                            doc.rect(40, currentY - 4, colWidths.reduce((a, b) => a + b, 0), 18).fill('#fef2f2');
                         }
 
-                        doc.fillColor('#334155').font('Helvetica');
                         const name = `${member.firstName} ${member.lastName}`.toUpperCase();
                         const rank = member.rank || 'N/A';
                         const status = member.status === 'onBoard' ? 'ON BOARD' : 'ON SHORE';
+                        const signOffDate = member.signOffDate ? format(new Date(member.signOffDate), 'MMM dd, yyyy') : 'N/A';
+                        const contact = member.phoneNumber || 'N/A';
 
-                        doc.text(name, 45, currentY);
-                        doc.text(rank, 245, currentY);
-                        doc.text(status, 395, currentY);
+                        drawUnassignedRow(currentY, [name, rank, status, signOffDate, contact]);
                         currentY += 18;
                     });
                 }

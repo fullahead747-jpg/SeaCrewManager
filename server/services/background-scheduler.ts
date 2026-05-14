@@ -80,77 +80,65 @@ export class BackgroundScheduler {
       const now = new Date();
       const dateStr = now.toISOString().split('T')[0];
       const hour = now.getHours();
+      const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 4 = Thursday
 
       console.log(`⏰ Running scheduled tasks at: ${now.toLocaleString()}`);
 
-      // 1. Hourly/General Notifications
-      await this.runNotificationCheck();
+      // NEW SCHEDULE: Thursday at 4:00 PM (16:00) and Monday morning at 10:00 AM (10:00)
+      const isThursday4PM = dayOfWeek === 4 && hour === 16;
+      const isMonday10AM = dayOfWeek === 1 && hour === 10;
 
-      // 2. Scheduled Managed Reports
-      // Monday at 9:00 AM and Friday at 6:00 PM (18:00)
-      const dayOfWeek = now.getDay();
-      const isMondayMorning = dayOfWeek === 1 && hour === 9;
-      const isFridayEvening = dayOfWeek === 5 && hour === 18;
-
-      if (isMondayMorning || isFridayEvening) {
-        const reportType = isMondayMorning ? 'monday_morning_report' : 'friday_evening_report';
+      if (isThursday4PM || isMonday10AM) {
+        const reportType = isThursday4PM ? 'thursday_4pm_report' : 'monday_10am_report';
         const alreadySent = await storage.hasNotificationBeenSentToday(
-          `managed-report-${reportType}`,
+          `consolidated-report-${reportType}`,
           'managed_report',
           'email',
           dateStr
         );
 
         if (!alreadySent && this.lastReportSentDate !== `${dateStr}-H${hour}`) {
-          console.log(`📊 Triggering scheduled managed reports (${isMondayMorning ? 'Mon 9AM' : 'Fri 6PM'})...`);
-          const reportResult = await managedReportService.generateAndSendReports();
+          console.log(`📊 Triggering scheduled consolidated PDF report (${isThursday4PM ? 'Thu 4PM' : 'Mon 10AM'})...`);
+          const reportResult = await managedReportService.sendConsolidatedFullReport();
           if (reportResult.success) {
             this.lastReportSentDate = `${dateStr}-H${hour}`;
-            console.log(`✅ Managed reports sent: ${reportResult.sent.join(', ')}`);
+            console.log(`✅ Consolidated PDF report sent successfully`);
 
-            // Log a persistent "pulse" notification to mark this window as completed
             await storage.logNotification({
-              eventId: `managed-report-${reportType}`,
+              eventId: `consolidated-report-${reportType}`,
               eventType: 'managed_report',
               eventDate: now,
               notificationDate: now,
               daysBeforeEvent: 0,
               provider: 'system',
               success: true,
-              metadata: { sentCategories: reportResult.sent }
+              metadata: { reportType }
             });
           } else {
-            console.error(`❌ Failed to send managed reports: ${reportResult.error}`);
+            console.error(`❌ Failed to send consolidated report: ${reportResult.error}`);
           }
         }
       }
 
-      // 3. Contract Health Transition Alerts
-      // Every day at or after 10:00 AM (with catch-up logic)
-      if (hour >= 10) {
-        const alreadySent = await storage.hasNotificationBeenSentToday(
-          'contract-health-transitions',
-          'contract_expiry',
-          'email',
-          dateStr
-        );
+      // 1. Hourly/General Notifications - DISABLED per user request
+      // await this.runNotificationCheck();
 
-        if (!alreadySent) {
-          console.log('🔔 Triggering daily contract health transition check...');
-          await contractHealthAlertService.checkTransitions();
+      // 2. Scheduled Managed Reports - DISABLED per user request (replaced by consolidated report)
+      /*
+      const isMondayMorning = dayOfWeek === 1 && hour === 9;
+      const isFridayEvening = dayOfWeek === 5 && hour === 18;
 
-          await storage.logNotification({
-            eventId: 'contract-health-transitions',
-            eventType: 'contract_expiry',
-            eventDate: now,
-            notificationDate: now,
-            daysBeforeEvent: 0,
-            provider: 'system',
-            success: true,
-            metadata: { hour }
-          });
-        }
+      if (isMondayMorning || isFridayEvening) {
+        ...
       }
+      */
+
+      // 3. Contract Health Transition Alerts - DISABLED per user request
+      /*
+      if (hour >= 10) {
+        ...
+      }
+      */
 
       // 4. Daily initialization (if needed)
       if (this.lastRunDate !== dateStr) {
@@ -194,9 +182,10 @@ export class BackgroundScheduler {
    */
   private async runNotificationCheck(): Promise<void> {
     const startTime = Date.now();
-    console.log('🔍 Running scheduled notification check...');
+    console.log('🔍 Skipping scheduled individual notification checks (Disabled per user request)...');
 
     try {
+      /*
       // Initialize the notification service to pick up any settings changes
       await notificationService.initialize();
 
@@ -214,22 +203,15 @@ export class BackgroundScheduler {
 
       // Check if daily compliance digest should be sent (Phase 2 - 8 AM daily)
       await this.checkAndSendDailyComplianceDigest();
+      */
 
       const endTime = Date.now();
       const duration = endTime - startTime;
-      console.log(`✅ Notification check completed successfully in ${duration}ms`);
+      console.log(`✅ Notification check skip completed in ${duration}ms`);
     } catch (error) {
       const endTime = Date.now();
       const duration = endTime - startTime;
       console.error(`❌ Notification check failed after ${duration}ms:`, error);
-
-      if (error instanceof Error) {
-        console.error('Error details:', {
-          message: error.message,
-          stack: error.stack,
-          name: error.name,
-        });
-      }
     }
   }
 

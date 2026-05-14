@@ -2,6 +2,7 @@ import { storage } from '../storage';
 import { smtpEmailService } from './smtp-email-service';
 import { pdfGeneratorService } from './pdf-generator';
 import { format } from 'date-fns';
+import { generateFleetPDFBuffer } from '../utils/vessel-pdf-generator';
 
 export class ManagedReportService {
   async generateAndSendReports(): Promise<{ success: boolean; sent: string[]; error?: string }> {
@@ -240,7 +241,88 @@ export class ManagedReportService {
     }
   }
 
+  async sendConsolidatedFullReport(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const now = new Date();
+      const settings = await storage.getEmailSettings();
+      const recipientEmail = settings?.recipientEmail || process.env.REPORT_RECIPIENT_EMAIL || process.env.GMAIL_USER || 'management@fullahead.in';
+
+      console.log(`📊 Generating "Complete Fleet Report" PDF...`);
+      const { buffer: pdfBuffer, fileName } = await generateFleetPDFBuffer(storage);
+
+      if (!pdfBuffer || pdfBuffer.length === 0) {
+        console.error('❌ Failed to generate Fleet Report PDF');
+        return { success: false, error: 'PDF generation failed' };
+      }
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #334155; line-height: 1.5; }
+            .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+            .header { background-color: #1e3a5f; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center; }
+            .content { background-color: #ffffff; border: 1px solid #e2e8f0; border-top: none; padding: 20px; border-radius: 0 0 8px 8px; }
+            .footer { text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1 style="margin: 0; font-size: 24px;">Complete Fleet Report</h1>
+              <p style="margin: 5px 0 0 0; opacity: 0.9;">Crew Management System - Automated Consolidated Report</p>
+            </div>
+            <div class="content">
+              <p>Please find attached the <strong>Complete Fleet Report</strong> as requested.</p>
+              <p>This report contains a comprehensive overview of the entire fleet, including vessel-wise crew lists and active crew status as of today.</p>
+              <div style="margin-top: 30px; text-align: center;">
+                <a href="${process.env.APP_URL || ''}/dashboard" 
+                   style="background-color: #1e293b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+                  Access Fleet Dashboard
+                </a>
+              </div>
+            </div>
+            <div class="footer">
+              <p>This is an automated report generated on ${format(new Date(), 'dd MMMM yyyy HH:mm')}</p>
+              <p>&copy; ${new Date().getFullYear()} Crew Management Pro. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      await smtpEmailService.sendEmailWithAttachment({
+        to: recipientEmail,
+        subject: `📋 Full DOWNLOAD - Export PDF: Complete Fleet Report - ${format(now, 'dd MMM yyyy')}`,
+        html,
+        attachments: [{
+          filename: `Complete-Fleet-Report-${format(now, 'dd-MMM-yyyy')}.pdf`,
+          content: pdfBuffer,
+          contentType: 'application/pdf'
+        }]
+      });
+
+      await storage.logActivity({
+        type: 'Notification',
+        entityType: 'Notification',
+        action: 'send',
+        description: `Complete Fleet Report PDF sent to ${recipientEmail}`,
+        username: 'system',
+        userRole: 'admin',
+        severity: 'info'
+      });
+
+      return { success: true };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error sending consolidated report:', error);
+      return { success: false, error: errorMessage };
+    }
+  }
+
   private async sendCategoryEmail(to: string, category: string, color: string, data: any[], attachment?: Buffer | null) {
+
     const html = `
       <!DOCTYPE html>
       <html>
