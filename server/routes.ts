@@ -3565,6 +3565,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Trigger consolidated Complete Fleet Report manually
+  app.post("/api/email/send-fleet-report", authenticate, async (req, res) => {
+    try {
+      console.log("Manually triggering Complete Fleet Report email...");
+      const { managedReportService } = await import('./services/managed-report-service');
+      const result = await managedReportService.sendConsolidatedFullReport();
+
+      if (result.success) {
+        res.json({ message: "Complete Fleet Report sent successfully!" });
+      } else {
+        res.status(500).json({ message: `Failed to send Complete Fleet Report: ${result.error || 'Unknown error'}` });
+      }
+    } catch (error) {
+      console.error('Manual fleet report email error:', error);
+      res.status(500).json({
+        message: "Failed to send Complete Fleet Report",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Test Medical Certificate expiry alert endpoint
   app.post("/api/email/test-medical-alert", authenticate, async (req, res) => {
     try {

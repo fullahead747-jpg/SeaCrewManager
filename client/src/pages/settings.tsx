@@ -173,6 +173,27 @@ export default function Settings() {
     },
   });
 
+  // Send Fleet Report Mutation
+  const sendFleetReport = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('POST', '/api/email/send-fleet-report');
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Success',
+        description: data.message || 'Complete Fleet Report sent successfully!',
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to send Complete Fleet Report',
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Export Activity Report
   const exportActivityReport = async () => {
     try {
@@ -615,7 +636,7 @@ export default function Settings() {
                       />
                     </div>
 
-                    <div className="flex space-x-3">
+                    <div className="flex flex-wrap gap-3">
                       <Button
                         onClick={() => {
                           const updatedSettings = {
@@ -646,6 +667,21 @@ export default function Settings() {
                       >
                         <TestTube className="h-4 w-4 mr-2" />
                         Send Test Email
+                      </Button>
+                      <Button
+                        onClick={() => sendFleetReport.mutate()}
+                        disabled={sendFleetReport.isPending}
+                        variant="secondary"
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium ml-auto"
+                        data-testid="button-send-fleet-report"
+                      >
+                        {sendFleetReport.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <FileText className="h-4 w-4 mr-2" />
+                        )}
+                        Email Complete Fleet Report
                       </Button>
                     </div>
                   </>

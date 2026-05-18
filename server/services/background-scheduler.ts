@@ -27,7 +27,7 @@ export class BackgroundScheduler {
   private isRunning: boolean = false;
   private lastRunDate: string | null = null;
   private lastReportSentDate: string | null = null; // Track managed reports
-  private readonly HOUR_IN_MS = 60 * 60 * 1000; // 1 hour in milliseconds
+  private readonly INTERVAL_MS = 15 * 60 * 1000; // 15 minutes in milliseconds
 
   private constructor() {
     console.log('🕐 Background scheduler initialized');
@@ -57,16 +57,16 @@ export class BackgroundScheduler {
       console.error('❌ Error in initial scheduled tasks:', error);
     });
 
-    // Then schedule to run every hour
+    // Then schedule to run every 15 minutes
     this.intervalId = setInterval(() => {
       this.runScheduledTasks().catch(error => {
         console.error('❌ Error in scheduled tasks:', error);
       });
-    }, this.HOUR_IN_MS);
+    }, this.INTERVAL_MS);
 
     this.isRunning = true;
     this.isProcessing = false; // Ensure this is reset
-    console.log('✅ Background scheduler started - will check for notifications every hour');
+    console.log('✅ Background scheduler started - will check for notifications every 15 minutes');
   }
 
   /**
@@ -78,15 +78,25 @@ export class BackgroundScheduler {
 
     try {
       const now = new Date();
-      const dateStr = now.toISOString().split('T')[0];
-      const hour = now.getHours();
-      const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, ..., 4 = Thursday
+      
+      // Convert current time to India Standard Time (IST) safely regardless of server timezone
+      const istString = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+      const istDate = new Date(istString);
+      
+      const year = istDate.getFullYear();
+      const month = String(istDate.getMonth() + 1).padStart(2, '0');
+      const day = String(istDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      const hour = istDate.getHours();
+      const dayOfWeek = istDate.getDay(); // 0 = Sunday, 1 = Monday, ..., 4 = Thursday
 
-      console.log(`⏰ Running scheduled tasks at: ${now.toLocaleString()}`);
+      console.log(`⏰ Running scheduled tasks at: ${istString} (IST)`);
 
       // NEW SCHEDULE: Thursday at 4:00 PM (16:00) and Monday morning at 10:00 AM (10:00)
-      const isThursday4PM = dayOfWeek === 4 && hour === 16;
-      const isMonday10AM = dayOfWeek === 1 && hour === 10;
+      // Added a catch-up window (hour >= 16, hour >= 10) so it sends even if server was down at exactly 10:00 or 16:00.
+      const isThursday4PM = dayOfWeek === 4 && hour >= 16;
+      const isMonday10AM = dayOfWeek === 1 && hour >= 10;
 
       if (isThursday4PM || isMonday10AM) {
         const reportType = isThursday4PM ? 'thursday_4pm_report' : 'monday_10am_report';
@@ -97,11 +107,11 @@ export class BackgroundScheduler {
           dateStr
         );
 
-        if (!alreadySent && this.lastReportSentDate !== `${dateStr}-H${hour}`) {
+        if (!alreadySent && this.lastReportSentDate !== `${dateStr}-${reportType}`) {
           console.log(`📊 Triggering scheduled consolidated PDF report (${isThursday4PM ? 'Thu 4PM' : 'Mon 10AM'})...`);
           const reportResult = await managedReportService.sendConsolidatedFullReport();
           if (reportResult.success) {
-            this.lastReportSentDate = `${dateStr}-H${hour}`;
+            this.lastReportSentDate = `${dateStr}-${reportType}`;
             console.log(`✅ Consolidated PDF report sent successfully`);
 
             await storage.logNotification({
@@ -110,7 +120,7 @@ export class BackgroundScheduler {
               eventDate: now,
               notificationDate: now,
               daysBeforeEvent: 0,
-              provider: 'system',
+              provider: 'email', // Changed from 'system' to match the check above
               success: true,
               metadata: { reportType }
             });
@@ -575,7 +585,7 @@ export class BackgroundScheduler {
     return {
       isRunning: this.isRunning,
       lastCheck: this.isRunning ? new Date() : null,
-      nextCheck: this.isRunning ? new Date(Date.now() + this.HOUR_IN_MS) : null,
+      nextCheck: this.isRunning ? new Date(Date.now() + this.INTERVAL_MS) : null,
     };
   }
 }
