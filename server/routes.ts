@@ -1677,8 +1677,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // STRICT VALIDATION FOR EDITS
-      // Run validation if ANY critical field is changed OR if a new file is uploaded
-      const isCriticalUpdate = updates.filePath || updates.documentNumber || updates.expiryDate !== undefined || updates.issueDate !== undefined;
+      // Run validation only if a new file is uploaded
+      const isCriticalUpdate = !!updates.filePath;
       const fileToCheck = updates.filePath || existingDocument.filePath;
 
       if (isCriticalUpdate && fileToCheck) {

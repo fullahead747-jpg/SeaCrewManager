@@ -149,13 +149,20 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
     existingDoc: any,
     isNotApplicable: boolean = false
   ) => {
-    const hasData = documentNumber || issueDate || expiryDate;
-    if (!hasData && !existingDoc) return;
     if (isNotApplicable && existingDoc) {
-      // If marked as N/A, we should probably delete the document or mark it as such
-      // For now, we'll just skip updating it or let it remain as is
+      const res = await fetch(`/api/documents/${existingDoc.id}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `Failed to delete ${type.toUpperCase()} document`);
+      }
       return;
     }
+
+    const hasData = documentNumber || issueDate || expiryDate;
+    if (!hasData && !existingDoc) return;
 
     if (existingDoc) {
       const docData = {
@@ -166,11 +173,15 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
         issueDate: issueDate ? new Date(issueDate + 'T00:00:00.000Z') : null,
         expiryDate: expiryDate ? new Date(expiryDate + 'T00:00:00.000Z') : null,
       };
-      await fetch(`/api/documents/${existingDoc.id}`, {
+      const res = await fetch(`/api/documents/${existingDoc.id}`, {
         method: 'PUT',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(docData),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `Failed to update ${type.toUpperCase()} document`);
+      }
     } else if (documentNumber && (issueDate || expiryDate)) {
       const docData = {
         crewMemberId: crewMember.id,
@@ -180,11 +191,15 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
         issueDate: issueDate ? new Date(issueDate + 'T00:00:00.000Z') : null,
         expiryDate: expiryDate ? new Date(expiryDate + 'T00:00:00.000Z') : null,
       };
-      await fetch('/api/documents', {
+      const res = await fetch('/api/documents', {
         method: 'POST',
         headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(docData),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `Failed to create ${type.toUpperCase()} document`);
+      }
     }
   };
 

@@ -16,6 +16,7 @@ import { CrewMemberWithDetails, Vessel, Document } from "@shared/schema";
 
 
 import { CrewDetailCard } from "@/components/crew/crew-detail-card";
+import ViewCrewDetails from "@/components/crew/view-crew-details";
 import { useQueryClient, useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
@@ -781,146 +782,17 @@ const HealthDrillDownModal = memo(({
                 </DialogContent>
             </Dialog >
 
-            {/* View Crew Member Dialog */}
-            < Dialog open={showViewDialog} onOpenChange={setShowViewDialog} >
-                <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center space-x-2">
-                            <Eye className="h-5 w-5 text-maritime-navy" />
-                            <span>Seafarer Details</span>
-                        </DialogTitle>
-                    </DialogHeader>
-
-                    {selectedCrewMember && (
-                        <div className="space-y-6">
-                            {/* Profile Header */}
-                            <div className="flex items-center space-x-4 p-4 bg-muted/50 rounded-lg">
-                                <CrewAvatar
-                                    memberId={selectedCrewMember.id}
-                                    documents={(selectedCrewMember as any).documents}
-                                    firstName={selectedCrewMember.firstName}
-                                    lastName={selectedCrewMember.lastName}
-                                    className="h-20 w-20 border-2 border-white shadow-sm"
-                                />
-                                <div>
-                                    <h2 className="text-2xl font-bold text-foreground">
-                                        {selectedCrewMember.firstName} {selectedCrewMember.lastName}
-                                    </h2>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <Badge variant="secondary" className="bg-ocean-blue/10 text-ocean-blue border-ocean-blue/20">
-                                            {selectedCrewMember.rank}
-                                        </Badge>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* Personal Information */}
-                                <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                                    <h4 className="font-medium text-blue-900 flex items-center mb-3">
-                                        <div className="w-2 h-2 bg-blue-600 rounded-full mr-3"></div>
-                                        Personal Information
-                                    </h4>
-                                    <div className="text-sm space-y-2">
-                                        <p><span className="font-medium">Nationality:</span> {selectedCrewMember.nationality}</p>
-                                        <p><span className="font-medium">Date of Birth:</span> {formatDate(selectedCrewMember.dateOfBirth)}</p>
-                                        {selectedCrewMember.phoneNumber && (
-                                            <p><span className="font-medium">Phone:</span>{' '}
-                                                <a
-                                                    href={`tel:${selectedCrewMember.phoneNumber}`}
-                                                    className="text-blue-600 hover:text-blue-800 underline"
-                                                >
-                                                    {selectedCrewMember.phoneNumber}
-                                                </a>
-                                            </p>
-                                        )}
-                                        {(selectedCrewMember as any).email && (
-                                            <p><span className="font-medium">Email:</span>{' '}
-                                                <a
-                                                    href={`mailto:${(selectedCrewMember as any).email}`}
-                                                    className="text-blue-600 hover:text-blue-800 underline"
-                                                >
-                                                    {(selectedCrewMember as any).email}
-                                                </a>
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Professional Information */}
-                                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                                    <h4 className="font-medium text-green-900 flex items-center mb-3">
-                                        <div className="w-2 h-2 bg-green-600 rounded-full mr-3"></div>
-                                        Professional Information
-                                    </h4>
-                                    <div className="text-sm space-y-2">
-                                        <p className="flex justify-between items-center"><span className="font-medium text-slate-500">Current Vessel:</span> <span className="font-extrabold text-base text-blue-700">{(selectedCrewMember.currentVessel?.name as string) || 'Not assigned'}</span></p>
-                                        <p><span className="font-medium">Status:</span> {selectedCrewMember.status as string}</p>
-                                    </div>
-                                </div>
-
-                                {/* Emergency Contact / Next of Kin */}
-                                {!!selectedCrewMember.emergencyContact && (
-                                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                                        <h4 className="font-medium text-orange-900 flex items-center mb-3">
-                                            <div className="w-2 h-2 bg-orange-600 rounded-full mr-3"></div>
-                                            Next of Kin (NOK)
-                                        </h4>
-                                        <div className="text-sm space-y-2">
-                                            <p><span className="font-medium">Name:</span> {(selectedCrewMember.emergencyContact as any).name}</p>
-                                            <p><span className="font-medium">Relationship:</span> {(selectedCrewMember.emergencyContact as any).relationship}</p>
-                                            <p><span className="font-medium">Phone:</span>{' '}
-                                                {(selectedCrewMember.emergencyContact as any).phone ? (
-                                                    <a
-                                                        href={`tel:${(selectedCrewMember.emergencyContact as any).phone}`}
-                                                        className="text-blue-600 hover:text-blue-800 underline"
-                                                    >
-                                                        {(selectedCrewMember.emergencyContact as any).phone}
-                                                    </a>
-                                                ) : (
-                                                    'Not provided'
-                                                )}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Passport Details */}
-                                {(() => {
-                                    const passport = selectedCrewMember.documents?.find(d => d.type === 'passport');
-                                    return passport ? (
-                                        <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
-                                            <h4 className="font-medium text-indigo-900 flex items-center mb-3">
-                                                <div className="w-2 h-2 bg-indigo-600 rounded-full mr-3"></div>
-                                                Passport Details
-                                            </h4>
-                                            <div className="text-sm space-y-2">
-                                                <p><span className="font-medium">Passport Number:</span> {passport.documentNumber}</p>
-                                                <p><span className="font-medium">Expiry Date:</span> {formatDate(passport.expiryDate)}</p>
-                                            </div>
-                                        </div>
-                                    ) : null;
-                                })()}
-                            </div>
-
-                            <div className="flex justify-end gap-2 pt-4">
-                                <Button variant="outline" onClick={() => setShowViewDialog(false)}>
-                                    Close
-                                </Button>
-                                <Button
-                                    onClick={() => {
-                                        setShowViewDialog(false);
-                                        setShowEditDialog(true);
-                                    }}
-                                    className="bg-primary hover:bg-primary/90"
-                                >
-                                    Edit
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog >
+            {/* View Crew Member Dialog — uses the same ViewCrewDetails component as Vessel Cards */}
+            {selectedCrewMember && showViewDialog && (
+                <Dialog open={showViewDialog} onOpenChange={setShowViewDialog}>
+                    <DialogContent className="w-[95vw] max-w-[1200px] h-[85vh] p-0 overflow-hidden bg-transparent border-none shadow-none">
+                        <ViewCrewDetails
+                            crewMember={selectedCrewMember}
+                            onClose={() => setShowViewDialog(false)}
+                        />
+                    </DialogContent>
+                </Dialog>
+            )}
 
             <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
                 <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto p-0 border-0 bg-transparent shadow-none">
