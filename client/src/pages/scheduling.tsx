@@ -26,6 +26,7 @@ interface ContractEvent {
   date: Date;
   crewMemberId: string;
   crewMemberName: string;
+  crewRank: string;
   vesselId: string;
   vesselName: string;
   contractId: string;
@@ -243,6 +244,11 @@ export default function Scheduling() {
     return 'attention';
   };
 
+  const getCrewMemberRank = (crewMemberId: string) => {
+    const member = crewMembers?.find((m: any) => m.id === crewMemberId);
+    return member?.rank || '—';
+  };
+
   const contractEvents: ContractEvent[] = (contracts || []).flatMap((contract: any) => {
     const events: ContractEvent[] = [];
     const endDate = new Date(contract.endDate);
@@ -257,6 +263,7 @@ export default function Scheduling() {
       date: endDate,
       crewMemberId: contract.crewMemberId,
       crewMemberName: getCrewMemberName(contract.crewMemberId),
+      crewRank: getCrewMemberRank(contract.crewMemberId),
       vesselId: contract.vesselId,
       vesselName: getVesselName(contract.vesselId),
       contractId: contract.id,
@@ -646,6 +653,7 @@ export default function Scheduling() {
                     <thead>
                       <tr>
                         <th>Crew Member</th>
+                        <th>Rank</th>
                         <th>Vessel</th>
                         <th>Status</th>
                         <th>Date</th>
@@ -655,6 +663,7 @@ export default function Scheduling() {
                       {monthEvents.map((event) => (
                         <tr key={event.id}>
                           <td>{event.crewMemberName}</td>
+                          <td>{event.crewRank}</td>
                           <td>{event.vesselName}</td>
                           <td>
                             <span className={`event-badge ${event.status}`}>

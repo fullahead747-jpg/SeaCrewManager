@@ -1,104 +1,6 @@
-import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
-import path from 'path';
 import fs from 'fs';
 import pdf from 'pdf-parse';
-import { createWorker } from 'tesseract.js';
-import sharp from 'sharp';
 
-// Resolve the credentials file path robustly for Windows
-function resolveCredentialsPath(): string | null {
-  const credPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  if (!credPath) return null;
-  return path.isAbsolute(credPath) ? credPath : path.resolve(process.cwd(), credPath);
-}
-
-let tesseractWorker: any = null;
-
-async function getTesseractWorker() {
-  if (!tesseractWorker) {
-    console.log('[OCR-LOCAL] Initializing Tesseract worker...');
-    tesseractWorker = await createWorker('eng', undefined, {
-      logger: m => console.log('Tesseract:', m.status, `${Math.round(m.progress * 100)}%`)
-    });
-    await tesseractWorker.setParameters({
-      preserve_interword_spaces: '1'
-    });
-  }
-  return tesseractWorker;
-}
-
-async function extractTextLocally(base64Image: string, filename: string): Promise<string> {
-  const base64Data = base64Image.includes('base64,')
-    ? base64Image.split('base64,')[1]
-    : base64Image;
-
-  const fileBuffer = Buffer.from(base64Data, 'base64');
-  const lowerName = (filename || 'doc.jpg').toLowerCase();
-
-  if (lowerName.endsWith('.pdf')) {
-    console.log('[OCR-LOCAL] File is a PDF. Attempting to parse text layer...');
-    try {
-      const data = await pdf(fileBuffer);
-      if (data?.text && data.text.trim().length > 10) {
-        console.log(`[OCR-LOCAL] Extracted ${data.text.length} characters from PDF text layer.`);
-        return data.text;
-      }
-      console.log('[OCR-LOCAL] PDF text layer is empty or scanned.');
-    } catch (pdfError: any) {
-      console.warn('[OCR-LOCAL] Failed to parse PDF text layer:', pdfError.message);
-    }
-    throw new Error('This PDF appears to be a scanned image and cannot be parsed locally. Please convert it to an image (JPG/PNG) or upload a digital PDF with selectable text.');
-  }
-
-  // Preprocess image with sharp for better OCR accuracy
-  console.log('[OCR-LOCAL] Preprocessing image with sharp...');
-  let optimizedBuffer = fileBuffer;
-  try {
-    optimizedBuffer = await sharp(fileBuffer)
-      .resize({ width: 1200, height: 1600, fit: 'inside' })
-      .grayscale()
-      .normalize()
-      .sharpen()
-      .threshold(128)
-      .png()
-      .toBuffer();
-    console.log('[OCR-LOCAL] Image optimized for OCR.');
-  } catch (sharpError: any) {
-    console.warn('[OCR-LOCAL] Sharp image optimization failed, using original buffer:', sharpError.message);
-  }
-
-  console.log('[OCR-LOCAL] Performing Tesseract OCR...');
-  try {
-    const worker = await getTesseractWorker();
-    const { data: { text } } = await worker.recognize(optimizedBuffer);
-    console.log(`[OCR-LOCAL] Tesseract OCR completed. Characters recognized: ${text?.length || 0}`);
-    return text || '';
-  } catch (tesseractError: any) {
-    console.error('[OCR-LOCAL] Tesseract recognition failed:', tesseractError.message || tesseractError);
-    throw new Error(`Local image OCR failed: ${tesseractError.message || 'Error processing image details.'}`);
-  }
-}
-
-
-/**
- * Extract a value following a label in raw OCR text.
- * Searches for the label and captures the text on the same line (or next non-empty line).
- */
-function extract(text: string, patterns: RegExp[]): string | undefined {
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]?.trim()) {
-      const val = match[1].trim().replace(/\s+/g, ' ');
-      if (val.length > 1 && val !== ':') return val;
-    }
-  }
-  return undefined;
-}
-
-/**
- * Parse all seafarer fields from raw text extracted by Google Document AI.
- * Focuses strictly on fields required by the "Add New Crew Member" form.
- */
 function parseAoaFields(text: string): Record<string, string | number> {
   const t = text;
   const result: Record<string, string | number> = {};
@@ -437,218 +339,36 @@ function parseAoaFields(text: string): Record<string, string | number> {
     }
   }
 
-  // Include metadata
-  result.serviceOrigin = 'Google Document AI';
-  result.rawText = t;
-
   return result;
 }
 
-export const googleOcrService = {
-  isAvailable(): boolean {
-    return true; // Local fallback is always available
-  },
+async function run() {
+  const pdfPath = './uploads/CONTRACT - SAURABH DIPANKAR - doc.pdf';
+  console.log(`Reading PDF from: ${pdfPath}`);
+  
+  if (!fs.existsSync(pdfPath)) {
+    console.error(`Error: File not found at ${pdfPath}`);
+    return;
+  }
 
-  async extractCrewDataFromDocument(
-    base64Image: string,
-    filename: string,
-    expectedType?: string
-  ): Promise<any> {
-    const isGoogleConfigured = (() => {
-      const processorId = process.env.DOCUMENT_AI_PROCESSOR_ID;
-      if (!processorId || processorId === 'REPLACE_WITH_YOUR_PROCESSOR_ID') return false;
-      return !!(
-        process.env.DOCUMENT_AI_PROJECT_ID &&
-        process.env.DOCUMENT_AI_LOCATION &&
-        (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GOOGLE_CREDENTIALS_CONTENT)
-      );
-    })();
+  const dataBuffer = fs.readFileSync(pdfPath);
+  try {
+    const data = await pdf(dataBuffer);
+    console.log(`Successfully parsed PDF. Total pages: ${data.numpages}`);
+    console.log('--- Raw PDF Text Content ---');
+    console.log(data.text);
+    console.log('-----------------------------');
+    
+    // Save to a local text file for easy inspection
+    fs.writeFileSync('./saurabh_raw_text.txt', data.text);
+    console.log('Raw text saved to ./saurabh_raw_text.txt');
+    
+    const parsedData = parseAoaFields(data.text);
+    console.log('\n--- Parsed Fields ---');
+    console.log(JSON.stringify(parsedData, null, 2));
+  } catch (error) {
+    console.error('Error parsing PDF:', error);
+  }
+}
 
-    let text = '';
-    let usedFallback = false;
-
-    if (isGoogleConfigured) {
-      try {
-        console.log(`[Google Document AI] Starting extraction for ${filename} (type: ${expectedType || 'aoa'})...`);
-
-        const projectId = process.env.DOCUMENT_AI_PROJECT_ID!;
-        const location = process.env.DOCUMENT_AI_LOCATION!;
-        const processorId = process.env.DOCUMENT_AI_PROCESSOR_ID!;
-        const processorName = `projects/${projectId}/locations/${location}/processors/${processorId}`;
-
-        let client: DocumentProcessorServiceClient;
-        if (process.env.GOOGLE_CREDENTIALS_CONTENT) {
-          console.log('[Google Document AI] Using credentials from GOOGLE_CREDENTIALS_CONTENT');
-          const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_CONTENT);
-          client = new DocumentProcessorServiceClient({ credentials });
-        } else {
-          const keyFilename = resolveCredentialsPath()!;
-          console.log(`[Google Document AI] Using credentials from file: ${keyFilename}`);
-          client = new DocumentProcessorServiceClient({ keyFilename });
-        }
-
-        const base64Data = base64Image.includes('base64,')
-          ? base64Image.split('base64,')[1]
-          : base64Image;
-
-        const lowerName = filename.toLowerCase();
-        const mimeType = lowerName.endsWith('.pdf')
-          ? 'application/pdf'
-          : lowerName.endsWith('.png')
-            ? 'image/png'
-            : lowerName.endsWith('.webp')
-              ? 'image/webp'
-              : lowerName.endsWith('.tiff') || lowerName.endsWith('.tif')
-                ? 'image/tiff'
-                : 'image/jpeg';
-
-        const [result] = await client.processDocument({
-          name: processorName,
-          rawDocument: { content: base64Data, mimeType },
-        });
-
-        text = result.document?.text || '';
-        if (!text) {
-          throw new Error('Google Document AI returned no text.');
-        }
-        console.log(`[Google Document AI] Successfully extracted ${text.length} chars.`);
-      } catch (error: any) {
-        console.warn('[OCR] Google Document AI failed. Falling back to local OCR:', error.message || error);
-        usedFallback = true;
-      }
-    } else {
-      console.log('[OCR] Google Document AI is not configured/available. Using local OCR...');
-      usedFallback = true;
-    }
-
-    if (usedFallback) {
-      try {
-        text = await extractTextLocally(base64Image, filename);
-      } catch (localError: any) {
-        console.error('[OCR-CRITICAL-ERROR] Both Google AI and Local Fallback failed:', localError.message);
-        throw new Error(`OCR Extraction failed: ${localError.message}`);
-      }
-    }
-
-    if (!text || text.trim().length === 0) {
-      throw new Error('No text could be extracted from the document using Google AI or local OCR.');
-    }
-
-    console.log(`[OCR] Parsing fields from extracted text (${text.length} chars)...`);
-    const sanitizedFn = (filename || 'doc').replace(/[^a-zA-Z0-9]/g, '_');
-    const debugFileName = `ocr_debug_${sanitizedFn}_${Date.now()}.txt`;
-    fs.writeFileSync(path.join(process.cwd(), debugFileName), text);
-    console.log(`[OCR-DEBUG] Detailed text saved to: ${debugFileName}`);
-
-    const extractedData = parseAoaFields(text);
-    extractedData.serviceOrigin = usedFallback ? 'Local PDF/OCR Fallback' : 'Google Document AI';
-    extractedData.rawText = text;
-
-    const fieldCount = Object.keys(extractedData).filter(k => k !== 'rawText' && k !== 'serviceOrigin').length;
-    console.log(`[OCR] Parsed ${fieldCount} fields from document. Origin: ${extractedData.serviceOrigin}`);
-
-    return extractedData;
-  },
-
-  /**
-   * Extract crew list from an attendance sheet image.
-   * (Used by attendanceRoutes.ts)
-   */
-  async extractAttendanceData(
-    base64Data: string,
-    filename: string
-  ): Promise<{ crew: Array<{ name: string; rank: string; nationality?: string; joinDate?: string; expiryDate?: string; cocNotApplicable?: boolean }> }> {
-    const isGoogleConfigured = (() => {
-      const processorId = process.env.DOCUMENT_AI_PROCESSOR_ID;
-      if (!processorId || processorId === 'REPLACE_WITH_YOUR_PROCESSOR_ID') return false;
-      return !!(
-        process.env.DOCUMENT_AI_PROJECT_ID &&
-        process.env.DOCUMENT_AI_LOCATION &&
-        (process.env.GOOGLE_APPLICATION_CREDENTIALS || process.env.GOOGLE_CREDENTIALS_CONTENT)
-      );
-    })();
-
-    let text = '';
-    let usedFallback = false;
-
-    if (isGoogleConfigured) {
-      try {
-        console.log(`[Google Document AI] Extracting attendance data from ${filename}...`);
-
-        const projectId = process.env.DOCUMENT_AI_PROJECT_ID!;
-        const location = process.env.DOCUMENT_AI_LOCATION!;
-        const processorId = process.env.DOCUMENT_AI_PROCESSOR_ID!;
-        const processorName = `projects/${projectId}/locations/${location}/processors/${processorId}`;
-
-        let client: DocumentProcessorServiceClient;
-        if (process.env.GOOGLE_CREDENTIALS_CONTENT) {
-          console.log('[Google Document AI] Using credentials from GOOGLE_CREDENTIALS_CONTENT for attendance');
-          const credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS_CONTENT);
-          client = new DocumentProcessorServiceClient({ credentials });
-        } else {
-          const keyFilename = resolveCredentialsPath()!;
-          client = new DocumentProcessorServiceClient({ keyFilename });
-        }
-
-        const base64Image = base64Data.includes('base64,')
-          ? base64Data.split('base64,')[1]
-          : base64Data;
-
-        const lowerFn = (filename || '').toLowerCase();
-        const mimeType = lowerFn.endsWith('.pdf')
-          ? 'application/pdf'
-          : lowerFn.endsWith('.png')
-            ? 'image/png'
-            : lowerFn.endsWith('.webp')
-              ? 'image/webp'
-              : lowerFn.endsWith('.tiff') || lowerFn.endsWith('.tif')
-                ? 'image/tiff'
-                : 'image/jpeg';
-
-        const [result] = await client.processDocument({
-          name: processorName,
-          rawDocument: { content: base64Image, mimeType },
-        });
-
-        text = result.document?.text || '';
-      } catch (error: any) {
-        console.warn('[OCR] Google Attendance Document AI failed. Falling back to local OCR:', error.message || error);
-        usedFallback = true;
-      }
-    } else {
-      console.log('[OCR] Google Document AI is not configured/available. Using local OCR for attendance...');
-      usedFallback = true;
-    }
-
-    if (usedFallback) {
-      try {
-        text = await extractTextLocally(base64Data, filename);
-      } catch (localError: any) {
-        console.error('[OCR-CRITICAL-ERROR] Local OCR fallback failed for attendance:', localError.message);
-        throw new Error(`Attendance OCR extraction failed: ${localError.message}`);
-      }
-    }
-
-    if (!text) return { crew: [] };
-
-    // Parse each line as a potential crew row: NAME | RANK | DATE | DATE
-    const crew: Array<{ name: string; rank: string; nationality?: string; joinDate?: string; expiryDate?: string }> = [];
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 3);
-    const dateRx = /\d{2}[-/]\d{2}[-/]\d{2,4}/;
-
-    for (const line of lines) {
-      const parts = line.split(/\s{2,}|\t/).map(p => p.trim()).filter(Boolean);
-      if (parts.length >= 2 && /^[A-Z]/.test(parts[0]) && parts[0].split(' ').length >= 2) {
-        const entry: any = { name: parts[0], rank: parts[1] || '' };
-        const dates = parts.filter(p => dateRx.test(p));
-        if (dates[0]) entry.joinDate = dates[0];
-        if (dates[1]) entry.expiryDate = dates[1];
-        if (parts[2] && !dateRx.test(parts[2])) entry.nationality = parts[2];
-        crew.push(entry);
-      }
-    }
-
-    console.log(`[OCR] Attendance extraction complete. Found ${crew.length} crew members. Origin: ${usedFallback ? 'Local Fallback' : 'Google AI'}`);
-    return { crew };
-  },
-};
+run();
