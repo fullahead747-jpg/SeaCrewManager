@@ -62,7 +62,7 @@ export async function generateVesselPDFBuffer(vesselId: string, storage: IStorag
                    .fillColor('#94a3b8').font('Helvetica').text(' | ', { continued: true })
                    .fillColor('#3b82f6').font('Helvetica-Oblique').text('Attention (31-45 Days)', { continued: true })
                    .fillColor('#94a3b8').font('Helvetica').text(' | ', { continued: true })
-                   .fillColor('#10b981').font('Helvetica-Oblique').text('Not Due (> 60 Days)');
+                   .fillColor('#10b981').font('Helvetica-Oblique').text('Not Due (> 45 Days)');
 
                 let currentY = doc.y + 20;
 
@@ -173,18 +173,7 @@ function getComplianceStatus(crewMember: any, allDocs: any[]): string {
     // Evaluate explicit documents
     for (const doc of memberDocs) {
         const expiry = new Date(doc.expiryDate);
-        const days = Math.ceil((expiry.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
-        let level = 0;
-        if (days < 0)        level = 4; // Overdue
-        else if (days <= 30) level = 3; // Critical
-        else if (days <= 90) level = 2; // Upcoming
-        else if (days <= 180)level = 1; // Attention
-        if (level > worst) worst = level;
-    }
-
-    // Evaluate Contract (inherits AOA logic from dashboard)
-    if (crewMember.activeContract && crewMember.activeContract.endDate) {
-        const expiry = new Date(crewMember.activeContract.endDate);
+        if (expiry.getFullYear() < 2000) continue;
         const days = Math.ceil((expiry.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
         let level = 0;
         if (days < 0)        level = 4; // Overdue
@@ -192,6 +181,20 @@ function getComplianceStatus(crewMember: any, allDocs: any[]): string {
         else if (days <= 30) level = 2; // Upcoming
         else if (days <= 45) level = 1; // Attention
         if (level > worst) worst = level;
+    }
+
+    // Evaluate Contract (inherits AOA logic from dashboard)
+    if (crewMember.activeContract && crewMember.activeContract.endDate) {
+        const expiry = new Date(crewMember.activeContract.endDate);
+        if (expiry.getFullYear() >= 2000) {
+            const days = Math.ceil((expiry.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+            let level = 0;
+            if (days < 0)        level = 4; // Overdue
+            else if (days <= 15) level = 3; // Critical
+            else if (days <= 30) level = 2; // Upcoming
+            else if (days <= 45) level = 1; // Attention
+            if (level > worst) worst = level;
+        }
     }
 
     return ['Not Due', 'Attention', 'Upcoming', 'Critical', 'Overdue'][worst];
