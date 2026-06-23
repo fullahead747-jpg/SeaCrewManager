@@ -22,16 +22,17 @@ import { downloadFileFromResponse } from '@/lib/file-utils';
 
 interface ContractEvent {
   id: string;
-  status: 'overdue' | 'critical' | 'upcoming' | 'attention';
-  date: Date;
+  status: 'overdue' | 'critical' | 'upcoming' | 'attention' | 'stable';
+  date: Date | null;
   crewMemberId: string;
   crewMemberName: string;
   crewRank: string;
-  vesselId: string;
+  vesselId: string | null;
   vesselName: string;
-  contractId: string;
-  contractEndDate: Date;
-  daysUntilExpiry: number;
+  contractId: string | null;
+  contractEndDate: Date | null;
+  daysUntilExpiry: number | null;
+  hasNoContract: boolean;
 }
 
 export default function Scheduling() {
@@ -171,38 +172,30 @@ export default function Scheduling() {
     });
   };
 
-  const { data: contracts, isLoading: contractsLoading } = useQuery({
-    queryKey: ['/api/contracts'],
-    queryFn: async () => {
-      const response = await fetch('/api/contracts', {
-        headers: getAuthHeaders(),
-      });
-      if (!response.ok) throw new Error('Failed to fetch contracts');
-      return response.json();
-    },
-    refetchInterval: 15000, // Auto-update every 15 seconds
-  });
-
+  // Fetch crew for view/edit/delete dialogs (separate from scheduling events)
   const { data: crewMembers } = useQuery({
     queryKey: ['/api/crew'],
     queryFn: async () => {
-      const response = await fetch('/api/crew', {
-        headers: getAuthHeaders(),
-      });
+      const response = await fetch('/api/crew', { headers: getAuthHeaders() });
       if (!response.ok) throw new Error('Failed to fetch crew');
       return response.json();
     },
     refetchInterval: 15000,
   });
 
-  const { data: vessels } = useQuery({
-    queryKey: ['/api/vessels'],
+  // Single source of truth: backend endpoint uses IDENTICAL logic as Fleet Dashboard getDashboardStats
+  const { data: rawContractEvents = [], isLoading: contractsLoading } = useQuery<ContractEvent[]>({
+    queryKey: ['/api/scheduling/contract-events'],
     queryFn: async () => {
-      const response = await fetch('/api/vessels', {
-        headers: getAuthHeaders(),
-      });
-      if (!response.ok) throw new Error('Failed to fetch vessels');
-      return response.json();
+      const response = await fetch('/api/scheduling/contract-events', { headers: getAuthHeaders() });
+      if (!response.ok) throw new Error('Failed to fetch scheduling events');
+      const data = await response.json();
+      // Parse ISO date strings to Date objects
+      return data.map((e: any) => ({
+        ...e,
+        date: e.date ? new Date(e.date) : null,
+        contractEndDate: e.contractEndDate ? new Date(e.contractEndDate) : null,
+      }));
     },
     refetchInterval: 15000,
   });
@@ -227,52 +220,10 @@ export default function Scheduling() {
     );
   }
 
-  const getCrewMemberName = (crewMemberId: string) => {
-    const member = crewMembers?.find((m: any) => m.id === crewMemberId);
-    return member ? `${member.firstName} ${member.lastName}` : 'Unknown';
-  };
+  // contractEvents is now directly from the backend with dashboard-identical logic
+  const contractEvents = rawContractEvents;
 
-  const getVesselName = (vesselId: string) => {
-    const vessel = vessels?.find((v: any) => v.id === vesselId);
-    return vessel ? vessel.name : 'Unknown';
-  };
 
-  const getContractHealth = (daysUntilExpiry: number): 'overdue' | 'critical' | 'upcoming' | 'attention' => {
-    if (daysUntilExpiry < 0) return 'overdue';
-    if (daysUntilExpiry < 30) return 'critical';
-    if (daysUntilExpiry <= 60) return 'upcoming';
-    return 'attention';
-  };
-
-  const getCrewMemberRank = (crewMemberId: string) => {
-    const member = crewMembers?.find((m: any) => m.id === crewMemberId);
-    return member?.rank || '—';
-  };
-
-  const contractEvents: ContractEvent[] = (contracts || []).flatMap((contract: any) => {
-    const events: ContractEvent[] = [];
-    const endDate = new Date(contract.endDate);
-    const today = new Date();
-    const daysUntilExpiry = differenceInDays(endDate, today);
-    const status = getContractHealth(daysUntilExpiry);
-
-    // Add only one event: Contract Expiration Date
-    events.push({
-      id: contract.id,
-      status: status,
-      date: endDate,
-      crewMemberId: contract.crewMemberId,
-      crewMemberName: getCrewMemberName(contract.crewMemberId),
-      crewRank: getCrewMemberRank(contract.crewMemberId),
-      vesselId: contract.vesselId,
-      vesselName: getVesselName(contract.vesselId),
-      contractId: contract.id,
-      contractEndDate: endDate,
-      daysUntilExpiry: daysUntilExpiry,
-    });
-
-    return events;
-  });
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -280,7 +231,7 @@ export default function Scheduling() {
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   const getEventsForDate = (date: Date) => {
-    return contractEvents.filter(event => isSameDay(event.date, date));
+    return contractEvents.filter(event => event.date && isSameDay(event.date, date));
   };
 
   const getEventColor = (status: string) => {
@@ -288,9 +239,15 @@ export default function Scheduling() {
       case 'overdue': return 'bg-red-500';
       case 'critical': return 'bg-orange-500';
       case 'upcoming': return 'bg-yellow-500';
-      case 'attention': return 'bg-blue-500';
+      case 'attention': return 'bg-blue-400';
+      case 'stable': return 'bg-emerald-500';
       default: return 'bg-gray-500';
     }
+  };
+
+  const getStatusLabel = (status: string) => {
+    if (status === 'stable') return 'Not Due';
+    return status.charAt(0).toUpperCase() + status.slice(1);
   };
 
   const handleDateClick = (date: Date) => {
@@ -309,11 +266,15 @@ export default function Scheduling() {
     setCurrentDate(prev => addMonths(prev, 1));
   };
 
-  // Get events for current month
-  const monthEvents = contractEvents.filter(event => isSameMonth(event.date, currentDate));
+  // Get events for current month — overdue events with no date are always shown in the overdue bucket
+  const monthEvents = contractEvents.filter(event => {
+    if (!event.date) return true; // No-contract crew are always 'overdue', show in all months
+    return isSameMonth(event.date, currentDate);
+  });
 
-  // Count stats for current month view
-  const monthOverdueCount = monthEvents.filter(e => e.status === 'overdue').length;
+  // Count stats matching dashboard thresholds exactly
+  // Total overdue count across all time (not month-filtered) to match dashboard
+  const totalOverdueCount = contractEvents.filter(e => e.status === 'overdue').length;
   const monthCriticalCount = monthEvents.filter(e => e.status === 'critical').length;
   const monthUpcomingCount = monthEvents.filter(e => e.status === 'upcoming').length;
   const monthAttentionCount = monthEvents.filter(e => e.status === 'attention').length;
@@ -358,7 +319,7 @@ export default function Scheduling() {
         </div>
       </div>
 
-      {/* Quick Stats */}
+      {/* Quick Stats — synchronized with Fleet Dashboard thresholds */}
       <div className="flex flex-wrap items-center gap-y-4 py-2 print:hidden">
         <div className="flex items-center gap-4 pr-4 md:pr-8 border-r border-slate-100 dark:border-slate-800 last:border-0 grow md:grow-0">
           <div className="p-3 rounded-2xl bg-red-500/10 dark:bg-red-500/20">
@@ -366,10 +327,10 @@ export default function Scheduling() {
           </div>
           <div>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl md:text-2xl font-bold text-foreground leading-none">{monthOverdueCount}</span>
+              <span className="text-xl md:text-2xl font-bold text-foreground leading-none">{totalOverdueCount}</span>
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Overdue</span>
             </div>
-            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">&lt; 0 Days Left</div>
+            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">No/Expired Contract</div>
           </div>
         </div>
 
@@ -382,7 +343,7 @@ export default function Scheduling() {
               <span className="text-xl md:text-2xl font-bold text-foreground leading-none">{monthCriticalCount}</span>
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Critical</span>
             </div>
-            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">&lt; 30 Days Left</div>
+            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">&le; 15 Days Left</div>
           </div>
         </div>
 
@@ -395,41 +356,45 @@ export default function Scheduling() {
               <span className="text-xl md:text-2xl font-bold text-foreground leading-none">{monthUpcomingCount}</span>
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Upcoming</span>
             </div>
-            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">30 - 60 Days Left</div>
+            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">16 - 30 Days Left</div>
           </div>
         </div>
 
         <div className="flex items-center gap-4 px-4 md:px-8 border-r border-slate-100 dark:border-slate-800 last:border-0 grow md:grow-0">
-          <div className="p-3 rounded-2xl bg-blue-500/10 dark:bg-blue-500/20">
-            <Calendar className="h-5 w-5 text-blue-500" />
+          <div className="p-3 rounded-2xl bg-blue-400/10 dark:bg-blue-400/20">
+            <Calendar className="h-5 w-5 text-blue-400" />
           </div>
           <div>
             <div className="flex items-baseline gap-2">
               <span className="text-xl md:text-2xl font-bold text-foreground leading-none">{monthAttentionCount}</span>
               <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Attention</span>
             </div>
-            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">&gt; 60 Days Left</div>
+            <div className="text-[11px] text-muted-foreground/80 font-medium mt-0.5">31 - 45 Days Left</div>
           </div>
         </div>
       </div>
 
-      {/* Legend */}
+      {/* Legend — matching dashboard thresholds */}
       <div className="flex flex-wrap items-center gap-6 text-[11px] mb-2 print:hidden">
         <div className="flex items-center space-x-2">
           <div className="w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-red-500/20"></div>
-          <span className="text-muted-foreground/80 font-medium">Overdue (&lt; 0 Days)</span>
+          <span className="text-muted-foreground/80 font-medium">Overdue (No/Expired Contract)</span>
         </div>
         <div className="flex items-center space-x-2">
           <div className="w-2.5 h-2.5 bg-orange-500 rounded-full ring-2 ring-orange-500/20"></div>
-          <span className="text-muted-foreground/80 font-medium">Critical (&lt; 30 Days)</span>
+          <span className="text-muted-foreground/80 font-medium">Critical (&le; 15 Days)</span>
         </div>
         <div className="flex items-center space-x-2">
           <div className="w-2.5 h-2.5 bg-yellow-500 rounded-full ring-2 ring-yellow-500/20"></div>
-          <span className="text-muted-foreground/80 font-medium">Upcoming (30-60 Days)</span>
+          <span className="text-muted-foreground/80 font-medium">Upcoming (16-30 Days)</span>
         </div>
         <div className="flex items-center space-x-2">
-          <div className="w-2.5 h-2.5 bg-blue-500 rounded-full ring-2 ring-blue-500/20"></div>
-          <span className="text-muted-foreground/80 font-medium">Attention (&gt; 60 Days)</span>
+          <div className="w-2.5 h-2.5 bg-blue-400 rounded-full ring-2 ring-blue-400/20"></div>
+          <span className="text-muted-foreground/80 font-medium">Attention (31-45 Days)</span>
+        </div>
+        <div className="flex items-center space-x-2">
+          <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-emerald-500/20"></div>
+          <span className="text-muted-foreground/80 font-medium">Not Due (&gt; 45 Days)</span>
         </div>
       </div>
 
@@ -660,17 +625,25 @@ export default function Scheduling() {
                       </tr>
                     </thead>
                     <tbody>
-                      {monthEvents.map((event) => (
+                      {[...monthEvents]
+                        .sort((a, b) => {
+                          // Null dates (no contract) go to the top
+                          if (!a.date && !b.date) return 0;
+                          if (!a.date) return -1;
+                          if (!b.date) return 1;
+                          return a.date.getTime() - b.date.getTime();
+                        })
+                        .map((event) => (
                         <tr key={event.id}>
                           <td>{event.crewMemberName}</td>
                           <td>{event.crewRank}</td>
                           <td>{event.vesselName}</td>
                           <td>
                             <span className={`event-badge ${event.status}`}>
-                              {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                              {getStatusLabel(event.status)}
                             </span>
                           </td>
-                          <td>{format(event.date, 'MMM d, yyyy')}</td>
+                          <td>{event.date ? format(event.date, 'MMM d, yyyy') : 'No Contract'}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -722,15 +695,16 @@ export default function Scheduling() {
                   <div className="pl-1.5">
                     <div className="flex items-start justify-between mb-3">
                       <h4 className="font-medium text-foreground text-base">
-                        {event.status.charAt(0).toUpperCase() + event.status.slice(1)} Contract
+                        {event.hasNoContract ? 'No Active Contract' : `${getStatusLabel(event.status)} Contract`}
                       </h4>
                       <Badge className={cn(
                         "text-white text-[10px] font-bold tracking-wider px-2.5 py-0.5 rounded-full border-0",
                         event.status === 'overdue' ? "bg-red-500 hover:bg-red-600" :
                           event.status === 'critical' ? "bg-orange-500 hover:bg-orange-600" :
-                            event.status === 'upcoming' ? "bg-yellow-500 hover:bg-yellow-600" : "bg-blue-500 hover:bg-blue-600"
+                            event.status === 'upcoming' ? "bg-yellow-500 hover:bg-yellow-600" :
+                              event.status === 'attention' ? "bg-blue-400 hover:bg-blue-500" : "bg-emerald-500 hover:bg-emerald-600"
                       )}>
-                        {event.status.toUpperCase()}
+                        {getStatusLabel(event.status).toUpperCase()}
                       </Badge>
                     </div>
 
@@ -746,7 +720,13 @@ export default function Scheduling() {
                         </div>
                         <div className="flex items-center space-x-2.5">
                           <Calendar className="h-4 w-4 shrink-0 text-muted-foreground/60" />
-                          <span>Contract End: {format(event.contractEndDate, 'MMM dd, yyyy')}</span>
+                          {event.hasNoContract ? (
+                            <span className="text-red-500 font-semibold">No active contract assigned</span>
+                          ) : event.contractEndDate ? (
+                            <span>Contract End: {format(event.contractEndDate, 'MMM dd, yyyy')}</span>
+                          ) : (
+                            <span className="text-red-500">Contract expired</span>
+                          )}
                         </div>
                       </div>
 

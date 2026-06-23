@@ -39,28 +39,48 @@ export async function generateVesselPDFBuffer(vesselId: string, storage: IStorag
                 doc.fillColor('#334155').fontSize(10).font('Helvetica-Bold');
                 doc.text('IMO Number:', 55, startY + 12);
                 doc.text('Vessel Type:', 55, startY + 28);
-                doc.text('Flag:', 300, startY + 12);
-                doc.text('Total Crew:', 300, startY + 28);
-                doc.text('On Board:', 550, startY + 12);
-                doc.text('On Shore:', 550, startY + 28);
+                doc.text('Flag:', 380, startY + 12);
+                doc.text('Total Crew:', 380, startY + 28);
+                doc.text('On Board:', 600, startY + 12);
+                doc.text('On Shore:', 600, startY + 28);
 
                 doc.font('Helvetica');
                 doc.text(vessel.imoNumber || 'N/A', 130, startY + 12);
-                doc.text(vessel.type || 'N/A', 130, startY + 28);
-                doc.text(vessel.flag || 'N/A', 360, startY + 12);
-                doc.text(String(crewMembers.length), 360, startY + 28);
-                doc.text(String(crewMembers.filter(m => m.status === 'onBoard').length), 610, startY + 12);
-                doc.text(String(crewMembers.filter(m => m.status === 'onShore').length), 610, startY + 28);
+                doc.text(vessel.type || 'N/A', 130, startY + 28, { width: 230, height: 12, lineBreak: false });
+                doc.text(vessel.flag || 'N/A', 450, startY + 12);
+                doc.text(String(crewMembers.length), 450, startY + 28);
+                doc.text(String(crewMembers.filter(m => m.status === 'onBoard').length), 670, startY + 12);
+                doc.text(String(crewMembers.filter(m => m.status === 'onShore').length), 670, startY + 28);
 
-                doc.y = startY + 70;
+                doc.y = startY + 60;
+                doc.fillColor('#334155').fontSize(9).font('Helvetica-Bold').text('Compliance Status: ', 40, doc.y, { continued: true })
+                   .fillColor('#ef4444').font('Helvetica-Oblique').text('Overdue (Expired)', { continued: true })
+                   .fillColor('#94a3b8').font('Helvetica').text(' | ', { continued: true })
+                   .fillColor('#f97316').font('Helvetica-Oblique').text('Critical (<= 15 Days)', { continued: true })
+                   .fillColor('#94a3b8').font('Helvetica').text(' | ', { continued: true })
+                   .fillColor('#ca8a04').font('Helvetica-Oblique').text('Upcoming (16-30 Days)', { continued: true })
+                   .fillColor('#94a3b8').font('Helvetica').text(' | ', { continued: true })
+                   .fillColor('#3b82f6').font('Helvetica-Oblique').text('Attention (31-45 Days)', { continued: true })
+                   .fillColor('#94a3b8').font('Helvetica').text(' | ', { continued: true })
+                   .fillColor('#10b981').font('Helvetica-Oblique').text('Not Due (> 60 Days)');
+
+                let currentY = doc.y + 20;
 
                 // Table Definition
                 if (crewMembers.length === 0) {
                     doc.moveDown(2);
                     doc.fontSize(14).fillColor('#64748b').font('Helvetica-Oblique').text('No crew members assigned to this vessel.', { align: 'center' });
                 } else {
-                    const colWidths = [140, 90, 80, 100, 100, 100, 100];
-                    const headers = ['Full Name', 'Rank', 'Nationality', 'Passport No', 'Contract Status', 'Start Date', 'End Date'];
+                    const colWidths = [40, 120, 80, 100, 75, 85, 95, 75, 75];
+                    const headers = ['Sr. No.', 'Full Name', 'Rank', 'Compliance Status', 'Nationality', 'Passport No', 'Contract Status', 'Start Date', 'End Date'];
+
+                    const complianceColors: Record<string, string> = {
+                        'Overdue':   '#ef4444', // red-500
+                        'Critical':  '#f97316', // orange-500
+                        'Upcoming':  '#ca8a04', // yellow-700
+                        'Attention': '#3b82f6', // blue-500
+                        'Not Due':   '#10b981', // emerald-500
+                    };
 
                     const getRowHeight = (row: string[], isHeader = false) => {
                         doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
@@ -72,23 +92,21 @@ export async function generateVesselPDFBuffer(vesselId: string, storage: IStorag
                         return Math.max(maxHeight + 8, 22); // Minimum height padding
                     };
 
-                    const drawRow = (y: number, row: string[], rowHeight: number, isHeader = false) => {
+                    const drawRow = (y: number, row: string[], rowHeight: number, isHeader = false, cellColors: (string | null)[] = []) => {
                         let x = 40;
-                        doc.fillColor(isHeader ? '#ffffff' : '#334155');
                         doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
 
                         if (isHeader) {
                             doc.rect(x, y - 5, colWidths.reduce((a, b) => a + b, 0), rowHeight).fill('#1e293b');
-                            doc.fillColor('#ffffff');
                         }
 
                         row.forEach((cell, i) => {
-                            doc.text(cell, x + 5, y, { width: colWidths[i] - 10 });
+                            const color = isHeader ? '#ffffff' : (cellColors[i] ?? '#334155');
+                            doc.fillColor(color).text(cell, x + 5, y, { width: colWidths[i] - 10 });
                             x += colWidths[i];
                         });
                     };
 
-                    let currentY = doc.y;
                     let headerHeight = getRowHeight(headers, true);
                     drawRow(currentY, headers, headerHeight, true);
                     currentY += headerHeight;
@@ -111,7 +129,10 @@ export async function generateVesselPDFBuffer(vesselId: string, storage: IStorag
                         const rank = member.rank || 'N/A';
                         const nationality = member.nationality || 'N/A';
 
-                        const rowData = [name, rank, nationality, passportNo, contractStatus, startDate, endDate];
+                        const compliance = getComplianceStatus(member, allDocuments);
+                        const complianceColor = complianceColors[compliance] ?? '#334155';
+
+                        const rowData = [String(i + 1), name, rank, compliance, nationality, passportNo, contractStatus, startDate, endDate];
                         const rowHeight = getRowHeight(rowData, false);
 
                         if (currentY + rowHeight > doc.page.height - 80) {
@@ -125,7 +146,7 @@ export async function generateVesselPDFBuffer(vesselId: string, storage: IStorag
                             doc.rect(40, currentY - 5, colWidths.reduce((a, b) => a + b, 0), rowHeight).fill('#f1f5f9');
                         }
 
-                        drawRow(currentY, rowData, rowHeight);
+                        drawRow(currentY, rowData, rowHeight, false, [null, null, null, complianceColor, null, null, null, null, null]);
                         currentY += rowHeight;
                     });
                 }
@@ -235,20 +256,32 @@ export async function generateFleetPDFBuffer(storage: IStorage): Promise<{ buffe
                 vessels.forEach((vessel, index) => {
                     const crew = vesselGroups[vessel.id];
 
-                    if (index > 0 && doc.y > doc.page.height - 150) {
+                    if (index > 0) {
                         doc.addPage();
                     }
 
                     doc.moveDown(1);
                     doc.fillColor('#0f172a').fontSize(16).font('Helvetica-Bold').text(`Vessel: ${vessel.name}`, 40, doc.y);
                     doc.fillColor('#64748b').fontSize(10).font('Helvetica').text(`Type: ${vessel.type || 'N/A'}  |  IMO: ${vessel.imoNumber || 'N/A'}  |  Crew Count: ${crew.length}`, 40, doc.y);
-                    doc.moveDown(0.5);
+                    doc.moveDown(0.3);
+                    doc.fillColor('#334155').fontSize(9).font('Helvetica-Bold').text('Compliance Status: ', 40, doc.y, { continued: true })
+                       .fillColor('#ef4444').font('Helvetica-Oblique').text('Overdue (Expired)', { continued: true })
+                       .fillColor('#94a3b8').font('Helvetica').text(' | ', { continued: true })
+                       .fillColor('#f97316').font('Helvetica-Oblique').text('Critical (<= 15 Days)', { continued: true })
+                       .fillColor('#94a3b8').font('Helvetica').text(' | ', { continued: true })
+                       .fillColor('#ca8a04').font('Helvetica-Oblique').text('Upcoming (16-30 Days)', { continued: true })
+                       .fillColor('#94a3b8').font('Helvetica').text(' | ', { continued: true })
+                       .fillColor('#3b82f6').font('Helvetica-Oblique').text('Attention (31-45 Days)', { continued: true })
+                       .fillColor('#94a3b8').font('Helvetica').text(' | ', { continued: true })
+                       .fillColor('#10b981').font('Helvetica-Oblique').text('Not Due (> 45 Days)');
+                    
+                    doc.y = doc.y + 15; // Dynamic spacing
 
                     if (crew.length === 0) {
                         doc.fillColor('#94a3b8').fontSize(10).font('Helvetica-Oblique').text('No crew currently assigned.', 40, doc.y);
                     } else {
-                        const colWidths = [160, 105, 85, 115, 105, 105];
-                        const headers = ['Crew Name', 'Rank', 'Status', 'Compliance Status', 'Contract Start', 'Contract End'];
+                        const colWidths = [45, 135, 100, 85, 110, 105, 105];
+                        const headers = ['Sr. No.', 'Crew Name', 'Rank', 'Status', 'Compliance Status', 'Contract Start', 'Contract End'];
 
                         // Dashboard-matching colors for each compliance status
                         const complianceColors: Record<string, string> = {
@@ -303,7 +336,7 @@ export async function generateFleetPDFBuffer(storage: IStorage): Promise<{ buffe
                                 if (member.activeContract.endDate) end = format(new Date(member.activeContract.endDate), 'MMM dd, yyyy');
                             }
 
-                            const rowData = [name, rank, status, compliance, start, end];
+                            const rowData = [String(i + 1), name, rank, status, compliance, start, end];
                             const rowHeight = getFleetRowHeight(rowData, false);
 
                             if (currentY + rowHeight > doc.page.height - 80) {
@@ -317,8 +350,8 @@ export async function generateFleetPDFBuffer(storage: IStorage): Promise<{ buffe
                                 doc.rect(40, currentY - 4, colWidths.reduce((a, b) => a + b, 0), rowHeight - 2).fill('#f8fafc');
                             }
 
-                            // cellColors: null for default, color string for compliance column (index 3)
-                            drawFleetRow(currentY, rowData, rowHeight, false, [null, null, null, complianceColor, null, null]);
+                            // cellColors: null for default, color string for compliance column (index 4)
+                            drawFleetRow(currentY, rowData, rowHeight, false, [null, null, null, null, complianceColor, null, null]);
                             currentY += rowHeight;
                         });
                         doc.y = currentY + 10;
@@ -327,14 +360,14 @@ export async function generateFleetPDFBuffer(storage: IStorage): Promise<{ buffe
 
                 // Unassigned Crew
                 if (unassignedCrew.length > 0) {
-                    if (doc.y > doc.page.height - 150) doc.addPage();
+                    doc.addPage();
                     doc.moveDown(1.5);
                     doc.fillColor('#b91c1c').fontSize(16).font('Helvetica-Bold').text('Unassigned Crew Members', 40, doc.y);
                     doc.fillColor('#64748b').fontSize(10).font('Helvetica').text(`Count: ${unassignedCrew.length}`, 40, doc.y);
                     doc.moveDown(0.5);
 
-                    const colWidths = [180, 120, 100, 120, 120];
-                    const headers = ['Crew Name', 'Rank', 'Status', 'Sign Off Date', 'Contact Number'];
+                    const colWidths = [45, 150, 110, 100, 115, 120];
+                    const headers = ['Sr. No.', 'Crew Name', 'Rank', 'Status', 'Sign Off Date', 'Contact Number'];
 
                     const getUnassignedRowHeight = (row: string[], isHeader = false) => {
                         doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
@@ -374,7 +407,7 @@ export async function generateFleetPDFBuffer(storage: IStorage): Promise<{ buffe
                         const signOffDate = member.signOffDate ? format(new Date(member.signOffDate), 'MMM dd, yyyy') : 'N/A';
                         const contact = member.phoneNumber || 'N/A';
 
-                        const rowData = [name, rank, status, signOffDate, contact];
+                        const rowData = [String(i + 1), name, rank, status, signOffDate, contact];
                         const rowHeight = getUnassignedRowHeight(rowData, false);
 
                         if (currentY + rowHeight > doc.page.height - 80) {

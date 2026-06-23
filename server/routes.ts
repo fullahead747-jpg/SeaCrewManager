@@ -3352,6 +3352,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Scheduling contract events endpoint - synchronized with Fleet Dashboard logic
+  // Uses identical business rules as getDashboardStats so counts always match
+  app.get("/api/scheduling/contract-events", authenticate, async (req, res) => {
+    try {
+      const now = new Date();
+      const fifteenDaysFromNow = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
+      const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const fortyFiveDaysFromNow = new Date(now.getTime() + 45 * 24 * 60 * 60 * 1000);
+
+      const [allCrew, allContracts, allVessels] = await Promise.all([
+        storage.getCrewMembers(),
+        storage.getContracts(),
+        storage.getVessels(),
+      ]);
+
+      const vesselMap = new Map(allVessels.map((v: any) => [v.id, v]));
+
+      // Identical to getDashboardStats: sort ascending by createdAt, overwrite so latest stays
+      const activeContractMap = new Map<string, any>();
+      allContracts
+        .filter((c: any) => c.status === 'active')
+        .sort((a: any, b: any) => (new Date(a.createdAt || 0).getTime()) - (new Date(b.createdAt || 0).getTime()))
+        .forEach((c: any) => activeContractMap.set(c.crewMemberId, c));
+
+      // Only on-board crew — identical to getDashboardStats
+      const onBoardCrew = allCrew.filter((m: any) => m.status === 'onBoard');
+
+      const contractEvents: Array<{
+        id: string;
+        status: 'overdue' | 'critical' | 'upcoming' | 'attention' | 'stable';
+        date: string | null;
+        crewMemberId: string;
+        crewMemberName: string;
+        crewRank: string;
+        vesselId: string | null;
+        vesselName: string;
+        contractId: string | null;
+        contractEndDate: string | null;
+        daysUntilExpiry: number | null;
+        hasNoContract: boolean;
+      }> = [];
+
+      onBoardCrew.forEach((m: any) => {
+        const contract = activeContractMap.get(m.id);
+        const vessel = vesselMap.get(m.currentVesselId || '');
+        const crewMemberName = `${m.firstName} ${m.lastName}`;
+
+        if (!contract || (contract.endDate && new Date(contract.endDate) < now)) {
+          // Overdue: no active contract OR contract already expired — matches getDashboardStats exactly
+          contractEvents.push({
+            id: `overdue-${m.id}`,
+            status: 'overdue',
+            date: contract?.endDate ? new Date(contract.endDate).toISOString() : null,
+            crewMemberId: m.id,
+            crewMemberName,
+            crewRank: m.rank || '—',
+            vesselId: m.currentVesselId || null,
+            vesselName: vessel?.name || 'Unknown',
+            contractId: contract?.id || null,
+            contractEndDate: contract?.endDate ? new Date(contract.endDate).toISOString() : null,
+            daysUntilExpiry: contract?.endDate
+              ? Math.ceil((new Date(contract.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+              : null,
+            hasNoContract: !contract,
+          });
+        } else {
+          const endDate = new Date(contract.endDate);
+          const daysUntilExpiry = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          let status: 'critical' | 'upcoming' | 'attention' | 'stable';
+
+          if (endDate <= fifteenDaysFromNow) status = 'critical';
+          else if (endDate <= thirtyDaysFromNow) status = 'upcoming';
+          else if (endDate <= fortyFiveDaysFromNow) status = 'attention';
+          else status = 'stable';
+
+          contractEvents.push({
+            id: contract.id,
+            status,
+            date: endDate.toISOString(),
+            crewMemberId: m.id,
+            crewMemberName,
+            crewRank: m.rank || '—',
+            vesselId: m.currentVesselId || null,
+            vesselName: vessel?.name || 'Unknown',
+            contractId: contract.id,
+            contractEndDate: endDate.toISOString(),
+            daysUntilExpiry,
+            hasNoContract: false,
+          });
+        }
+      });
+
+      res.json(contractEvents);
+    } catch (error) {
+      console.error('Scheduling contract events error:', error);
+      res.status(500).json({ error: 'Failed to fetch scheduling contract events' });
+    }
+  });
+
   // Upcoming events endpoint
   app.get("/api/upcoming-events", authenticate, async (req, res) => {
     try {
