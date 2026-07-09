@@ -38,7 +38,7 @@ import {
   type InsertScannedDocument,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, gt, lte, sql, isNotNull, isNull, desc, inArray, count } from "drizzle-orm";
+import { eq, and, gte, gt, lte, sql, isNotNull, isNull, desc, inArray, count, or } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -87,6 +87,7 @@ export interface IStorage {
   getExpiringDocuments(days: number): Promise<DocumentAlert[]>;
   getExpiringContracts(days: number): Promise<ContractAlert[]>;
   createDocument(document: InsertDocument): Promise<Document>;
+  upsertDocument(document: InsertDocument): Promise<{ document: Document; wasUpdated: boolean }>;
   updateDocument(id: string, document: Partial<InsertDocument>): Promise<Document | undefined>;
   deleteDocument(id: string): Promise<boolean>;
 
@@ -166,7 +167,10 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
+    // Allow login with either username or email
+    const [user] = await db.select().from(users).where(
+      or(eq(users.username, username), eq(users.email, username))
+    );
     return user || undefined;
   }
 
@@ -809,6 +813,42 @@ export class DatabaseStorage implements IStorage {
     return newDocument;
   }
 
+  /**
+   * Upsert a document by (crewMemberId + type).
+   * Uses atomic INSERT ... ON CONFLICT DO UPDATE to prevent duplicate rows.
+   * The UNIQUE constraint on (crew_member_id, type) guarantees no duplicates.
+   */
+  async upsertDocument(document: InsertDocument): Promise<{ document: Document; wasUpdated: boolean }> {
+    // Check if a record already exists (informational — for the wasUpdated flag only)
+    const [existing] = await db
+      .select({ id: documents.id })
+      .from(documents)
+      .where(and(eq(documents.crewMemberId, document.crewMemberId), eq(documents.type, document.type)))
+      .limit(1);
+
+    const wasUpdated = !!existing;
+
+    // Atomic upsert — single SQL statement, no race condition possible
+    const [result] = await db
+      .insert(documents)
+      .values(document)
+      .onConflictDoUpdate({
+        target: [documents.crewMemberId, documents.type],
+        set: {
+          documentNumber: document.documentNumber,
+          issueDate: document.issueDate,
+          expiryDate: document.expiryDate ?? null,
+          issuingAuthority: document.issuingAuthority,
+          status: document.status ?? 'valid',
+          filePath: document.filePath ?? null,
+          updatedAt: new Date(),
+        }
+      })
+      .returning();
+
+    return { document: result, wasUpdated };
+  }
+
   async updateDocument(id: string, document: Partial<InsertDocument>): Promise<Document | undefined> {
     const [updated] = await db
       .update(documents)
@@ -1041,7 +1081,7 @@ export class DatabaseStorage implements IStorage {
         inArray(vessels.status, ['harbour-mining', 'coastal-mining', 'world-wide', 'oil-field', 'line-up-mining', 'active']),
         vesselId ? eq(vessels.id, vesselId) : sql`TRUE`
       )),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) > 1900`, docVesselFilter || sql`TRUE`)),
+      db.select({ count: sql<number>`COUNT(DISTINCT ${documents.crewMemberId})` }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) > 1900`, docVesselFilter || sql`TRUE`)),
       db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) <= 1900`, docVesselFilter || sql`TRUE`)),
       db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gte(documents.expiryDate, now), lte(documents.expiryDate, thirtyDaysFromNow), docVesselFilter || sql`TRUE`)),
       db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, thirtyDaysFromNow), lte(documents.expiryDate, ninetyDaysFromNow), docVesselFilter || sql`TRUE`)),
@@ -2237,6 +2277,20 @@ export class MemStorage implements IStorage {
     };
     this.documents.set(id, document);
     return document;
+  }
+
+  async upsertDocument(insertDocument: InsertDocument): Promise<{ document: Document; wasUpdated: boolean }> {
+    // In-memory: find existing doc with same crewMemberId + type
+    const existing = Array.from(this.documents.values()).find(
+      d => d.crewMemberId === insertDocument.crewMemberId && d.type === insertDocument.type
+    );
+    if (existing) {
+      const updated = { ...existing, ...insertDocument, updatedAt: new Date() };
+      this.documents.set(existing.id, updated);
+      return { document: updated, wasUpdated: true };
+    }
+    const document = await this.createDocument(insertDocument);
+    return { document, wasUpdated: false };
   }
 
   async updateDocument(id: string, updates: Partial<InsertDocument>): Promise<Document | undefined> {
