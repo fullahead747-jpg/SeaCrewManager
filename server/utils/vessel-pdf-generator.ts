@@ -440,3 +440,133 @@ export async function generateFleetPDFBuffer(storage: IStorage): Promise<{ buffe
         throw error;
     }
 }
+
+export async function generateWeeklyReportPDFBuffer(type: string, startDateStr: string, endDateStr: string, storage: IStorage): Promise<{ buffer: Buffer; fileName: string }> {
+    try {
+        const vessels = await storage.getVessels();
+        const allCrew = await storage.getCrewMembers();
+        
+        const start = new Date(startDateStr);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(endDateStr);
+        end.setHours(23, 59, 59, 999);
+
+        let filteredCrew: any[] = [];
+        let reportTitle = '';
+        let dateLabel = '';
+
+        if (type === 'sign-on') {
+            reportTitle = 'Weekly Sign-On Crew Report';
+            dateLabel = 'Sign-On Date';
+            filteredCrew = allCrew.filter(member => {
+                if (!member.activeContract || !member.activeContract.startDate) return false;
+                const d = new Date(member.activeContract.startDate);
+                return d >= start && d <= end;
+            });
+        } else {
+            reportTitle = 'Weekly Signed-Off Crew Report';
+            dateLabel = 'Sign-Off Date';
+            filteredCrew = allCrew.filter(member => {
+                if (!member.signOffDate) return false;
+                const d = new Date(member.signOffDate);
+                return d >= start && d <= end;
+            });
+        }
+
+        return new Promise((resolve, reject) => {
+            try {
+                const doc = new PDFDocument({ margin: 40, size: 'A4', layout: 'landscape' });
+                const chunks: Buffer[] = [];
+
+                doc.on('data', (chunk) => chunks.push(chunk));
+                doc.on('end', () => {
+                    const pdfBuffer = Buffer.concat(chunks);
+                    const fileName = `Weekly_${type === 'sign-on' ? 'Sign_On' : 'Signed_Off'}_Report_${format(start, 'yyyy-MM-dd')}_to_${format(end, 'yyyy-MM-dd')}.pdf`;
+                    resolve({ buffer: pdfBuffer, fileName });
+                });
+                doc.on('error', reject);
+
+                // Header
+                doc.fillColor('#0f172a').fontSize(24).font('Helvetica-Bold').text(reportTitle, { align: 'center' });
+                doc.moveDown(0.2);
+                doc.fillColor('#64748b').fontSize(12).font('Helvetica').text(`Period: ${format(start, 'MMM dd, yyyy')} - ${format(end, 'MMM dd, yyyy')}`, { align: 'center' });
+                doc.moveDown(2);
+
+                if (filteredCrew.length === 0) {
+                    doc.fontSize(14).fillColor('#64748b').font('Helvetica-Oblique').text(`No crew records found for this period.`, { align: 'center' });
+                    doc.end();
+                    return;
+                }
+
+                // Table Definition
+                const colWidths = [40, 150, 100, 150, 120, 100];
+                const headers = ['Sr. No.', 'Full Name', 'Rank', 'Vessel', 'Nationality', dateLabel];
+
+                const drawRow = (y: number, row: string[], isHeader = false) => {
+                    let x = 40;
+                    doc.fillColor(isHeader ? '#ffffff' : '#334155');
+                    doc.font(isHeader ? 'Helvetica-Bold' : 'Helvetica').fontSize(10);
+
+                    if (isHeader) {
+                        doc.rect(x, y - 5, colWidths.reduce((a, b) => a + b, 0), 25).fill('#1e293b');
+                        doc.fillColor('#ffffff');
+                    }
+
+                    row.forEach((cell, i) => {
+                        doc.text(cell || 'N/A', x + 5, y + 2, { width: colWidths[i] - 10, height: 20 });
+                        x += colWidths[i];
+                    });
+                };
+
+                let currentY = doc.y;
+                drawRow(currentY, headers, true);
+                currentY += 25;
+
+                filteredCrew.forEach((member, i) => {
+                    const name = `${member.firstName} ${member.lastName}`.toUpperCase();
+                    const rank = member.rank || 'N/A';
+                    let vesselName = 'Unassigned';
+                    if (member.currentVesselId) {
+                        const v = vessels.find(ves => ves.id === member.currentVesselId);
+                        if (v) vesselName = v.name;
+                    } else if (type === 'sign-off' && member.lastVesselId) {
+                        const v = vessels.find(ves => ves.id === member.lastVesselId);
+                        if (v) vesselName = v.name;
+                    }
+
+                    const nationality = member.nationality || 'N/A';
+                    
+                    let dateVal = 'N/A';
+                    if (type === 'sign-on' && member.activeContract?.startDate) {
+                        dateVal = format(new Date(member.activeContract.startDate), 'MMM dd, yyyy');
+                    } else if (type === 'sign-off' && member.signOffDate) {
+                        dateVal = format(new Date(member.signOffDate), 'MMM dd, yyyy');
+                    }
+
+                    const rowData = [String(i + 1), name, rank, vesselName, nationality, dateVal];
+
+                    if (currentY + 25 > doc.page.height - 80) {
+                        doc.addPage();
+                        currentY = 40;
+                        drawRow(currentY, headers, true);
+                        currentY += 25;
+                    }
+
+                    if (i % 2 === 0) {
+                        doc.rect(40, currentY - 5, colWidths.reduce((a, b) => a + b, 0), 25).fill('#f8fafc');
+                    }
+
+                    drawRow(currentY, rowData, false);
+                    currentY += 25;
+                });
+
+                doc.end();
+            } catch (err) {
+                reject(err);
+            }
+        });
+    } catch (error) {
+        console.error('Weekly Report PDF generation error:', error);
+        throw error;
+    }
+}

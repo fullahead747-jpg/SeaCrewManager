@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import StatsCard from '@/components/dashboard/stats-card';
 const VesselCards = memo(lazy(() => import('@/components/vessels/vessel-cards')));
 import SignOffDueModal from '@/components/dashboard/sign-off-due-modal';
+import WeeklyReportModal from '@/components/dashboard/weekly-report-modal';
 import ContractExpiryTimelineModal from '@/components/dashboard/contract-expiry-timeline-modal';
 import InteractiveHealthCard, { HealthDataPoint } from '@/components/dashboard/interactive-health-card';
 import HealthDrillDownModal from '@/components/dashboard/health-drill-down-modal';
@@ -84,6 +85,7 @@ export default function Dashboard() {
   const { toast } = useToast();
   const [showSignOffDueModal, setShowSignOffDueModal] = useState(false);
   const [showExpiryTimelineModal, setShowExpiryTimelineModal] = useState(false);
+  const [showWeeklyReportModal, setShowWeeklyReportModal] = useState(false);
 
   // Drill-down states
   const [drillDownOpen, setDrillDownOpen] = useState(false);
@@ -241,6 +243,7 @@ export default function Dashboard() {
           onCriticalClick={() => setShowSignOffDueModal(true)}
           onOverdueClick={() => handleDrillDown('contract', 'overdue', 'Expired Contracts')}
           onSearchClick={() => handleDrillDown('contract', 'global-search', 'Search')}
+          onWeeklyReportClick={() => setShowWeeklyReportModal(true)}
           onDownloadClick={exportCrewByVessel}
         />
       )}
@@ -274,6 +277,11 @@ export default function Dashboard() {
       <SignOffDueModal
         isOpen={showSignOffDueModal}
         onClose={() => setShowSignOffDueModal(false)}
+      />
+
+      <WeeklyReportModal
+        isOpen={showWeeklyReportModal}
+        onClose={() => setShowWeeklyReportModal(false)}
       />
 
       <ContractExpiryTimelineModal

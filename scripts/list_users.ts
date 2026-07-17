@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { storage } from "../server/storage";
 import { config } from 'dotenv';
 

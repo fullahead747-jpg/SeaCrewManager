@@ -165,8 +165,8 @@ export default function Scheduling() {
       month: monthStr,
       events: monthEvents.map(e => ({
         ...e,
-        date: e.date.toISOString(),
-        contractEndDate: e.contractEndDate.toISOString(),
+        date: e.date!.toISOString(),
+        contractEndDate: e.contractEndDate!.toISOString(),
       })) as any,
       additionalEmail: sendToAdditional && additionalEmail ? additionalEmail : undefined
     });

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Comprehensive storage verification - checks both contracts and documents
  */

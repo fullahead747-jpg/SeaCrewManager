@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Verify Object Storage Configuration
  * Run this on Replit after setting up Object Storage

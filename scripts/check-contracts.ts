@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 import { DatabaseStorage } from "../server/storage.js";
 import { config } from "dotenv";

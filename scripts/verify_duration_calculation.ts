@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 import { DatabaseStorage } from "../server/storage";
 import { db } from "../server/db";

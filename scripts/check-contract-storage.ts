@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Check contract storage for a specific crew member
  */

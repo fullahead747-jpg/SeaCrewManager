@@ -51,6 +51,8 @@ const documentTypes = [
   { value: 'coe', label: 'COE' },
   { value: 'coe-extension', label: 'COE-Extension' },
   { value: 'stcw_course', label: 'Courses' },
+  { value: 'sid', label: 'SID (Seafarer Identity Document)' },
+  { value: 'cv', label: 'CV (Curriculum Vitae)' },
 ];
 
 export default function DocumentUpload({ crewMemberId, document, preselectedType, onSuccess }: DocumentUploadProps) {
@@ -64,6 +66,8 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
   const [isDragging, setIsDragging] = useState(false);
   const [validationError, setValidationError] = useState<any>(null);
   const [showValidationDialog, setShowValidationDialog] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [ocrConfidence, setOcrConfidence] = useState<number | null>(null);
 
   const form = useForm<DocumentFormData>({
     resolver: zodResolver(documentFormSchema),
@@ -124,6 +128,9 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
   const watchedType = form.watch('type');
   const isAoaDocument = watchedType === 'aoa';
   const isDateLocked = isAoaDocument && !!document && !selectedFile;
+  // CV is upload-only: no doc number, no dates, no issuing authority
+  const isCvDocument = watchedType === 'cv';
+  const hideMetadataFields = watchedType === 'photo' || watchedType === 'nok' || isCvDocument;
 
   // Auto-fill existing document data if available and not in edit mode
   useEffect(() => {
@@ -184,18 +191,31 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
         ? await apiRequest('PUT', `/api/documents/${document.id}`, payload)
         : await apiRequest('POST', '/api/documents', payload);
       setUploadProgress(100);
-      return response;
+      const responseData = await response.json();
+      return { ...responseData, _isEditing: isEditing };
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/drilldown'] });
       queryClient.invalidateQueries({ queryKey: ['/api/alerts/expiring-documents'] });
-      toast({
-        title: 'Success',
-        description: document ? 'Document updated successfully' : 'Document uploaded successfully',
-      });
+
+      if (data?.wasUpdated && !data?._isEditing) {
+        // Duplicate detected — show informational popup
+        toast({
+          title: '⚠️ Entry Already Exists',
+          description: `A ${data.type?.toUpperCase() || 'document'} record already exists for this crew member. The existing record has been updated with the new details.`,
+          variant: 'destructive',
+          duration: 6000,
+        });
+      } else {
+        toast({
+          title: 'Success',
+          description: data?._isEditing ? 'Document updated successfully' : 'Document uploaded successfully',
+        });
+      }
+
       form.reset();
       setSelectedFile(null);
       setUploadProgress(0);
@@ -292,7 +312,51 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) validateAndSetFile(file);
+    if (file && validateAndSetFile(file)) {
+      triggerOcrScan(file);
+    }
+  };
+
+  const triggerOcrScan = async (file: File) => {
+    const docType = form.getValues('type') || 'sid';
+    // Only scan for document types that have structured fields
+    const scanTypes = ['sid', 'passport', 'cdc', 'coc', 'medical', 'visa', 'yellow_fever', 'stcw_course'];
+    if (!scanTypes.includes(docType)) return;
+
+    setIsScanning(true);
+    setOcrConfidence(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('documentType', docType);
+
+      const { getAuthHeaders } = await import('@/lib/auth');
+      const response = await fetch('/api/documents/scan-preview', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: formData,
+      });
+
+      if (!response.ok) throw new Error('Scan failed');
+      const data = await response.json();
+
+      // Auto-fill extracted fields (only if non-empty and user hasn't already typed)
+      if (data.documentNumber) form.setValue('documentNumber', data.documentNumber);
+      if (data.issueDate) {
+        const d = new Date(data.issueDate);
+        if (!isNaN(d.getTime())) form.setValue('issueDate', d.toISOString().split('T')[0]);
+      }
+      if (data.expiryDate) {
+        const d = new Date(data.expiryDate);
+        if (!isNaN(d.getTime())) form.setValue('expiryDate', d.toISOString().split('T')[0]);
+      }
+      if (data.issuingAuthority) form.setValue('issuingAuthority', data.issuingAuthority);
+      setOcrConfidence(data.ocrConfidence ?? null);
+    } catch (err) {
+      console.warn('[OCR-AUTOFILL] Scan failed silently:', err);
+    } finally {
+      setIsScanning(false);
+    }
   };
 
   const handleViewDocument = async () => {
@@ -447,17 +511,19 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                   )}
                 />
 
-                {watchedType !== 'photo' && watchedType !== 'nok' && (
+                {!hideMetadataFields && (
                   <FormField
                     control={form.control}
                     name="documentNumber"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium text-muted-foreground">Document Number</FormLabel>
+                        <FormLabel className="text-sm font-medium text-muted-foreground">
+                          {watchedType === 'sid' ? 'SID Number' : 'Document Number'}
+                        </FormLabel>
                         <FormControl>
                           <Input
                             {...field}
-                            placeholder="e.g. MAH/MUM/327/2023"
+                            placeholder={watchedType === 'sid' ? 'e.g. M33140261' : 'e.g. MAH/MUM/327/2023'}
                             className="h-11 bg-background border-input"
                           />
                         </FormControl>
@@ -474,22 +540,25 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                   </div>
                 </div>
 
-                {watchedType !== 'photo' && watchedType !== 'nok' && (
+                {!hideMetadataFields && (
                   <FormField
                     control={form.control}
                     name="issuingAuthority"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-sm font-medium text-muted-foreground">Issuing Authority</FormLabel>
+                        <FormLabel className="text-sm font-medium text-muted-foreground">
+                          {watchedType === 'sid' ? 'Place of Issue' : 'Issuing Authority'}
+                        </FormLabel>
                         <FormControl>
                           <div className="relative">
                             <Input
                               {...field}
-                              placeholder="e.g. DG SHIPPING, DR. SUDHIR B. PATIL"
+                              placeholder={watchedType === 'sid' ? 'e.g. Mumbai' : 'e.g. DG SHIPPING, DR. SUDHIR B. PATIL'}
                               className="h-11 bg-background border-input"
                             />
                           </div>
                         </FormControl>
+
                         <FormMessage />
                       </FormItem>
                     )}
@@ -510,14 +579,16 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                 </div>
 
                 {/* Dates Row */}
-                {watchedType !== 'photo' && watchedType !== 'nok' && (
+                {!hideMetadataFields && (
                   <div className="grid grid-cols-2 gap-6">
                     <FormField
                       control={form.control}
                       name="issueDate"
                       render={({ field }) => (
                         <FormItem className="flex flex-col">
-                          <FormLabel className="text-sm font-medium text-muted-foreground mb-1.5">Issue Date</FormLabel>
+                          <FormLabel className="text-sm font-medium text-muted-foreground mb-1.5">
+                            {watchedType === 'sid' ? 'SID Date of Issue' : 'Issue Date'}
+                          </FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
@@ -555,7 +626,9 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                       name="expiryDate"
                       render={({ field }) => (
                         <FormItem className="flex flex-col">
-                          <FormLabel className="text-sm font-medium text-muted-foreground mb-1.5">Expiry Date</FormLabel>
+                          <FormLabel className="text-sm font-medium text-muted-foreground mb-1.5">
+                            {watchedType === 'sid' ? 'SID Date of Expiry' : 'Expiry Date'}
+                          </FormLabel>
                           <Popover>
                             <PopoverTrigger asChild>
                               <FormControl>
@@ -602,7 +675,9 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                           e.preventDefault();
                           setIsDragging(false);
                           const file = e.dataTransfer.files?.[0];
-                          if (file) validateAndSetFile(file);
+                          if (file && validateAndSetFile(file)) {
+                            triggerOcrScan(file);
+                          }
                         }}
                         className={cn(
                           "flex flex-col items-center justify-center text-center py-6 transition-all",
@@ -628,6 +703,24 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                             <div className="flex flex-col items-center animate-in fade-in zoom-in duration-300">
                               <p className="text-base font-semibold text-foreground">{selectedFile.name}</p>
                               <p className="text-xs text-muted-foreground mt-1">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                              {isScanning && (
+                                <div className="flex items-center gap-2 mt-2 text-xs text-blue-600 dark:text-blue-400">
+                                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                                  </svg>
+                                  <span>Scanning document...</span>
+                                </div>
+                              )}
+                              {!isScanning && ocrConfidence !== null && ocrConfidence > 0 && (
+                                <div className={`mt-2 px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  ocrConfidence >= 70 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                  : ocrConfidence >= 40 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                                  : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                                }`}>
+                                  OCR {ocrConfidence}% confidence
+                                </div>
+                              )}
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -635,6 +728,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                                 onClick={(e) => {
                                   e.preventDefault();
                                   setSelectedFile(null);
+                                  setOcrConfidence(null);
                                 }}
                               >
                                 Remove
@@ -702,7 +796,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
               <Button
                 type="submit"
                 className="h-11 px-8 bg-blue-600 hover:bg-blue-700 text-white shadow-sm font-medium"
-                disabled={uploadMutation.isPending || (!selectedFile && !document)}
+                disabled={uploadMutation.isPending || (!selectedFile && !document) || isScanning}
               >
                 {uploadMutation.isPending ? 'Uploading...' : 'Upload Document'}
               </Button>

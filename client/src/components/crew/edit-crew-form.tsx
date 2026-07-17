@@ -55,6 +55,10 @@ const editCrewSchema = z.object({
   stcwIssueDate: z.string().optional(),
   stcwExpiryDate: z.string().optional(),
   stcwNotApplicable: z.boolean().optional(),
+  sidNumber: z.string().optional(),
+  sidPlaceOfIssue: z.string().optional(),
+  sidIssueDate: z.string().optional(),
+  sidExpiryDate: z.string().optional(),
   statusChangeReason: z.string().optional(),
 });
 
@@ -87,6 +91,7 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
   const coc = crewMember.documents?.find(d => d.type === 'coc');
   const medical = crewMember.documents?.find(d => d.type === 'medical');
   const stcw = crewMember.documents?.find(d => d.type === 'stcw_course');
+  const sid = crewMember.documents?.find(d => d.type === 'sid');
 
   const form = useForm<EditCrewFormData>({
     resolver: zodResolver(editCrewSchema),
@@ -136,6 +141,10 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       stcwIssueDate: formatDateForInput(stcw?.issueDate),
       stcwExpiryDate: formatDateForInput(stcw?.expiryDate),
       stcwNotApplicable: crewMember.stcwNotApplicable || false,
+      sidNumber: sid?.documentNumber || '',
+      sidPlaceOfIssue: sid?.issuingAuthority || '',
+      sidIssueDate: formatDateForInput(sid?.issueDate),
+      sidExpiryDate: formatDateForInput(sid?.expiryDate),
     },
   });
 
@@ -273,6 +282,7 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
 
       await updateOrCreateDocument('medical', data.medicalApprovalNo, data.medicalIssuingAuthority, data.medicalIssueDate, data.medicalExpiryDate, medical, data.medicalNotApplicable);
       await updateOrCreateDocument('stcw_course', data.stcwNumber, data.stcwIssuingAuthority, data.stcwIssueDate, data.stcwExpiryDate, stcw, data.stcwNotApplicable);
+      await updateOrCreateDocument('sid', data.sidNumber, data.sidPlaceOfIssue, data.sidIssueDate, data.sidExpiryDate, sid);
 
       const response = await fetch(`/api/crew/${crewMember.id}`, {
         method: 'PUT',

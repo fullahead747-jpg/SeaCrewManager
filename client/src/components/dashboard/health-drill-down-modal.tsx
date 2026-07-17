@@ -364,18 +364,104 @@ const HealthDrillDownModal = memo(({
         });
     }, [detailData, deferredSearchTerm, type]);
 
+    const getMemberComplianceStatus = useCallback((member: any) => {
+        const now = new Date();
+        const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        
+        if (type === 'contract') {
+            let level = 0; // Default: Not Due (stable)
+            const contract = member.activeContract;
+            if (member.status === 'onBoard') {
+                if (!contract) {
+                    level = 4; // Overdue
+                } else if (contract.endDate) {
+                    const expiry = new Date(contract.endDate);
+                    if (expiry.getFullYear() >= 2000) {
+                        const days = Math.ceil((expiry.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+                        if (days < 0)        level = 4; // Overdue
+                        else if (days <= 15) level = 3; // Critical
+                        else if (days <= 30) level = 2; // Upcoming
+                        else if (days <= 45) level = 1; // Attention
+                    }
+                }
+            }
+            const statuses = ['Not Due', 'Attention', 'Upcoming', 'Critical', 'Overdue'];
+            const colors = ['#10b981', '#3b82f6', '#d97706', '#f97316', '#ef4444'];
+            return {
+                status: statuses[level],
+                color: colors[level]
+            };
+        } else {
+            // type === 'document'
+            const memberDocs = (member.documents || documents || []).filter((d: any) => d.crewMemberId === member.id && d.expiryDate);
+            let worst = 0; // Default: Valid (0)
+            for (const doc of memberDocs) {
+                const expiry = new Date(doc.expiryDate);
+                if (expiry.getFullYear() < 2000) continue;
+                const days = Math.ceil((expiry.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+                let level = 0;
+                if (days < 0)         level = 4; // Expired
+                else if (days <= 30)  level = 3; // Critical Expiry
+                else if (days <= 90)  level = 2; // Warning
+                else if (days <= 180) level = 1; // Attention
+                if (level > worst) worst = level;
+            }
+            const statuses = ['Valid', 'Attention', 'Warning', 'Critical', 'Expired'];
+            const colors = ['#10b981', '#3b82f6', '#d97706', '#f97316', '#ef4444'];
+            return {
+                status: statuses[worst],
+                color: colors[worst]
+            };
+        }
+    }, [documents, type]);
+
     const handlePrintReport = useCallback(() => {
         if (!filteredData || filteredData.length === 0) return;
 
-        const rows = filteredData.map((member: any, index: number) => `
-            <tr style="border-bottom: 1px solid #e2e8f0;">
-                <td style="padding: 10px 12px; font-size: 11px; color: #94a3b8;">${index + 1}</td>
-                <td style="padding: 10px 12px; font-size: 11px; font-weight: 700; color: #1e293b; text-transform: uppercase;">${member.currentVessel?.name || 'N/A'}</td>
-                <td style="padding: 10px 12px; font-size: 11px; font-weight: 700; color: #1e293b; text-transform: uppercase;">${member.firstName} ${member.lastName}</td>
-                <td style="padding: 10px 12px; font-size: 11px; color: #334155;">${member.activeContract?.startDate ? new Date(member.activeContract.startDate).toLocaleDateString('en-GB') : 'N/A'}</td>
-                <td style="padding: 10px 12px; font-size: 11px; color: #334155;">${member.activeContract?.endDate ? new Date(member.activeContract.endDate).toLocaleDateString('en-GB') : 'N/A'}</td>
-            </tr>
-        `).join('');
+        const rows = filteredData.map((member: any, index: number) => {
+            const compliance = getMemberComplianceStatus(member);
+            return `
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+                    <td style="padding: 10px 12px; font-size: 11px; color: #94a3b8;">${index + 1}</td>
+                    <td style="padding: 10px 12px; font-size: 11px; font-weight: 700; color: #1e293b; text-transform: uppercase;">${member.currentVessel?.name || 'N/A'}</td>
+                    <td style="padding: 10px 12px; font-size: 11px; font-weight: 700; color: #1e293b; text-transform: uppercase;">${member.firstName} ${member.lastName}</td>
+                    <td style="padding: 10px 12px; font-size: 11px; color: #334155; text-transform: uppercase;">${member.rank || 'N/A'}</td>
+                    <td style="padding: 10px 12px; font-size: 11px; color: #334155;">${member.activeContract?.startDate ? new Date(member.activeContract.startDate).toLocaleDateString('en-GB') : 'N/A'}</td>
+                    <td style="padding: 10px 12px; font-size: 11px; color: #334155;">${member.activeContract?.endDate ? new Date(member.activeContract.endDate).toLocaleDateString('en-GB') : 'N/A'}</td>
+                    <td style="padding: 10px 12px; font-size: 11px; font-weight: 700; color: ${compliance.color}; text-transform: uppercase;">${compliance.status}</td>
+                </tr>
+            `;
+        }).join('');
+
+        const legendHeader = type === 'contract' 
+            ? `
+            <div style="margin-top: 8px; margin-bottom: 24px; font-size: 10px; font-weight: 700;">
+                <span style="color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Compliance Status Legend:</span>
+                <span style="color: #ef4444; font-style: italic; margin-left: 8px;">Overdue (Expired)</span>
+                <span style="color: #94a3b8; font-weight: normal; margin: 0 8px;">|</span>
+                <span style="color: #f97316; font-style: italic;">Critical (&le; 15 Days)</span>
+                <span style="color: #94a3b8; font-weight: normal; margin: 0 8px;">|</span>
+                <span style="color: #d97706; font-style: italic;">Upcoming (16&ndash;30 Days)</span>
+                <span style="color: #94a3b8; font-weight: normal; margin: 0 8px;">|</span>
+                <span style="color: #3b82f6; font-style: italic;">Attention (31&ndash;45 Days)</span>
+                <span style="color: #94a3b8; font-weight: normal; margin: 0 8px;">|</span>
+                <span style="color: #10b981; font-style: italic;">Not Due (&gt; 45 Days)</span>
+            </div>
+            `
+            : `
+            <div style="margin-top: 8px; margin-bottom: 24px; font-size: 10px; font-weight: 700;">
+                <span style="color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Compliance Status Legend:</span>
+                <span style="color: #ef4444; font-style: italic; margin-left: 8px;">Expired</span>
+                <span style="color: #94a3b8; font-weight: normal; margin: 0 8px;">|</span>
+                <span style="color: #f97316; font-style: italic;">Critical Expiry (&le; 30 Days)</span>
+                <span style="color: #94a3b8; font-weight: normal; margin: 0 8px;">|</span>
+                <span style="color: #d97706; font-style: italic;">Warning (31&ndash;90 Days)</span>
+                <span style="color: #94a3b8; font-weight: normal; margin: 0 8px;">|</span>
+                <span style="color: #3b82f6; font-style: italic;">Attention (91&ndash;180 Days)</span>
+                <span style="color: #94a3b8; font-weight: normal; margin: 0 8px;">|</span>
+                <span style="color: #10b981; font-style: italic;">Valid (&gt; 180 Days)</span>
+            </div>
+            `;
 
         const html = `
             <!DOCTYPE html>
@@ -389,7 +475,7 @@ const HealthDrillDownModal = memo(({
                 </style>
             </head>
             <body>
-                <div style="border-bottom: 2px solid #1e293b; padding-bottom: 16px; margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-end;">
+                <div style="border-bottom: 2px solid #1e293b; padding-bottom: 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-end;">
                     <div>
                         <h1 style="font-size: 22px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;">Crew Report</h1>
                         <p style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 4px;">Category: ${categoryName}</p>
@@ -399,14 +485,17 @@ const HealthDrillDownModal = memo(({
                         <p style="font-size: 9px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 2px;">Date: ${new Date().toLocaleDateString('en-GB')}</p>
                     </div>
                 </div>
+                ${legendHeader}
                 <table style="width: 100%; border-collapse: collapse;">
                     <thead>
                         <tr style="border-bottom: 2px solid #334155; background: #f8fafc;">
-                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 8%;">S/N</th>
-                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 25%;">Vessel Name</th>
-                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 35%;">Crew Name</th>
-                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 16%;">Sign On</th>
-                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 16%;">Sign Off</th>
+                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 8%;">Sr. No.</th>
+                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 15%;">Vessel Name</th>
+                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 22%;">Crew Name</th>
+                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 12%;">Rank</th>
+                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 13%;">Sign On</th>
+                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 13%;">Sign Off</th>
+                            <th style="padding: 10px 12px; text-align: left; font-size: 9px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; width: 17%;">Compliance Status</th>
                         </tr>
                     </thead>
                     <tbody>${rows}</tbody>
@@ -425,7 +514,7 @@ const HealthDrillDownModal = memo(({
             printWindow.document.write(html);
             printWindow.document.close();
         }
-    }, [filteredData, categoryName, categoryKey]);
+    }, [filteredData, categoryName, categoryKey, type, getMemberComplianceStatus]);
 
     const displayData = useMemo(() => {
         return filteredData.slice(0, displayCount);
@@ -804,7 +893,6 @@ const HealthDrillDownModal = memo(({
                                 queryClient.invalidateQueries({ queryKey: ['/api/crew'] });
                                 queryClient.invalidateQueries({ queryKey: ['/api/dashboard/drilldown'] });
                             }}
-                            onCancel={() => setShowEditDialog(false)}
                         />
                     )}
                 </DialogContent>

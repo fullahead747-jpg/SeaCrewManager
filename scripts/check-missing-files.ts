@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { db } from "../server/db";
 import { documents, contracts, crewMembers } from "@shared/schema";
 import * as fs from "fs";

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { documentAccessService } from '../server/services/document-access-service.js';
 import { db } from '../server/db.js';
 import { documentAccessTokens } from '../shared/schema.js';

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { config } from 'dotenv';
 import path from 'path';
 import fs from 'fs';

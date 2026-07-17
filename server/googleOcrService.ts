@@ -12,6 +12,62 @@ function resolveCredentialsPath(): string | null {
   return path.isAbsolute(credPath) ? credPath : path.resolve(process.cwd(), credPath);
 }
 
+function normalizeDateStr(str: string | undefined): string | undefined {
+  if (!str) return undefined;
+  let cleaned = str.trim().replace(/\s+/g, ' ');
+  
+  // If already in YYYY-MM-DD format, return immediately (idempotency)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+    return cleaned;
+  }
+  
+  // If matched 8 digits without spaces/separators, or with a single space (e.g. 15032032 or 1503 2032)
+  const digitOnlyMatch = cleaned.replace(/[-/ .]/g, '');
+  if (digitOnlyMatch.length === 8) {
+    cleaned = `${digitOnlyMatch.substring(0, 2)} ${digitOnlyMatch.substring(2, 4)} ${digitOnlyMatch.substring(4)}`;
+  }
+  
+  // Pattern 1: DD MM YYYY or DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
+  const dmyMatch = cleaned.match(/^(\d{1,2})[-/ .](\d{1,2}|\w+)[-/ .](\d{2,4})$/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    let month = dmyMatch[2];
+    let year = dmyMatch[3];
+    if (year.length === 2) {
+      year = (parseInt(year) < 50 ? '20' : '19') + year;
+    }
+    if (/^\d+$/.test(month)) {
+      month = month.padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } else {
+      const monthIndex = new Date(`${month} 1, 2000`).getMonth();
+      if (!isNaN(monthIndex)) {
+        const monthNum = String(monthIndex + 1).padStart(2, '0');
+        return `${year}-${monthNum}-${day}`;
+      }
+    }
+  }
+  
+  // Pattern 2: YYYY MM DD
+  const ymdMatch = cleaned.match(/^(\d{4})[-/ .](\d{1,2}|\w+)[-/ .](\d{1,2})$/);
+  if (ymdMatch) {
+    const year = ymdMatch[1];
+    let month = ymdMatch[2];
+    const day = ymdMatch[3].padStart(2, '0');
+    if (/^\d+$/.test(month)) {
+      month = month.padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    } else {
+      const monthIndex = new Date(`${month} 1, 2000`).getMonth();
+      if (!isNaN(monthIndex)) {
+        const monthNum = String(monthIndex + 1).padStart(2, '0');
+        return `${year}-${monthNum}-${day}`;
+      }
+    }
+  }
+  return cleaned;
+}
+
 let tesseractWorker: any = null;
 
 async function getTesseractWorker() {
@@ -411,6 +467,37 @@ function parseAoaFields(text: string): Record<string, string | number> {
     /(?:Expiry|Expiration|Valid\s*Till)[:\s]+(\d{1,2}[-/ .]\w+[-/ .]\d{2,4})/im,
   ]) || '';
 
+  // ── SID Details ────────────────────────────────────────────────────────
+  const sidNo = extract(t, [
+    /(?:Document\s*no|SID\s*(?:No\.?|Number))[\s\S]{0,100}?([A-Z0-9]{6,15})/i
+  ]);
+  if (sidNo) {
+    result.documentNumber = sidNo;
+  }
+
+  const sidPlace = extract(t, [
+    /(?:Place\s*of\s*Issue)[\s\S]{0,150}?([A-Za-z][A-Za-z ]{2,20})/i
+  ]);
+  if (sidPlace) {
+    result.issuingAuthority = sidPlace;
+  }
+
+  const sidIssue = extract(t, [
+    /(?:issue)[\s\S]{0,100}?(\d{1,2}[-/ .]\w+[-/ .]\d{2,4})/i,
+    /(?:Date\s*of\s*Issue)[:\s]*(\d{1,2}[-/ .]\w+[-/ .]\d{2,4})/i
+  ]);
+  if (sidIssue) {
+    result.issueDate = normalizeDateStr(sidIssue) as any;
+  }
+
+  const sidExpiry = extract(t, [
+    /(?:expiry)[\s\S]{0,100}?(\d{1,2}[-/ .]?\w+[-/ .]?\d{2,4})/i,
+    /(?:Date\s*of\s*Expiry)[:\s]*(\d{1,2}[-/ .]?\w+[-/ .]?\d{2,4})/i
+  ]);
+  if (sidExpiry) {
+    result.expiryDate = normalizeDateStr(sidExpiry) as any;
+  }
+
   // ── Employment Terms (for auto-filling) ────────────────────────────────
   const empScopeMatch = t.match(/(?:Details of Employment|Section VI)([\s\S]{0,2000}?)(?:Additional terms|Section VII|Confirmation|VIII\.)/i);
   const empScope = empScopeMatch ? empScopeMatch[1] : t;
@@ -429,6 +516,19 @@ function parseAoaFields(text: string): Record<string, string | number> {
     /(?:Period of (?:Employment|Engagement|Service)|Duration)[:\s]+(\d{1,2})\s*(?:month|Months?)/im,
   ]);
   if (engagement) result.engagementPeriodMonths = parseInt(engagement, 10);
+
+  // Normalize all parsed dates to ISO format YYYY-MM-DD
+  if (result.passportIssueDate) result.passportIssueDate = normalizeDateStr(result.passportIssueDate as string) as any;
+  if (result.passportExpiryDate) result.passportExpiryDate = normalizeDateStr(result.passportExpiryDate as string) as any;
+  if (result.cdcIssueDate) result.cdcIssueDate = normalizeDateStr(result.cdcIssueDate as string) as any;
+  if (result.cdcExpiryDate) result.cdcExpiryDate = normalizeDateStr(result.cdcExpiryDate as string) as any;
+  if (result.cocIssueDate) result.cocIssueDate = normalizeDateStr(result.cocIssueDate as string) as any;
+  if (result.cocExpiryDate) result.cocExpiryDate = normalizeDateStr(result.cocExpiryDate as string) as any;
+  if (result.medicalIssueDate) result.medicalIssueDate = normalizeDateStr(result.medicalIssueDate as string) as any;
+  if (result.medicalExpiryDate) result.medicalExpiryDate = normalizeDateStr(result.medicalExpiryDate as string) as any;
+  if (result.contractStartDate) result.contractStartDate = normalizeDateStr(result.contractStartDate as string) as any;
+  if (result.issueDate) result.issueDate = normalizeDateStr(result.issueDate as string) as any;
+  if (result.expiryDate) result.expiryDate = normalizeDateStr(result.expiryDate as string) as any;
 
   // Strip empty string values to keep the response clean
   for (const key of Object.keys(result)) {

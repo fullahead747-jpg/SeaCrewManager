@@ -129,7 +129,7 @@ export class WeeklySummaryEmailService {
         // Add documents
         const documents = await storage.getDocuments();
         for (const document of documents) {
-            if (document.expiryDate >= now && document.expiryDate <= futureDate) {
+            if (document.expiryDate && document.expiryDate >= now && document.expiryDate <= futureDate) {
                 const crew = crewMap.get(document.crewMemberId);
                 const activeContract = contracts.find(c => c.crewMemberId === document.crewMemberId && c.status === 'active');
                 const vessel = activeContract ? vesselMap.get(activeContract.vesselId) : undefined;
@@ -143,7 +143,7 @@ export class WeeklySummaryEmailService {
                     vesselName: vessel?.name,
                     documentType: document.type,
                     documentNumber: document.documentNumber,
-                    expiryDate: document.expiryDate,
+                    expiryDate: document.expiryDate!,
                     daysUntilExpiry,
                     severity: this.calculateSeverity(daysUntilExpiry),
                 });
@@ -306,6 +306,8 @@ export class WeeklySummaryEmailService {
             crewMemberId: '',
             vesselId: '',
             contractId: '',
+            status: item.severity === 'critical' ? 'critical' as const : 
+                    item.severity === 'warning' ? 'attention' as const : 'upcoming' as const,
         }));
 
         return await pdfGeneratorService.generateCalendarPDF(`Weekly Summary - ${weekRange}`, events);

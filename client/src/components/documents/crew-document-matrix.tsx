@@ -89,8 +89,8 @@ export default function CrewDocumentMatrix() {
         let status: DocumentCell['status'] = 'missing';
         if (document) {
           const now = new Date();
-          const expiryDate = new Date(document.expiryDate);
-          const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          const expiryDate = document.expiryDate ? new Date(document.expiryDate) : null;
+          const daysUntilExpiry = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : Infinity;
 
           if (daysUntilExpiry < 0) {
             status = 'expired';

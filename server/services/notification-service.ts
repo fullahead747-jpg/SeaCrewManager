@@ -434,7 +434,7 @@ export class NotificationService {
 
       // Document expirations (with special handling for CDC documents)
       documents.forEach(document => {
-        if (document.expiryDate >= currentDate && document.expiryDate <= futureDate) {
+        if (document.expiryDate && document.expiryDate >= currentDate && document.expiryDate <= futureDate) {
           const crewMember = crewMembers.find(c => c.id === document.crewMemberId);
 
           // Find the crew member's current vessel via active contract
@@ -466,7 +466,7 @@ export class NotificationService {
             type: 'document_expiry',
             title: isCDC ? 'CDC Renewal Required' : 'Document Renewal Required',
             description: `${document.type.toUpperCase()} (${document.documentNumber}) for ${crewMember?.firstName} ${crewMember?.lastName} expires soon`,
-            date: document.expiryDate,
+            date: document.expiryDate!,
             severity,
             crewMemberId: document.crewMemberId,
             documentId: document.id,

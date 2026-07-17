@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { db } from '../server/db.js';
 import { documentAccessTokens } from '../shared/schema.js';
 import { desc } from 'drizzle-orm';

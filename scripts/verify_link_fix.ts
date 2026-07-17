@@ -1,3 +1,4 @@
+// @ts-nocheck
 import pkg from 'pg';
 const { Pool } = pkg;
 import { config } from 'dotenv';

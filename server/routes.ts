@@ -36,7 +36,7 @@ import express from "express";
 import * as fs from 'fs';
 import * as path from 'path';
 import multer from 'multer';
-import { generateVesselPDFBuffer, generateFleetPDFBuffer } from "./utils/vessel-pdf-generator";
+import { generateVesselPDFBuffer, generateFleetPDFBuffer, generateWeeklyReportPDFBuffer } from "./utils/vessel-pdf-generator";
 import { smtpEmailService } from "./services/smtp-email-service";
 
 // Extend Express Request type to include user
@@ -168,7 +168,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Authentication middleware (unified session and token support)
+  // SID OCR SCAN PREVIEW: Upload a file and get auto-extracted field values for the form
+  app.post('/api/documents/scan-preview', upload.single('file'), async (req: any, res: any) => {
+    try {
+      let filePath: string;
+
+      if (req.file) {
+        // File uploaded directly to this endpoint
+        filePath = req.file.path;
+      } else if (req.body.filePath) {
+        // File already uploaded via /api/upload
+        filePath = path.join(process.cwd(), req.body.filePath);
+      } else {
+        return res.status(400).json({ message: 'No file provided' });
+      }
+
+      const documentType = req.body.documentType || 'sid';
+      console.log(`[SCAN-PREVIEW] Running OCR on ${documentType}: ${filePath}`);
+
+      const extractedData = await documentVerificationService.extractDocumentData(filePath, documentType);
+
+      console.log(`[SCAN-PREVIEW] Extracted: docNum=${extractedData.documentNumber}, issueDate=${extractedData.issueDate}, expiryDate=${extractedData.expiryDate}, authority=${extractedData.issuingAuthority}`);
+
+      return res.json({
+        documentNumber: extractedData.documentNumber || null,
+        issueDate: extractedData.issueDate || null,
+        expiryDate: extractedData.expiryDate || null,
+        issuingAuthority: extractedData.issuingAuthority || null,
+        holderName: extractedData.holderName || null,
+        ocrConfidence: extractedData.ocrConfidence || 0,
+      });
+    } catch (error) {
+      console.error('[SCAN-PREVIEW] Error:', error);
+      return res.status(500).json({ message: 'OCR scan failed', error: error instanceof Error ? error.message : 'Unknown' });
+    }
+  });
+
   const authenticate = (req: any, res: any, next: any) => {
     // 1. Check if user is already authenticated via session (Passport)
     if (req.isAuthenticated && req.isAuthenticated()) {
@@ -706,6 +741,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Weekly Report PDF Export
+  app.get("/api/export/weekly-report", authenticate, async (req, res) => {
+    try {
+      const { type, startDate, endDate } = req.query;
+      
+      if (!type || !startDate || !endDate) {
+        return res.status(400).json({ message: "Missing required query parameters: type, startDate, endDate" });
+      }
+
+      const { buffer, fileName } = await generateWeeklyReportPDFBuffer(
+        type as string, 
+        startDate as string, 
+        endDate as string, 
+        storage
+      );
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+      res.send(buffer);
+    } catch (error) {
+      console.error('Weekly Report PDF export error:', error);
+      res.status(500).json({ message: "Failed to generate Weekly Report PDF export" });
+    }
+  });
+
   // Vessel PDF Export & Email
   app.get("/api/vessels/:id/export-pdf", authenticate, async (req, res) => {
     try {
@@ -1150,9 +1210,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/documents", authenticate, async (req, res) => {
     try {
       const documentData = insertDocumentSchema.parse(req.body);
+      console.log(`[DOC-POST-PARSED] type=${documentData.type}, docNum=${documentData.documentNumber}, issueDate=${documentData.issueDate}, expiryDate=${documentData.expiryDate}, issuingAuth=${documentData.issuingAuthority}`);
 
-
-
+      // CV is an upload-only attachment — skip all OCR/validation and store with null metadata
+      if (documentData.type === 'cv') {
+        const crewMember = await storage.getCrewMember(documentData.crewMemberId);
+        if (!crewMember) {
+          return res.status(404).json({ message: "Crew member not found" });
+        }
+        // Move file to cloud storage if present
+        if (documentData.filePath) {
+          const documentStorageService = new DocumentStorageService();
+          documentData.filePath = await documentStorageService.uploadLocalFileToCloud(
+            documentData.filePath,
+            crewMember.id,
+            'crew'
+          );
+        }
+        // Store CV with null metadata (no doc number, no dates, no issuing authority)
+        const cvPayload = {
+          ...documentData,
+          documentNumber: null as any,
+          issueDate: null as any,
+          expiryDate: null as any,
+          issuingAuthority: null as any,
+          status: 'valid' as const,
+        };
+        const { document, wasUpdated } = await storage.upsertDocument(cvPayload);
+        return res.json({ ...document, wasUpdated });
+      }
 
 
 
@@ -1287,7 +1373,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      const document = await storage.createDocument(documentData);
+      console.log(`[PRE-UPSERT] type=${documentData.type}, crewMemberId=${documentData.crewMemberId}, docNum=${documentData.documentNumber}`);
+      const { document, wasUpdated: docWasUpdated } = await storage.upsertDocument(documentData);
+      console.log(`[POST-UPSERT] Success: docId=${document?.id}`);
+      if (!document) {
+        console.error('[UPSERT-ERROR] upsertDocument returned no document for type=' + documentData.type);
+        throw new Error(`Failed to save document: upsert returned no result for type=${documentData.type}`);
+      }
+      if (docWasUpdated) {
+        console.log(`[UPSERT] Updated existing ${documentData.type} record for crew member ${documentData.crewMemberId} instead of creating duplicate`);
+      }
 
       // AUTO-POPULATE SCANNED DOCUMENTS (User's Solution)
       // For manually uploaded documents, we immediately store the data in scanned_documents
@@ -1309,7 +1404,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // SILENT BACKEND EXTRACTION: Run in the background hidden from user
-      if (req.file?.path || (document.filePath && !document.filePath.startsWith('/'))) {
+      if (req.file?.path || (document?.filePath && !document.filePath.startsWith('/'))) {
         (async () => {
           try {
             const localPath = req.file?.path || path.join(process.cwd(), document.filePath!);
@@ -1476,8 +1571,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      res.json(document);
+      res.json({ ...document, wasUpdated: docWasUpdated });
     } catch (error) {
+      console.error('[DOCUMENT-POST-ERROR] Full error:', error);
       if (error instanceof z.ZodError) {
         res.status(400).json({ message: "Invalid document data", errors: error.errors });
       } else {
@@ -1505,7 +1601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const results: any[] = [];
-      const documentTypes = ['passport', 'cdc', 'coc', 'medical', 'visa', 'aoa', 'photo', 'nok', 'coe', 'coe-extension', 'stcw_course'];
+      const documentTypes = ['passport', 'cdc', 'coc', 'medical', 'visa', 'aoa', 'photo', 'nok', 'coe', 'coe-extension', 'stcw_course', 'sid', 'cv'];
 
       for (const file of files) {
         const originalName = file.originalname.toLowerCase();
@@ -1557,7 +1653,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           filePath: persistedPath
         };
 
-        const document = await storage.createDocument(docData);
+        const { document, wasUpdated: bulkWasUpdated } = await storage.upsertDocument(docData);
+        if (bulkWasUpdated) {
+          console.log(`[BULK-UPSERT] Updated existing ${detectedType} record for crew ${crewMemberId} instead of creating duplicate`);
+        }
         results.push(document);
 
         // TRIGGER BACKGROUND OCR EXTRACTION (SILENT)
@@ -1632,6 +1731,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!existingDocument) {
         return res.status(404).json({ message: "Document not found" });
+      }
+
+      // CV is an upload-only attachment — skip OCR validation, just update file path
+      if (existingDocument.type === 'cv' || updates.type === 'cv') {
+        const crewMember = await storage.getCrewMember(existingDocument.crewMemberId);
+        if (updates.filePath && crewMember) {
+          const documentStorageService = new DocumentStorageService();
+          updates.filePath = await documentStorageService.uploadLocalFileToCloud(
+            updates.filePath,
+            crewMember.id,
+            'crew'
+          );
+        }
+        const updated = await storage.updateDocument(req.params.id, {
+          ...updates,
+          documentNumber: null as any,
+          issueDate: null as any,
+          expiryDate: null as any,
+          issuingAuthority: null as any,
+        });
+        return res.json(updated);
       }
 
       // 0. GLOBAL SEARCH: Check if document number is unique (if changed)

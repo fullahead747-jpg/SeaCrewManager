@@ -120,13 +120,15 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             nok: 'NOK',
             coe: 'COE',
             'coe-extension': 'COE-Extension',
-            stcw_course: 'Courses'
+            stcw_course: 'Courses',
+            sid: 'SID',
+            cv: 'CV',
         };
         return labels[type] || type.toUpperCase();
     }, []);
 
     const docStatuses = React.useMemo(() => {
-        const TRACKED_DOC_TYPES = ['medical', 'cdc', 'coc', 'stcw_course', 'aoa', 'photo', 'nok', 'passport', 'coe', 'coe-extension'] as const;
+        const TRACKED_DOC_TYPES = ['medical', 'cdc', 'coc', 'stcw_course', 'aoa', 'photo', 'nok', 'passport', 'coe', 'coe-extension', 'sid'] as const;
         const crewDocs = documents.filter(doc => doc.crewMemberId === member.id);
 
         return TRACKED_DOC_TYPES.map(type => {
@@ -199,9 +201,16 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
         });
     }, [member, documents, now]);
 
+    // CV document — upload-only attachment, not part of compliance tracking
+    const cvDoc = React.useMemo(() => {
+        const crewDocs = documents.filter(doc => doc.crewMemberId === member.id);
+        const found = crewDocs.find(d => d.type.toLowerCase() === 'cv');
+        return found ? { docId: found.id, filePath: found.filePath } : null;
+    }, [member, documents]);
+
     const stats = React.useMemo(() => {
         // Only count compliance documents for Valid/Expiring/Expired
-        // Exclude N/A documents from all counts
+        // Exclude N/A documents and non-compliance docs (photo, nok, cv) from all counts
         const complianceDocs = docStatuses.filter(d => d.type !== 'photo' && d.type !== 'nok' && d.status !== 'na');
 
         const validCount = complianceDocs.filter(d => d.status === 'valid').length;
@@ -369,7 +378,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                             </span>
                             <div className="flex flex-col items-end">
                                 <span className="text-[10px] font-normal text-slate-400">
-                                    {formatShortDate(endDate, 'MMM d')}
+                                    {endDate ? new Date(endDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'N/A'}
                                 </span>
                                 {contractStats.remainingDays > 0 && (
                                     <span className="text-[9px] font-semibold text-blue-600 uppercase tracking-tighter bg-blue-50 px-1 rounded">
@@ -597,6 +606,74 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                 );
                             })}
                         </div>
+
+                        {/* CV — Upload-only Attachment (not in compliance tracking) */}
+                        {(cvDoc || true) && (
+                            <div className="flex items-center justify-between py-1.5 px-3 rounded-xl hover:bg-slate-50 transition-colors group border-t border-slate-100 mt-1 pt-2">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-4 h-4 rounded-full bg-white border-2 flex items-center justify-center ${
+                                        cvDoc ? 'border-[#10B981]' : 'border-slate-300'
+                                    }`}>
+                                        {cvDoc
+                                            ? <Check className="h-2.5 w-2.5 text-[#10B981] stroke-[4]" />
+                                            : <span className="text-slate-300 text-[8px] font-black">!</span>
+                                        }
+                                    </div>
+                                    <span className="text-[13px] font-semibold text-slate-700 uppercase tracking-tight">CV</span>
+                                    <span className="text-[9px] font-medium text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded-full border border-slate-100">Attachment</span>
+                                </div>
+                                <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                                    {cvDoc ? (
+                                        <>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-8 w-8 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                                onClick={() => handleDocClick({ ...cvDoc, type: 'cv', isContract: false })}
+                                                disabled={loadingViewDocId === cvDoc.docId}
+                                            >
+                                                {loadingViewDocId === cvDoc.docId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+                                            </Button>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-8 w-8 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                                                onClick={() => handleDocDownload({ ...cvDoc, type: 'cv', isContract: false })}
+                                                disabled={loadingDownloadDocId === cvDoc.docId}
+                                            >
+                                                {loadingDownloadDocId === cvDoc.docId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileDown className="h-3.5 w-3.5" />}
+                                            </Button>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-8 w-8 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
+                                                onClick={() => onUpload?.(member, 'cv', cvDoc.docId)}
+                                            >
+                                                <Upload className="h-3.5 w-3.5" />
+                                            </Button>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                                onClick={() => onDeleteDocument?.(cvDoc.docId!, 'cv')}
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            className="h-8 px-3 bg-[#EFF6FF] text-[#2563EB] hover:bg-[#DBEAFE] rounded-lg font-bold text-[11px] transition-all active:scale-95"
+                                            onClick={() => onUpload?.(member, 'cv', null)}
+                                        >
+                                            <Upload className="h-3 w-3 mr-1.5" />
+                                            Upload
+                                        </Button>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

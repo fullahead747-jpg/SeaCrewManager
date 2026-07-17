@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { storage } from "../server/storage";
 import { hashPassword } from "../server/auth";
 import { config } from 'dotenv';

@@ -275,11 +275,11 @@ export class DatabaseStorage implements IStorage {
 
     if (crewList.length === 0) return [];
 
-    const userIds = [...new Set(crewList.map(c => c.userId).filter(id => id !== null))] as string[];
-    const vesselIds = [...new Set([
+    const userIds = Array.from(new Set(crewList.map(c => c.userId).filter(id => id !== null))) as string[];
+    const vesselIds = Array.from(new Set([
       ...crewList.map(c => c.currentVesselId).filter(id => id !== null),
       ...crewList.map(c => c.lastVesselId).filter(id => id !== null)
-    ])] as string[];
+    ])) as string[];
     const crewIds = crewList.map(c => c.id);
 
     // Fetch related data in parallel batches
@@ -439,7 +439,7 @@ export class DatabaseStorage implements IStorage {
 
     if (vesselCrew.length === 0) return [];
 
-    const userIds = [...new Set(vesselCrew.map(c => c.userId).filter(id => id !== null))] as string[];
+    const userIds = Array.from(new Set(vesselCrew.map(c => c.userId).filter(id => id !== null))) as string[];
     const crewIds = vesselCrew.map(c => c.id);
 
     // Fetch related data
@@ -452,7 +452,7 @@ export class DatabaseStorage implements IStorage {
     ]);
 
     const userMap = new Map(usersList.map(u => [u.id, u]));
-    const allVesselsMap = new Map(allVessels.map(v => [v.id, v]));
+    const allVesselsMap = new Map<string, Vessel>(allVessels.map(v => [v.id, v]));
 
     // Group docs
     const docsMap = new Map<string, Document[]>();
@@ -665,12 +665,14 @@ export class DatabaseStorage implements IStorage {
       .from(documents)
       .where(and(
         lte(documents.expiryDate, futureDate),
-        gte(documents.expiryDate, now)
+        gte(documents.expiryDate, now),
+        // Exclude CV documents — they are upload-only attachments, not compliance documents
+        sql`${documents.type} NOT IN ('cv', 'photo', 'nok')`
       ));
 
     if (expiringDocs.length === 0) return [];
 
-    const crewIds = [...new Set(expiringDocs.map(d => d.crewMemberId))];
+    const crewIds = Array.from(new Set(expiringDocs.map(d => d.crewMemberId)));
     const crewList = await db.select().from(crewMembers).where(inArray(crewMembers.id, crewIds));
     const crewMap = new Map(crewList.map(c => [c.id, c]));
 
@@ -678,7 +680,7 @@ export class DatabaseStorage implements IStorage {
 
     for (const doc of expiringDocs) {
       const member = crewMap.get(doc.crewMemberId);
-      if (member) {
+      if (member && doc.expiryDate) {
         const daysUntilExpiry = Math.ceil((doc.expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
         const severity = daysUntilExpiry <= 7 ? 'critical' : daysUntilExpiry <= 15 ? 'warning' : 'info';
 
@@ -705,8 +707,8 @@ export class DatabaseStorage implements IStorage {
 
     if (allContracts.length === 0) return [];
 
-    const crewIds = [...new Set(allContracts.map(c => c.crewMemberId))];
-    const vesselIds = [...new Set(allContracts.map(c => c.vesselId))];
+    const crewIds = Array.from(new Set(allContracts.map(c => c.crewMemberId)));
+    const vesselIds = Array.from(new Set(allContracts.map(c => c.vesselId)));
 
     const [crewList, vesselList] = await Promise.all([
       db.select().from(crewMembers).where(inArray(crewMembers.id, crewIds)),
@@ -819,22 +821,21 @@ export class DatabaseStorage implements IStorage {
    * The UNIQUE constraint on (crew_member_id, type) guarantees no duplicates.
    */
   async upsertDocument(document: InsertDocument): Promise<{ document: Document; wasUpdated: boolean }> {
-    // Check if a record already exists (informational — for the wasUpdated flag only)
     const [existing] = await db
-      .select({ id: documents.id })
+      .select()
       .from(documents)
       .where(and(eq(documents.crewMemberId, document.crewMemberId), eq(documents.type, document.type)))
       .limit(1);
 
     const wasUpdated = !!existing;
 
-    // Atomic upsert — single SQL statement, no race condition possible
-    const [result] = await db
-      .insert(documents)
-      .values(document)
-      .onConflictDoUpdate({
-        target: [documents.crewMemberId, documents.type],
-        set: {
+    let result: Document;
+
+    if (existing) {
+      // UPDATE existing record
+      const [updated] = await db
+        .update(documents)
+        .set({
           documentNumber: document.documentNumber,
           issueDate: document.issueDate,
           expiryDate: document.expiryDate ?? null,
@@ -842,9 +843,18 @@ export class DatabaseStorage implements IStorage {
           status: document.status ?? 'valid',
           filePath: document.filePath ?? null,
           updatedAt: new Date(),
-        }
-      })
-      .returning();
+        })
+        .where(eq(documents.id, existing.id))
+        .returning();
+      result = updated;
+    } else {
+      // INSERT new record
+      const [inserted] = await db
+        .insert(documents)
+        .values(document)
+        .returning();
+      result = inserted;
+    }
 
     return { document: result, wasUpdated };
   }
@@ -1330,6 +1340,10 @@ export class MemStorage implements IStorage {
       role: "admin",
       email: "admin@crewtrack.com",
       name: "John Smith",
+      otp: null,
+      otpExpiry: null,
+      resetToken: null,
+      resetTokenExpiry: null,
       createdAt: new Date(),
     };
     this.users.set(adminUser.id, adminUser);
@@ -1342,6 +1356,10 @@ export class MemStorage implements IStorage {
       role: "office_staff",
       email: "office@crewtrack.com",
       name: "Sarah Wilson",
+      otp: null,
+      otpExpiry: null,
+      resetToken: null,
+      resetTokenExpiry: null,
       createdAt: new Date(),
     };
     this.users.set(officeStaffUser.id, officeStaffUser);
@@ -1453,6 +1471,11 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onBoard",
       signOffDate: null,
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
+      coeExtensionNotApplicable: false,
       cocNotApplicable: false,
       createdAt: new Date(),
     };
@@ -1477,6 +1500,11 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onBoard",
       signOffDate: null,
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
+      coeExtensionNotApplicable: false,
       cocNotApplicable: false,
       createdAt: new Date(),
     };
@@ -1501,6 +1529,11 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onBoard",
       signOffDate: null,
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
+      coeExtensionNotApplicable: false,
       cocNotApplicable: false,
       createdAt: new Date(),
     };
@@ -1526,6 +1559,11 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onBoard",
       signOffDate: null,
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
+      coeExtensionNotApplicable: false,
       cocNotApplicable: false,
       createdAt: new Date(),
     };
@@ -1550,6 +1588,11 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onBoard",
       signOffDate: null,
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
+      coeExtensionNotApplicable: false,
       cocNotApplicable: false,
       createdAt: new Date(),
     };
@@ -1575,6 +1618,11 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore",
       signOffDate: null,
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
+      coeExtensionNotApplicable: false,
       cocNotApplicable: false,
       createdAt: new Date(),
     };
@@ -1599,6 +1647,11 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore",
       signOffDate: null,
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
+      coeExtensionNotApplicable: false,
       cocNotApplicable: false,
       createdAt: new Date(),
     };
@@ -1623,6 +1676,11 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore",
       signOffDate: null,
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
+      coeExtensionNotApplicable: false,
       cocNotApplicable: false,
       createdAt: new Date(),
     };
@@ -1648,6 +1706,11 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore", // Signed off
       signOffDate: new Date("2024-12-20"),
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
+      coeExtensionNotApplicable: false,
       cocNotApplicable: false,
       createdAt: new Date(),
     };
@@ -1672,6 +1735,11 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore", // Signed off
       signOffDate: new Date("2024-12-18"),
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
+      coeExtensionNotApplicable: false,
       cocNotApplicable: false,
       createdAt: new Date(),
     };
@@ -1696,6 +1764,11 @@ export class MemStorage implements IStorage {
       lastVesselId: null,
       status: "onShore", // Signed off
       signOffDate: new Date("2024-12-15"),
+      passportNotApplicable: false,
+      cdcNotApplicable: false,
+      medicalNotApplicable: false,
+      stcwNotApplicable: false,
+      coeExtensionNotApplicable: false,
       cocNotApplicable: false,
       createdAt: new Date(),
     };
@@ -1726,6 +1799,7 @@ export class MemStorage implements IStorage {
       contractType: "SEA",
       contractNumber: "C12345",
       filePath: null,
+      lastHealthCategory: null,
       createdAt: new Date(),
     };
 
@@ -1742,6 +1816,7 @@ export class MemStorage implements IStorage {
       contractType: "SEA",
       contractNumber: "C12346",
       filePath: null,
+      lastHealthCategory: null,
       createdAt: new Date(),
     };
 
@@ -1758,6 +1833,7 @@ export class MemStorage implements IStorage {
       contractType: "SEA",
       contractNumber: "C12347",
       filePath: null,
+      lastHealthCategory: null,
       createdAt: new Date(),
     };
 
@@ -1775,6 +1851,7 @@ export class MemStorage implements IStorage {
       contractType: "SEA",
       contractNumber: "C12348",
       filePath: null,
+      lastHealthCategory: null,
       createdAt: new Date(),
     };
 
@@ -1791,6 +1868,7 @@ export class MemStorage implements IStorage {
       contractType: "SEA",
       contractNumber: "C12349",
       filePath: null,
+      lastHealthCategory: null,
       createdAt: new Date(),
     };
 
@@ -1808,6 +1886,7 @@ export class MemStorage implements IStorage {
       contractType: "SEA",
       contractNumber: "C12350",
       filePath: null,
+      lastHealthCategory: null,
       createdAt: new Date(),
     };
 
@@ -1824,6 +1903,7 @@ export class MemStorage implements IStorage {
       contractType: "SEA",
       contractNumber: "C12351",
       filePath: null,
+      lastHealthCategory: null,
       createdAt: new Date(),
     };
 
@@ -1840,6 +1920,7 @@ export class MemStorage implements IStorage {
       contractType: "SEA",
       contractNumber: "C12352",
       filePath: null,
+      lastHealthCategory: null,
       createdAt: new Date(),
     };
 
@@ -1973,7 +2054,15 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id, createdAt: new Date() };
+    const user: User = { 
+      ...insertUser, 
+      id, 
+      otp: insertUser.otp || null,
+      otpExpiry: insertUser.otpExpiry || null,
+      resetToken: insertUser.resetToken || null,
+      resetTokenExpiry: insertUser.resetTokenExpiry || null,
+      createdAt: new Date() 
+    };
     this.users.set(id, user);
     return user;
   }
@@ -2057,6 +2146,11 @@ export class MemStorage implements IStorage {
       lastVesselId: data.lastVesselId || null,
       status: data.status || 'onBoard',
       signOffDate: data.signOffDate || null,
+      passportNotApplicable: data.passportNotApplicable ?? false,
+      cdcNotApplicable: data.cdcNotApplicable ?? false,
+      medicalNotApplicable: data.medicalNotApplicable ?? false,
+      stcwNotApplicable: data.stcwNotApplicable ?? false,
+      coeExtensionNotApplicable: data.coeExtensionNotApplicable ?? false,
       cocNotApplicable: data.cocNotApplicable ?? false,
       createdAt: new Date(),
     };
@@ -2169,7 +2263,8 @@ export class MemStorage implements IStorage {
       durationDays: insertContract.durationDays || null,
       contractType: insertContract.contractType || 'SEA',
       contractNumber: insertContract.contractNumber || null,
-      filePath: insertContract.filePath || null
+      filePath: insertContract.filePath || null,
+      lastHealthCategory: insertContract.lastHealthCategory || null
     };
     this.contracts.set(id, contract);
     return contract;
@@ -2202,14 +2297,16 @@ export class MemStorage implements IStorage {
     const futureDate = new Date(now.getTime() + (days * 24 * 60 * 60 * 1000));
 
     const expiringDocs = Array.from(this.documents.values()).filter(doc => {
-      return doc.expiryDate <= futureDate && doc.expiryDate > now;
+      // Exclude CV, photo, nok — they are not compliance documents
+      if (['cv', 'photo', 'nok'].includes(doc.type)) return false;
+      return doc.expiryDate && doc.expiryDate <= futureDate && doc.expiryDate > now;
     });
 
     const alerts: DocumentAlert[] = [];
 
     for (const doc of expiringDocs) {
       const member = this.crewMembers.get(doc.crewMemberId);
-      if (member) {
+      if (member && doc.expiryDate) {
         const daysUntilExpiry = Math.ceil((doc.expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
         const severity = daysUntilExpiry <= 7 ? 'critical' : daysUntilExpiry <= 15 ? 'warning' : 'info';
 
@@ -2273,7 +2370,8 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
       updatedAt: new Date(),
       status: insertDocument.status || 'valid',
-      filePath: insertDocument.filePath || null
+      filePath: insertDocument.filePath || null,
+      expiryDate: insertDocument.expiryDate || null
     };
     this.documents.set(id, document);
     return document;
@@ -2418,6 +2516,7 @@ export class MemStorage implements IStorage {
       recipients: settings.recipients || ['office_staff', 'admin'],
       recipientEmail: settings.recipientEmail || null,
       emailTemplate: settings.emailTemplate || null,
+      overdueEnabled: settings.overdueEnabled ?? true,
       criticalEnabled: settings.criticalEnabled ?? true,
       upcomingEnabled: settings.upcomingEnabled ?? true,
       attentionEnabled: settings.attentionEnabled ?? true,
@@ -2637,6 +2736,36 @@ export class MemStorage implements IStorage {
     return newScanned;
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.email === email);
+  }
+
+  async getUserByOtp(otp: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.otp === otp);
+  }
+
+  async updateUser(id: string, user: Partial<User>): Promise<User | undefined> {
+    const existing = this.users.get(id);
+    if (!existing) return undefined;
+    const updated = { ...existing, ...user };
+    this.users.set(id, updated as User);
+    return updated as User;
+  }
+
+  async updateUserOtp(id: string, otp: string | null, expiry: Date | null): Promise<User | undefined> {
+    return this.updateUser(id, { otp, otpExpiry: expiry });
+  }
+
+  async getDashboardStats(): Promise<any> {
+    return {
+      activeCrew: 0,
+      activeVessels: 0,
+      pendingDocuments: 0,
+      upcomingRotations: 0,
+      crewByStatus: [],
+      recentAlerts: []
+    };
+  }
 }
 
 export const storage = new DatabaseStorage();

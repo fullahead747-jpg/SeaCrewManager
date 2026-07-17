@@ -794,7 +794,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
         cdcNotApplicable: data.cdcNotApplicable || false,
         medicalNotApplicable: data.medicalNotApplicable || false,
         stcwNotApplicable: data.stcwNotApplicable || false,
-        currentVesselId: data.currentVesselId, // Ensure vessel assignment is passed
+        currentVesselId: (data as any).currentVesselId, // Ensure vessel assignment is passed
       };
 
       if (data.statusChangeReason) {
@@ -904,7 +904,7 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       if (data.contractStartDate && data.contractDurationDays) {
         // Use the newly updated crew's currentVesselId if available, or fall back to the form data
         // This ensures if the user just assigned a vessel, we use that one.
-        const effectiveVesselId = updatedCrew.currentVesselId || data.currentVesselId || vessel?.id;
+        const effectiveVesselId = (updatedCrew as any).currentVesselId || (data as any).currentVesselId || vessel?.id;
 
         if (!effectiveVesselId) {
           console.error("Cannot create contract: No vessel assigned to crew member");
@@ -1160,26 +1160,23 @@ export default function CrewManagementDialog({ vessel, open, onOpenChange }: Cre
       passportPlaceOfIssue: passport?.issuingAuthority || '',
       passportIssueDate: passport?.issueDate ? new Date(passport.issueDate).toISOString().split('T')[0] : '',
       passportExpiryDate: passport?.expiryDate ? new Date(passport.expiryDate).toISOString().split('T')[0] : '',
-      passportTbd: !!passport && !passport.expiryDate,
 
       cdcNumber: cdc?.documentNumber || '',
       cdcPlaceOfIssue: cdc?.issuingAuthority || '',
       cdcIssueDate: cdc?.issueDate ? new Date(cdc.issueDate).toISOString().split('T')[0] : '',
       cdcExpiryDate: cdc?.expiryDate ? new Date(cdc.expiryDate).toISOString().split('T')[0] : '',
-      cdcTbd: !!cdc && !cdc.expiryDate,
 
       cocGradeNo: coc?.documentNumber || '',
       cocPlaceOfIssue: coc?.issuingAuthority || '',
       cocIssueDate: coc?.issueDate ? new Date(coc.issueDate).toISOString().split('T')[0] : '',
       cocExpiryDate: coc?.expiryDate ? new Date(coc.expiryDate).toISOString().split('T')[0] : '',
       cocNotApplicable: member.cocNotApplicable || false,
-      cocTbd: !!coc && !coc.expiryDate,
 
       medicalApprovalNo: medical?.documentNumber || '',
       medicalIssuingAuthority: medical?.issuingAuthority || '',
       medicalIssueDate: medical?.issueDate ? new Date(medical.issueDate).toISOString().split('T')[0] : '',
       medicalExpiryDate: medical?.expiryDate ? new Date(medical.expiryDate).toISOString().split('T')[0] : '',
-      medicalTbd: !!medical && !medical.expiryDate,
+      medicalNotApplicable: member.medicalNotApplicable || false,
     });
     setOriginalStatus(member.status);
     setStatusChangeReason('');

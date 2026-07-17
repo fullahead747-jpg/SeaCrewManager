@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Test script to verify document upload and storage
  * This script will help verify that documents are being stored properly

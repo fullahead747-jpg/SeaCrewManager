@@ -65,6 +65,11 @@ const addCrewSchema = z.object({
   stcwIssueDate: z.string().optional(),
   stcwExpiryDate: z.string().optional(),
   stcwNotApplicable: z.boolean().optional(),
+
+  sidNumber: z.string().optional(),
+  sidPlaceOfIssue: z.string().optional(),
+  sidIssueDate: z.string().optional(),
+  sidExpiryDate: z.string().optional(),
 });
 
 type AddCrewFormData = z.infer<typeof addCrewSchema>;
@@ -137,6 +142,10 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
       stcwIssueDate: '',
       stcwExpiryDate: '',
       stcwNotApplicable: false,
+      sidNumber: '',
+      sidPlaceOfIssue: '',
+      sidIssueDate: '',
+      sidExpiryDate: '',
     },
   });
 
@@ -232,6 +241,12 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
     if (extractedData.medicalApprovalNo) form.setValue('medicalApprovalNo', extractedData.medicalApprovalNo, setValueOptions);
     if (extractedData.medicalIssueDate) form.setValue('medicalIssueDate', convertDateToISO(extractedData.medicalIssueDate), setValueOptions);
     if (extractedData.medicalExpiryDate) form.setValue('medicalExpiryDate', convertDateToISO(extractedData.medicalExpiryDate), setValueOptions);
+
+    // SID
+    if (extractedData.documentNumber) form.setValue('sidNumber', extractedData.documentNumber, setValueOptions);
+    if (extractedData.issuingAuthority) form.setValue('sidPlaceOfIssue', extractedData.issuingAuthority, setValueOptions);
+    if (extractedData.issueDate) form.setValue('sidIssueDate', convertDateToISO(extractedData.issueDate), setValueOptions);
+    if (extractedData.expiryDate) form.setValue('sidExpiryDate', convertDateToISO(extractedData.expiryDate), setValueOptions);
 
     // Employment / Contract
     if (extractedData.contractStartDate) {
@@ -334,7 +349,7 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
         const issuingAuthority = docData.issuingAuthority || (type === 'aoa' ? 'OCR Scanner' : '');
         const issueDate = docData.issueDate ? new Date(docData.issueDate + 'T00:00:00.000Z') : (type === 'aoa' ? new Date() : null);
 
-        await fetch('/api/documents', {
+        const response = await fetch('/api/documents', {
           method: 'POST',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -347,6 +362,17 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
             filePath: filePath,
           }),
         });
+        if (response.ok) {
+          const result = await response.json();
+          if (result.wasUpdated) {
+            toast({
+              title: '⚠️ Entry Already Exists',
+              description: `A ${type.toUpperCase()} record already exists for this crew member. The existing record has been updated.`,
+              variant: 'destructive',
+              duration: 6000,
+            });
+          }
+        }
       };
 
       await createDocument('passport', {
@@ -387,6 +413,14 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
         issueDate: data.stcwIssueDate,
         expiryDate: data.stcwExpiryDate,
         notApplicable: data.stcwNotApplicable
+      });
+
+      await createDocument('sid', {
+        documentNumber: data.sidNumber,
+        issuingAuthority: data.sidPlaceOfIssue,
+        issueDate: data.sidIssueDate,
+        expiryDate: data.sidExpiryDate,
+        notApplicable: false
       });
 
       // Create AOA document record if we have a file

@@ -1,7 +1,7 @@
 
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { Users, Ship, UserCheck, Clock, AlertTriangle, FileWarning, Search, Download } from "lucide-react";
+import { Users, Ship, UserCheck, Clock, AlertTriangle, FileWarning, Search, Download, FileText } from "lucide-react";
 
 interface StatItemProps {
     label: string;
@@ -50,6 +50,7 @@ interface MinimalHealthRowProps {
     onOverdueClick?: () => void;
     onSearchClick?: () => void;
     onDownloadClick?: () => void;
+    onWeeklyReportClick?: () => void;
 }
 
 export default function MinimalHealthRow({
@@ -60,7 +61,8 @@ export default function MinimalHealthRow({
     onCriticalClick,
     onOverdueClick,
     onSearchClick,
-    onDownloadClick
+    onDownloadClick,
+    onWeeklyReportClick
 }: MinimalHealthRowProps) {
     if (!stats) return null;
 
@@ -111,6 +113,15 @@ export default function MinimalHealthRow({
                 color="text-emerald-500"
                 description="Find crew member"
                 onClick={onSearchClick}
+            />
+
+            <StatItem
+                label="Reports"
+                value="Weekly"
+                icon={FileText}
+                color="text-indigo-500"
+                description="Sign On/Off PDF"
+                onClick={onWeeklyReportClick}
             />
 
             <StatItem

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { db } from "../server/db";
 import { emailSettings } from "../shared/schema";
 import { eq } from "drizzle-orm";

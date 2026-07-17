@@ -159,7 +159,7 @@ function AlertSection({ title, alerts, type }: { title: string, alerts: Document
                                 </p>
                             </div>
                             <div className="text-[10px] font-bold text-muted-foreground whitespace-nowrap bg-background/50 px-1.5 py-0.5 rounded border border-border">
-                                {format(new Date(alert.document.expiryDate), 'MMM d')}
+                                {alert.document.expiryDate ? format(new Date(alert.document.expiryDate), 'MMM d') : 'N/A'}
                             </div>
                         </div>
 

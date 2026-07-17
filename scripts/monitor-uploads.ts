@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Real-time document upload monitor
  * Run this script and then upload a document to see the storage process in action

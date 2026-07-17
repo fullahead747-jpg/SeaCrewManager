@@ -10,7 +10,8 @@ import {
     Award,
     Activity,
     FileSignature,
-    GraduationCap
+    GraduationCap,
+    IdCard
 } from 'lucide-react';
 
 interface CrewFormSidebarProps {
@@ -31,6 +32,7 @@ export function CrewFormSidebar({ activeTab, setActiveTab, title = "Crew Member"
         { id: 'coc', label: 'COC', icon: Award, naField: 'cocNotApplicable' },
         { id: 'medical', label: 'Medical', icon: Activity, naField: 'medicalNotApplicable' },
         { id: 'stcw', label: 'Courses', icon: GraduationCap, naField: 'stcwNotApplicable' },
+        { id: 'sid', label: 'SID', icon: IdCard },
         { id: 'contract', label: 'Contract', icon: FileSignature },
     ];
 

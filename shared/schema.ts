@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, boolean, jsonb, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -86,7 +86,9 @@ export const documents = pgTable("documents", {
   filePath: text("file_path"), // For file storage reference
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  unique("documents_crew_member_id_type_unique").on(table.crewMemberId, table.type),
+]);
 
 // Crew rotations/scheduling
 export const crewRotations = pgTable("crew_rotations", {
