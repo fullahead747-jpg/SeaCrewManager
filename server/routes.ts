@@ -1201,7 +1201,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         documents = await storage.getDocuments();
       }
 
-      res.json(documents);
+      // Filter out soft-deleted documents that have been marked as 'pending_upload'
+      const activeDocuments = documents.filter((doc: any) => doc.status !== 'pending_upload');
+      res.json(activeDocuments);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch documents" });
     }
