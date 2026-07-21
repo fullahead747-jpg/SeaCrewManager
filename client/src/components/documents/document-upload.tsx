@@ -252,6 +252,16 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
   });
 
   const onSubmit = (data: DocumentFormData) => {
+    // If it's a new document or a deleted document being replaced, a file is mandatory
+    if (!document?.filePath && !selectedFile) {
+      toast({
+        title: 'File Required',
+        description: 'Please select a document file to upload.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (document?.filePath && selectedFile) {
       setPendingData(data);
       setShowConfirmDialog(true);

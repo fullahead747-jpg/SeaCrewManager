@@ -1236,7 +1236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           issueDate: new Date(),
           expiryDate: null as any,
           issuingAuthority: 'N/A',
-          status: 'valid' as const,
+          status: documentData.filePath ? 'valid' : 'pending_upload',
         };
         const { document, wasUpdated } = await storage.upsertDocument(cvPayload);
         return res.json({ ...document, wasUpdated });
