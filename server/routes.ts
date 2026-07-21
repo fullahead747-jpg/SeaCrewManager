@@ -1227,13 +1227,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             'crew'
           );
         }
-        // Store CV with null metadata (no doc number, no dates, no issuing authority)
+        // Store CV with placeholder metadata since these columns are NOT NULL in the database
         const cvPayload = {
           ...documentData,
-          documentNumber: null as any,
-          issueDate: null as any,
+          documentNumber: 'N/A',
+          issueDate: new Date(),
           expiryDate: null as any,
-          issuingAuthority: null as any,
+          issuingAuthority: 'N/A',
           status: 'valid' as const,
         };
         const { document, wasUpdated } = await storage.upsertDocument(cvPayload);
