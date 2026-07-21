@@ -647,9 +647,9 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                 size="icon"
                                                 variant="ghost"
                                                 className="h-8 w-8 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                                                onClick={() => onUpload?.(member, 'cv', cvDoc.docId)}
+                                                onClick={() => onSendMail(member)}
                                             >
-                                                <Upload className="h-3.5 w-3.5" />
+                                                <Mail className="h-3.5 w-3.5" />
                                             </Button>
                                             <Button
                                                 size="icon"
