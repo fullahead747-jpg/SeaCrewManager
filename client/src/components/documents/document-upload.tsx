@@ -204,10 +204,9 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
       if (data?.wasUpdated && !data?._isEditing) {
         // Duplicate detected — show informational popup
         toast({
-          title: '⚠️ Entry Already Exists',
-          description: `A ${data.type?.toUpperCase() || 'document'} record already exists for this crew member. The existing record has been updated with the new details.`,
-          variant: 'destructive',
-          duration: 6000,
+          title: 'Document Updated',
+          description: `The ${data.type?.toUpperCase() || 'document'} record has been successfully updated with the new file and details.`,
+          duration: 4000,
         });
       } else {
         toast({
