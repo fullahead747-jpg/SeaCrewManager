@@ -156,4 +156,54 @@ export class MRZValidator {
         if (isNaN(date.getTime())) return null;
         return date;
     }
+
+    /**
+     * Parse and validate TD1 (ID Card / SID) MRZ
+     * Usually 3 lines of 30 characters
+     */
+    static validateTD1(line1: string, line2: string, line3: string): any {
+        const errors: string[] = [];
+        let isValid = true;
+        const data: any = {};
+        const fieldValidation = {
+            documentNumber: false,
+            dateOfBirth: false,
+            expiryDate: false,
+            composite: false
+        };
+
+        if (line1.length !== 30 || line2.length !== 30 || line3.length !== 30) {
+            errors.push('TD1 MRZ lines must be exactly 30 characters');
+            isValid = false;
+        }
+
+        // Line 1: Type (2) + Country (3) + Doc Number (9) + Checksum (1) + Opt (15)
+        const docNum = line1.substring(5, 14);
+        const docNumCheckStr = line1.substring(14, 15);
+        const docNumCheck = this.calculateChecksum(docNum);
+        fieldValidation.documentNumber = docNumCheck.toString() === docNumCheckStr;
+        if (!fieldValidation.documentNumber) {
+            errors.push('Document number checksum invalid');
+            isValid = false;
+        } else {
+            data.documentNumber = docNum.replace(/</g, '');
+        }
+
+        // Line 2: DOB (6) + Checksum (1) + Sex (1) + Expiry (6) + Checksum (1) + Nationality (3) + Opt (11) + Composite (1)
+        const dob = line2.substring(0, 6);
+        const dobCheckStr = line2.substring(6, 7);
+        fieldValidation.dateOfBirth = this.calculateChecksum(dob).toString() === dobCheckStr;
+        if (fieldValidation.dateOfBirth) {
+            data.dateOfBirth = this.mrzDateToDate(dob, false);
+        }
+
+        const expiry = line2.substring(8, 14);
+        const expiryCheckStr = line2.substring(14, 15);
+        fieldValidation.expiryDate = this.calculateChecksum(expiry).toString() === expiryCheckStr;
+        if (fieldValidation.expiryDate) {
+            data.expiryDate = this.mrzDateToDate(expiry, true);
+        }
+
+        return { isValid, errors, fieldValidation, data };
+    }
 }

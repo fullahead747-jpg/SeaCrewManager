@@ -1,4 +1,5 @@
-import { googleOcrService } from '../googleOcrService';
+import { IOcrEngine } from './ocr-engine.interface';
+import { googleOcrEngine } from './engines/google-ocr-engine';
 import * as fs from 'fs';
 import * as path from 'path';
 import { MRZValidator } from '../utils/mrz-validator';
@@ -50,6 +51,7 @@ export interface ExtractedDocumentData {
     detectedDocumentType?: string;
     mrzLine1?: string;
     mrzLine2?: string;
+    mrzLine3?: string;
     mrzValidation?: {
         isValid: boolean;
         errors: string[];
@@ -99,6 +101,12 @@ export interface OwnerValidationResult {
 }
 
 export class DocumentVerificationService {
+    private ocrEngine: IOcrEngine;
+
+    constructor(ocrEngine: IOcrEngine = googleOcrEngine) {
+        this.ocrEngine = ocrEngine;
+    }
+
     /**
      * Validate document expiry date and determine status
      * Returns: expired (< today), expiring (0-90 days), valid (> 90 days)
@@ -496,9 +504,8 @@ export class DocumentVerificationService {
             const base64Content = fileBuffer.toString('base64');
             const fileName = path.basename(filePath);
 
-            // 2. Call Google OCR Service
-            // We use the real Google Document AI service now
-            const ocrResult = await googleOcrService.extractCrewDataFromDocument(
+            // 2. Call the injected OCR Engine
+            const ocrResult = await this.ocrEngine.extractData(
                 base64Content,
                 fileName,
                 documentType
@@ -723,18 +730,19 @@ export class DocumentVerificationService {
         // 3. Add MRZ lines if extracted
         data.mrzLine1 = ocrData.mrzLine1;
         data.mrzLine2 = ocrData.mrzLine2;
+        data.mrzLine3 = ocrData.mrzLine3;
 
         // 4. Apply MRZ validation if lines are present
         if (data.mrzLine1 && data.mrzLine2 && data.mrzLine1 !== 'NONE' && data.mrzLine2 !== 'NONE') {
+            const isTD1 = !!data.mrzLine3;
+            const expectedLength = isTD1 ? 30 : 44;
             // Clean MRZ lines: Remove common OCR noise at start/end
             const cleanMRZ = (line: string) => {
-                // Remove non-MRZ characters at start (like "- ", "P ", etc)
                 let cleaned = line.replace(/^[^P<0-9A-Z]+/, '').trim().toUpperCase();
-                // Ensure it's at least 44 characters (TD3 format)
-                if (cleaned.length < 44) {
-                    cleaned = cleaned.padEnd(44, '<');
-                } else if (cleaned.length > 44) {
-                    cleaned = cleaned.substring(0, 44);
+                if (cleaned.length < expectedLength) {
+                    cleaned = cleaned.padEnd(expectedLength, '<');
+                } else if (cleaned.length > expectedLength) {
+                    cleaned = cleaned.substring(0, expectedLength);
                 }
                 return cleaned;
             };
@@ -745,7 +753,14 @@ export class DocumentVerificationService {
             console.log(`[MRZ-CLEANUP] Line 1: "${l1}" (Length: ${l1.length})`);
             console.log(`[MRZ-CLEANUP] Line 2: "${l2}" (Length: ${l2.length})`);
 
-            const mrzResult = MRZValidator.validateTD3(l1, l2);
+            let mrzResult: any;
+            if (isTD1) {
+                const l3 = cleanMRZ(data.mrzLine3!);
+                console.log(`[MRZ-CLEANUP] Line 3: "${l3}" (Length: ${l3.length})`);
+                mrzResult = MRZValidator.validateTD1(l1, l2, l3);
+            } else {
+                mrzResult = MRZValidator.validateTD3(l1, l2);
+            }
             data.mrzValidation = {
                 isValid: mrzResult.isValid,
                 errors: mrzResult.errors

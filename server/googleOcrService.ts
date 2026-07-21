@@ -160,13 +160,14 @@ function parseAoaFields(text: string): Record<string, string | number> {
   const result: Record<string, string | number> = {};
 
   // Simple, safe extract function for single patterns
-  const extract = (scope: string, patterns: RegExp[]): string | undefined => {
+  const extract = (scope: string, patterns: RegExp[], rejectRegex?: RegExp): string | undefined => {
     for (const pattern of patterns) {
       const match = scope.match(pattern);
       if (match?.[1]?.trim()) {
         const val = match[1].trim().replace(/\s+/g, ' ');
         if (val.length >= 1 && !/^[:.\-\s]+$/.test(val)) {
           if (val === ':') return undefined;
+          if (rejectRegex && rejectRegex.test(val)) return undefined;
           return val;
         }
       }
@@ -194,7 +195,7 @@ function parseAoaFields(text: string): Record<string, string | number> {
     : t;
 
   // COC section scope
-  const cocScopeMatch = t.match(/(?:COC Grade \/ No\.)([\s\S]{0,1000}?)(?:Medical|Section 11|11\.|$)/i);
+  const cocScopeMatch = t.match(/(?:COC Grade \/ No\.|9\.\s+Details of Competency)([\s\S]{0,1000}?)(?:10\.|7\.\s+Passport|8\s*a\.|Medical|Section 11|11\.|$)/i);
   const cocScope = cocScopeMatch ? cocScopeMatch[0] : t;
 
   // Passport scope: from "7. Passport No." to "8 a. NOK Address"
@@ -223,10 +224,25 @@ function parseAoaFields(text: string): Record<string, string | number> {
     }
   }
 
-  result.rank = extract(t, [
-    /(?:Capacity\s*\/\s*Rank\s*Employed|Rank|Designation)[:\s]+([A-Za-z0-9][A-Za-z0-9 .()/-]{2,})/im,
-    /2\.\s+Capacity[:\s]+([A-Za-z0-9][A-Za-z0-9 .()/-]{2,})/im,
-  ]) || '';
+  let rankStr = extract(t, [
+    /(?:Capacity\s*\/\s*Rank(?:\s*Employed)?|Rank(?!\s*Employed)|Designation)[:\s]+([A-Za-z][A-Za-z .()/-]{2,30})(?=\n|2\.|Engagement|$)/i,
+    /2\.\s+Capacity[:\s]+([A-Za-z][A-Za-z .()/-]{2,30})(?=\n|3\.|Paid|$)/i,
+  ]);
+
+  // If rankStr grabbed the next field label by mistake, or is empty, try a known ranks fallback
+  if (!rankStr || /engagement|period|leave|month|hours|^employed$|^capacity$/i.test(rankStr.trim())) {
+    const knownRanks = /(Master|Chief\s*Officer|Chief\s*Engineer|Second\s*Officer|Second\s*Engineer|Third\s*Officer|Third\s*Engineer|Fourth\s*Engineer|Deck\s*Cadet|Engine\s*Cadet|Electrical\s*Officer|Bosun|Able\s*Seaman|A\.?B\.?|Ordinary\s*Seaman|O\.?S\.?|Motorman|Oiler|Wiper|Fitter|Pumpman|Chief\s*Cook|Messman|Trainee\s*Deck\s*Rating|Trainee\s*Engine\s*Rating)/i;
+    // Look ahead within the employment scope
+    const empScopeMatch = t.match(/(?:Details of Employment|Section VI)([\s\S]{0,1000}?)(?:Additional terms|Section VII|Confirmation|VIII\.)/i);
+    const empScope = empScopeMatch ? empScopeMatch[1] : t;
+    const rankMatch = empScope.match(knownRanks);
+    if (rankMatch) {
+      rankStr = rankMatch[1].trim();
+    } else {
+      rankStr = ''; // clear out garbage
+    }
+  }
+  result.rank = rankStr || '';
 
   result.nationality = extract(sfScope, [
     /Nationality\s*:\s*([A-Za-z][A-Za-z]+)/i,
@@ -313,6 +329,9 @@ function parseAoaFields(text: string): Record<string, string | number> {
         if (l === 'name' || l === 'relationship' || l === 'address' || l === 'mobile' || l === 'e-mail' || l === 'email' || l === 'tel no.' || l === 'pin code') return false;
         // Skip key-value lines (usually capture noise) except for PIN:
         if (l.includes(':') && !l.includes('pin')) return false;
+        // Skip lines that look like phone numbers or emails
+        if (l.match(/^(?:tel|mobile|phone|ph)(?:\s*no\.?)?[\s:.]*\d+/)) return false;
+        if (l.includes('@')) return false;
         // Skip lines containing these keywords anywhere (noise)
         if (l.includes('passport') || l.includes('cdc no') || l.includes('iso') || l.includes('date') || l.includes('relationship')) return false;
         // Skip NOK Name line (often starts with title)
@@ -346,10 +365,11 @@ function parseAoaFields(text: string): Record<string, string | number> {
   ]) || '';
 
   // Handle Interleaved CDC/Passport Dates
-  // Limit scope to end before Section 9 (COC) to avoid picking up irrelevant dates
+  // Limit scope to end before Medical/Employment but explicitly remove COC to avoid picking up irrelevant dates
   const cdcStart = t.indexOf('6. CDC No.');
-  const cocStart = t.indexOf('9. Details of Competency Certificates');
-  const dateExtractionScope = cocStart !== -1 ? t.substring(cdcStart, cocStart) : t.substring(cdcStart);
+  const medOrEmpIndex = t.search(/11\.\s+Details of Medical|VI\.\s+Details of Employment/i);
+  const sfScopePart = cdcStart !== -1 ? t.substring(cdcStart, medOrEmpIndex !== -1 ? medOrEmpIndex : undefined) : t;
+  const dateExtractionScope = sfScopePart.replace(/9\.\s+Details of Competency Certificates[\s\S]*?(?=10\.|11\.|7\.\s+Passport|8\s*a\.)/i, '');
 
   const allExpiries = Array.from(dateExtractionScope.matchAll(/(?:Expiry|Expiration|Valid\s*Till)(?:\s*Date)?[:\s]*[\s\S]{0,10}?(?:\n|^)?(\d{1,2}[-/ .]\w+[-/ .]\d{2,4})/gim)).map(m => ({ val: m[1], idx: m.index }));
   const allIssues = Array.from(dateExtractionScope.matchAll(/(?:Issue\s*Date|Date\s*of\s*Issue)[:\s]*[\s\S]{0,10}?(?:\n|^)?(\d{1,2}[-/ .]\w+[-/ .]\d{2,4})/gim)).map(m => ({ val: m[1], idx: m.index }));
@@ -410,16 +430,30 @@ function parseAoaFields(text: string): Record<string, string | number> {
     result.passportExpiryDate = (remainingExpiries[1] || remainingExpiries[0]).val;
   }
 
+  // Absolute final fallback: just extract directly from the isolated passport scope if still missing
+  if (!result.passportIssueDate) {
+    result.passportIssueDate = extract(passportScope, [
+      /(?:Issue\s*Date|Date\s*of\s*Issue)[:\s]*[\s\S]{0,15}?(?:\n|^)?(\d{1,2}[-/ .]\w+[-/ .]\d{2,4})/im
+    ]) || '';
+  }
+  if (!result.passportExpiryDate) {
+    result.passportExpiryDate = extract(passportScope, [
+      /(?:Expiry|Expiration|Valid\s*Till)(?:\s*Date)?[:\s]*[\s\S]{0,15}?(?:\n|^)?(\d{1,2}[-/ .]\w+[-/ .]\d{2,4})/im
+    ]) || '';
+  }
+
   // ── COC Details ────────────────────────────────────────────────────────
+  const cocLabelReject = /^place\s*of|^date\s*of|^limitations|^expiry/i;
+
   result.cocGradeNo = extract(cocScope, [
     /COC Grade \/ No\.[\s:]*\n?([A-Za-z][A-Za-z0-9/() .-]+)/im,
     /(?:COC\s*(?:Grade|No\.?|Number)|Grade\s*of\s*Certificate)[:\s]+([A-Za-z][A-Za-z0-9/() .-]+)/im,
     /9\.\s+Grade\s*of\s*Cert\.?[:\s]+([A-Za-z0-9/() .-]+)/im,
-  ]) || '';
+  ], cocLabelReject) || '';
 
   result.cocPlaceOfIssue = extract(cocScope, [
     /(?:Issue[d]?\s*at|Place\s*of\s*Issue)[:\s]+(?:\d+\s+|[A-Z]{3}\s+\d+\s+)?(MMD\([A-Z]\)|[A-Za-z][A-Za-z ]{3,})/im,
-  ]) || '';
+  ], cocLabelReject) || '';
 
   result.cocIssueDate = extract(cocScope, [
     /(?:Issue\s*Date|Date\s*of\s*Issue)[:\s]+(\d{1,2}[-/ .]\w+[-/ .]\d{2,4})/im,
@@ -430,12 +464,12 @@ function parseAoaFields(text: string): Record<string, string | number> {
   ]) || '';
 
   // ── Medical Details ────────────────────────────────────────────────────
-  // In some documents (like AOA), labels are listed first, then values follow in a block.
-  // We try to find the authority name specifically by looking for typical names/centers.
+  // We try to find the authority name specifically by looking for typical names/centers or following the label.
   const medicalIssuingAuthority = extract(medicalScope, [
-    /((?:DR\.|MR\.|MRS\.|SHRI)[\s\S]{10,200}?(?:DIAGNOSTIC CENTRE|CLINIC|HOSPITAL|CENTRE|MEDICAL|HEALTHCARE)[)]?)/i,
-    /([A-Z. ]+(?:DIAGNOSTIC CENTRE|CLINIC|HOSPITAL|CENTRE|MEDICAL|HEALTHCARE|DR\.)[\s\S]{5,100}?(?=[)]?\s*\n\d|\nApproval|:|$))/i,
-    /(?:Issuing Authority|Doctor|Approved by)[\s:]*(?:\n[^:\n]+){0,5}?\n([A-Z][A-Z . ()\n]{5,100})(?=\n|$)/im,
+    /(?:Issuing Authority|Doctor|Approved by|Medical Centre|Name of(?: Medical)? Examiner)[:\s]+([A-Za-z][A-Za-z0-9 .(),&/-]{5,100}?)(?=\n|Approval|Issue|Date|Expiry|$)/i,
+    /((?:DR\.|MR\.|MRS\.|SHRI)[\s\S]{5,100}?(?:DIAGNOSTIC CENTRE|CLINIC|HOSPITAL|CENTRE|MEDICAL|HEALTHCARE)[)]?)/i,
+    /([A-Z][a-zA-Z. ]+(?:DIAGNOSTIC CENTRE|CLINIC|HOSPITAL|CENTRE|MEDICAL|HEALTHCARE|DR\.)[\s\S]{0,50}?(?=[)]?\s*\n\d|\nApproval|:|$))/i,
+    /(?:Issuing Authority|Doctor|Approved by)[\s:]*(?:\n[^:\n]+){0,2}?\n([A-Z][A-Z . ()\n]{5,100})(?=\n|$)/im,
   ]);
 
   if (medicalIssuingAuthority) {
@@ -469,14 +503,17 @@ function parseAoaFields(text: string): Record<string, string | number> {
 
   // ── SID Details ────────────────────────────────────────────────────────
   const sidNo = extract(t, [
-    /(?:Document\s*no|SID\s*(?:No\.?|Number))[\s\S]{0,100}?([A-Z0-9]{6,15})/i
+    /(?:Document\s*no|SID\s*(?:No\.?|Number)|Identity\s*Document\s*No)[\s\S]{0,100}?([A-Z0-9]{6,15})/i,
+    /(?:Seafarer\s*Identity\s*Document\s*No)[\s\S]{0,100}?([A-Z0-9]{6,15})/i,
+    /([A-Z]{1,3}\d{5,12})/i // Fallback for raw alphanumeric sequences often seen in SID numbers
   ]);
   if (sidNo) {
     result.documentNumber = sidNo;
   }
 
   const sidPlace = extract(t, [
-    /(?:Place\s*of\s*Issue)[\s\S]{0,150}?([A-Za-z][A-Za-z ]{2,20})/i
+    /(?:Place\s*of\s*Issue|Issued\s*at)[\s\S]{0,150}?([A-Za-z][A-Za-z ]{2,20})/i,
+    /(?:Authority)[\s\S]{0,150}?([A-Za-z][A-Za-z ]{2,20})/i
   ]);
   if (sidPlace) {
     result.issuingAuthority = sidPlace;
@@ -529,6 +566,25 @@ function parseAoaFields(text: string): Record<string, string | number> {
   if (result.contractStartDate) result.contractStartDate = normalizeDateStr(result.contractStartDate as string) as any;
   if (result.issueDate) result.issueDate = normalizeDateStr(result.issueDate as string) as any;
   if (result.expiryDate) result.expiryDate = normalizeDateStr(result.expiryDate as string) as any;
+
+  // ── MRZ Extraction ─────────────────────────────────────────────────────
+  // Look for 2 or 3 lines of MRZ text (usually at the bottom of Passports/SIDs)
+  // They contain uppercase letters, numbers, and '<' filler characters.
+  const mrzLines = t.split('\n')
+    .map(line => line.replace(/\s+/g, '').trim()) // MRZ shouldn't have spaces
+    .filter(line => /^[A-Z0-9<]{30,44}$/i.test(line) && (line.match(/</g) || []).length >= 2);
+
+  if (mrzLines.length >= 2) {
+    // Some OCR splits MRZ into 3 lines (TD1) or 2 lines (TD2/TD3)
+    if (mrzLines.length === 3) {
+      result.mrzLine1 = mrzLines[0].toUpperCase();
+      result.mrzLine2 = mrzLines[1].toUpperCase();
+      result.mrzLine3 = mrzLines[2].toUpperCase(); // Extra line for TD1
+    } else {
+      result.mrzLine1 = mrzLines[mrzLines.length - 2].toUpperCase();
+      result.mrzLine2 = mrzLines[mrzLines.length - 1].toUpperCase();
+    }
+  }
 
   // Strip empty string values to keep the response clean
   for (const key of Object.keys(result)) {
