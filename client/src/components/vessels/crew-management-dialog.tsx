@@ -152,12 +152,6 @@ const addCrewSchema = z.object({
     if (!data.stcwNumber || data.stcwNumber.trim() === '') {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: "STCW Number is required", path: ["stcwNumber"] });
     }
-    if (!data.stcwIssueDate) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Issue Date is required", path: ["stcwIssueDate"] });
-    }
-    if (!data.stcwExpiryDate) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Expiry Date is required", path: ["stcwExpiryDate"] });
-    }
   }
 });
 

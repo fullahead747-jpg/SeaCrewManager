@@ -6,9 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import {
     Eye, Edit, History, LogOut, LogIn,
     FileText, Download, Upload, Mail, ChevronDown, Trash2,
-    CheckCircle2, AlertCircle, UserCog, Check, FileDown, Loader2
+    CheckCircle2, AlertCircle, UserCog, Check, FileDown, Loader2, MessageSquare
 } from 'lucide-react';
 import { CrewMemberWithDetails, Document } from '@shared/schema';
+import { RemarksModal } from './remarks-modal';
 import { formatDate, formatShortDate } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthHeaders } from '@/lib/auth';
@@ -67,6 +68,7 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
     const now = React.useMemo(() => new Date(), []);
     const [loadingViewDocId, setLoadingViewDocId] = React.useState<string | null>(null);
     const [loadingDownloadDocId, setLoadingDownloadDocId] = React.useState<string | null>(null);
+    const [isRemarksModalOpen, setIsRemarksModalOpen] = React.useState(false);
 
     const contractStats = React.useMemo(() => {
         const startDate = member.activeContract?.startDate ? new Date(member.activeContract.startDate) : null;
@@ -404,6 +406,13 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                 </span>
                             </div>
                         </div>
+
+                        {member.remarks && (
+                            <div className="mt-2.5 p-2 bg-red-50/70 border border-red-200/80 rounded-lg text-xs">
+                                <span className="font-bold text-slate-600 uppercase text-[9px] tracking-wider block mb-0.5">Remarks</span>
+                                <p className="text-red-600 font-semibold text-[11px] leading-tight italic">{member.remarks}</p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Action Buttons Grid */}
@@ -445,6 +454,12 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                             <Download className="h-3.5 w-3.5 mr-1.5" /> Download
                         </Button>
                         <Button
+                            className="h-9 bg-white text-purple-600 border border-purple-200 hover:bg-purple-50 rounded-lg font-medium text-[10px] uppercase tracking-tight shadow-sm transition-all active:scale-95"
+                            onClick={() => setIsRemarksModalOpen(true)}
+                        >
+                            <MessageSquare className="h-3.5 w-3.5 mr-1.5 text-purple-600" /> Remarks
+                        </Button>
+                        <Button
                             className="h-9 bg-white text-blue-600 border border-blue-200 hover:bg-blue-50 rounded-lg font-medium text-[10px] uppercase tracking-tight shadow-sm transition-all active:scale-95"
                             onClick={() => onBulkUpload?.(member)}
                         >
@@ -475,6 +490,12 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                         )}
                     </div>
                 </div>
+
+                <RemarksModal
+                    isOpen={isRemarksModalOpen}
+                    onClose={() => setIsRemarksModalOpen(false)}
+                    crewMember={member}
+                />
 
                 <div className="lg:w-[52%] p-5 bg-white">
                     <div className="flex flex-col">

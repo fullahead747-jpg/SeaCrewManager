@@ -410,7 +410,7 @@ export default function AddCrewForm({ open, onOpenChange, defaultVesselId }: Add
       await createDocument('stcw_course', {
         documentNumber: data.stcwNumber,
         issuingAuthority: data.stcwIssuingAuthority,
-        issueDate: data.stcwIssueDate,
+        issueDate: data.stcwIssueDate || new Date().toISOString().split('T')[0], // Date field removed from UI; default to today
         expiryDate: data.stcwExpiryDate,
         notApplicable: data.stcwNotApplicable
       });

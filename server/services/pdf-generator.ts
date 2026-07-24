@@ -11,6 +11,7 @@ interface ContractEvent {
   contractId: string;
   contractEndDate: Date;
   daysUntilExpiry: number;
+  remarks?: string;
 }
 
 export class PDFGeneratorService {
@@ -168,13 +169,16 @@ export class PDFGeneratorService {
 
     // Data rows
     events.forEach((event, index) => {
+      const hasRemark = !!event.remarks;
+      const rowHeight = hasRemark ? 34 : 22;
+
       if (y > doc.page.height - 100) {
         doc.addPage();
         y = 50;
       }
 
       const rowColor = index % 2 === 0 ? '#ffffff' : '#f9fafb';
-      doc.rect(tableLeft, y, colWidths.reduce((a, b) => a + b, 0), 22).fill(rowColor);
+      doc.rect(tableLeft, y, colWidths.reduce((a, b) => a + b, 0), rowHeight).fill(rowColor);
 
       doc.fillColor('#333333').fontSize(9);
       x = tableLeft;
@@ -183,11 +187,17 @@ export class PDFGeneratorService {
       const rowData = [event.crewMemberName, event.vesselName, dateStr, `${event.daysUntilExpiry} days`];
 
       rowData.forEach((cell, i) => {
-        doc.text(cell, x + 5, y + 6, { width: colWidths[i] - 10 });
+        if (i === 0 && hasRemark) {
+          doc.fillColor('#1e293b').font('Helvetica-Bold').text(cell, x + 5, y + 4, { width: colWidths[i] - 10 });
+          doc.fillColor('#dc2626').font('Helvetica-Oblique').fontSize(8).text(event.remarks!, x + 5, y + 17, { width: colWidths[i] - 10 });
+          doc.font('Helvetica').fontSize(9);
+        } else {
+          doc.fillColor('#333333').text(cell, x + 5, y + 6, { width: colWidths[i] - 10 });
+        }
         x += colWidths[i];
       });
 
-      y += 22;
+      y += rowHeight;
     });
 
     doc.y = y;

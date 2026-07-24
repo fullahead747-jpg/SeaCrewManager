@@ -52,37 +52,7 @@ export function STCWSection() {
                     )}
                 />
 
-                <FormField
-                    control={form.control}
-                    name="stcwIssueDate"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Issue Date</FormLabel>
-                            <FormControl>
-                                <DatePicker {...field} disabled={form.watch('stcwNotApplicable')} className="bg-white dark:bg-gray-950" />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
 
-                <FormField
-                    control={form.control}
-                    name="stcwExpiryDate"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Expiry Date</FormLabel>
-                            <FormControl>
-                                <DatePicker
-                                    {...field}
-                                    disabled={form.watch('stcwNotApplicable')}
-                                    className="bg-white dark:bg-gray-950"
-                                />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
             </div>
             <div className="pt-2 flex items-center justify-start">
                 <FormField
@@ -99,8 +69,6 @@ export function STCWSection() {
                                         if (checked) {
                                             form.setValue('stcwNumber', '');
                                             form.setValue('stcwIssuingAuthority', '');
-                                            form.setValue('stcwIssueDate', '');
-                                            form.setValue('stcwExpiryDate', '');
                                         }
                                     }}
                                 />

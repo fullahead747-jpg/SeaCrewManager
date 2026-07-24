@@ -1134,6 +1134,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.patch("/api/crew/:id/remarks", authenticate, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { remarks } = req.body;
+
+      if (remarks === undefined) {
+        return res.status(400).json({ message: "Remarks field is required" });
+      }
+
+      const existingCrewMember = await storage.getCrewMember(id);
+      if (!existingCrewMember) {
+        return res.status(404).json({ message: "Crew member not found" });
+      }
+
+      const updated = await storage.updateCrewMember(id, { remarks });
+
+      await storage.logActivity({
+        type: 'CrewMember',
+        entityId: id,
+        entityType: 'CrewMember',
+        action: 'update_remarks',
+        description: `Updated remarks for crew member ${existingCrewMember.firstName} ${existingCrewMember.lastName}`,
+        username: (req.user as any)?.username || 'system',
+        userRole: (req.user as any)?.role || 'staff',
+        severity: 'info'
+      });
+
+      res.json(updated);
+    } catch (error: any) {
+      console.error('Error updating crew remarks:', error);
+      res.status(500).json({ message: error.message || "Failed to update remarks" });
+    }
+  });
+
   app.delete("/api/crew/:id", authenticate, async (req, res) => {
     try {
       console.log(`DELETE /api/crew/${req.params.id} - Attempting to delete crew member`);
@@ -3356,30 +3390,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
         : allDocs;
 
       const results = await (type === 'document' ? (async () => {
-        const matchingCrewIds = new Set<string>();
-        filteredDocuments.forEach(doc => {
-          let isMatch = false;
-          if (key === 'expired') isMatch = !!(doc.expiryDate && doc.expiryDate < now && new Date(doc.expiryDate).getFullYear() > 1900);
-          else if (key === 'critical') isMatch = !!(doc.expiryDate && doc.expiryDate >= now && doc.expiryDate <= thirtyDaysFromNow);
-          else if (key === 'warning') isMatch = !!(doc.expiryDate && doc.expiryDate > thirtyDaysFromNow && doc.expiryDate <= ninetyDaysFromNow);
-          else if (key === 'attention') isMatch = !!(doc.expiryDate && doc.expiryDate > ninetyDaysFromNow && doc.expiryDate <= oneEightyDaysFromNow);
-          else if (key === 'valid') isMatch = !doc.expiryDate || (doc.expiryDate > oneEightyDaysFromNow) || (new Date(doc.expiryDate).getFullYear() < 1900);
+        const matchingCrewMembers = crewMembers.filter(m => {
+          const userDocs = docsByCrewId.get(m.id) || [];
+          let hasExpired = false;
+          let hasCritical = false;
+          let hasWarning = false;
+          let hasAttention = false;
 
-          if (isMatch) matchingCrewIds.add(doc.crewMemberId);
+          userDocs.forEach((doc: any) => {
+            if (doc.expiryDate) {
+              const exp = new Date(doc.expiryDate);
+              const year = exp.getFullYear();
+              if (year > 1900) {
+                if (exp <= now) {
+                  hasExpired = true;
+                } else if (exp <= thirtyDaysFromNow) {
+                  hasCritical = true;
+                } else if (exp <= ninetyDaysFromNow) {
+                  hasWarning = true;
+                } else if (exp <= oneEightyDaysFromNow) {
+                  hasAttention = true;
+                }
+              }
+            }
+          });
+
+          let crewStatus = 'valid';
+          if (hasExpired) crewStatus = 'expired';
+          else if (hasCritical) crewStatus = 'critical';
+          else if (hasWarning) crewStatus = 'warning';
+          else if (hasAttention) crewStatus = 'attention';
+
+          return crewStatus === key;
         });
 
-        // Return full CrewMemberWithDetails for these IDs
-        return Array.from(matchingCrewIds).map(id => {
-          const crew = crewMap.get(id);
-          if (!crew || (vesselId && crew.currentVesselId !== vesselId)) return null;
-
-          return {
-            ...crew,
-            currentVessel: vesselMap.get(crew.currentVesselId || '') || null,
-            activeContract: activeContractMap.get(crew.id) || null,
-            documents: docsByCrewId.get(crew.id) || []
-          };
-        }).filter(Boolean);
+        return matchingCrewMembers.map(crew => ({
+          ...crew,
+          currentVessel: vesselMap.get(crew.currentVesselId || '') || null,
+          activeContract: activeContractMap.get(crew.id) || null,
+          documents: docsByCrewId.get(crew.id) || []
+        }));
       })() : (async () => {
         if (key === 'shored') {
           return crewMembers
@@ -3514,6 +3564,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         contractEndDate: string | null;
         daysUntilExpiry: number | null;
         hasNoContract: boolean;
+        remarks: string | null;
       }> = [];
 
       onBoardCrew.forEach((m: any) => {
@@ -3538,6 +3589,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ? Math.ceil((new Date(contract.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
               : null,
             hasNoContract: !contract,
+            remarks: m.remarks || null,
           });
         } else {
           const endDate = new Date(contract.endDate);
@@ -3562,6 +3614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             contractEndDate: endDate.toISOString(),
             daysUntilExpiry,
             hasNoContract: false,
+            remarks: m.remarks || null,
           });
         }
       });
@@ -4525,6 +4578,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+
+  // Admin endpoint: Trigger midnight 12:00 AM compliance transition evaluation manually
+  app.post("/api/compliance/evaluate-midnight", authenticate, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied. Admin role required." });
+      }
+
+      const { complianceDigestService } = await import('./services/compliance-digest-service');
+      const now = new Date();
+      const istString = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+      const istDate = new Date(istString);
+      const dateStr = req.body?.dateStr || `${istDate.getFullYear()}-${String(istDate.getMonth() + 1).padStart(2, '0')}-${String(istDate.getDate()).padStart(2, '0')}`;
+
+      const transitionsCount = await complianceDigestService.evaluateMidnightTransitions(dateStr);
+      res.json({
+        message: `Evaluated compliance transitions for ${dateStr}`,
+        transitionsRecorded: transitionsCount
+      });
+    } catch (error: any) {
+      console.error('Error evaluating midnight compliance:', error);
+      res.status(500).json({ message: error.message || "Failed to evaluate compliance transitions" });
+    }
+  });
+
+  // Admin endpoint: Send 10:00 AM Daily Compliance Digest Email manually
+  app.post("/api/email/send-compliance-digest", authenticate, async (req, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ message: "Access denied. Admin role required." });
+      }
+
+      const { complianceDigestService } = await import('./services/compliance-digest-service');
+      const now = new Date();
+      const istString = now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" });
+      const istDate = new Date(istString);
+      const dateStr = req.body?.dateStr || `${istDate.getFullYear()}-${String(istDate.getMonth() + 1).padStart(2, '0')}-${String(istDate.getDate()).padStart(2, '0')}`;
+      const ignoreDateCheck = req.body?.force === true;
+
+      if (ignoreDateCheck) {
+        // Force evaluate and send for testing
+        await complianceDigestService.evaluateMidnightTransitions(dateStr);
+      }
+
+      const sent = await complianceDigestService.sendDailyDigestEmail(ignoreDateCheck ? '2026-07-23' : dateStr);
+      res.json({
+        message: sent ? `Daily compliance digest email sent successfully` : `No email sent (already sent or no changes detected)`,
+        sent
+      });
+    } catch (error: any) {
+      console.error('Error sending compliance digest email:', error);
+      res.status(500).json({ message: error.message || "Failed to send compliance digest email" });
+    }
+  });
+
 
   // Contact crew member endpoint
   app.post("/api/crew/contact", authenticate, async (req, res) => {

@@ -281,7 +281,9 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       }
 
       await updateOrCreateDocument('medical', data.medicalApprovalNo, data.medicalIssuingAuthority, data.medicalIssueDate, data.medicalExpiryDate, medical, data.medicalNotApplicable);
-      await updateOrCreateDocument('stcw_course', data.stcwNumber, data.stcwIssuingAuthority, data.stcwIssueDate, data.stcwExpiryDate, stcw, data.stcwNotApplicable);
+      // issueDate/expiryDate fields removed from Courses UI; pass existing values as silent fallback to satisfy NOT NULL constraint
+      const stcwIssueDateFallback = data.stcwIssueDate || (stcw?.issueDate ? new Date(stcw.issueDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+      await updateOrCreateDocument('stcw_course', data.stcwNumber, data.stcwIssuingAuthority, stcwIssueDateFallback, data.stcwExpiryDate, stcw, data.stcwNotApplicable);
       await updateOrCreateDocument('sid', data.sidNumber, data.sidPlaceOfIssue, data.sidIssueDate, data.sidExpiryDate, sid);
 
       const response = await fetch(`/api/crew/${crewMember.id}`, {

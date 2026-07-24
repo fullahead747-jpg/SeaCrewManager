@@ -54,7 +54,7 @@ const MemoizedContractHealth = memo(({ stats, statsLoading, onDrillDown }: { sta
 
 const MemoizedDocumentHealth = memo(({ stats, statsLoading, onDrillDown }: { stats: DashboardStats, statsLoading: boolean, onDrillDown: any }) => {
   const data = useMemo(() => [
-    { key: 'expired', name: 'Expired Documents', value: stats.documentHealth.expired, color: '#ef4444' },
+    { key: 'expired', name: 'Expired Docs', value: stats.documentHealth.expired, color: '#ef4444' },
     { key: 'critical', name: 'Critical Expiry (< 30d)', value: stats.documentHealth.critical, color: '#f97316' },
     { key: 'warning', name: 'Warning (< 90d)', value: stats.documentHealth.warning, color: '#eab308' },
     { key: 'attention', name: 'Attention (< 180d)', value: stats.documentHealth.attention, color: '#3b82f6' },
@@ -70,9 +70,9 @@ const MemoizedDocumentHealth = memo(({ stats, statsLoading, onDrillDown }: { sta
   return (
     <InteractiveHealthCard
       title="Documents Index"
-      description="Real-time validity status of mandatory documents"
+      description="Real-time document compliance status of crew members"
       total={stats.documentHealth.total}
-      totalLabel="DOCUMENTS"
+      totalLabel="CREW RECORDS"
       isLoading={statsLoading}
       onSegmentClick={(key, name) => onDrillDown('document', key, name)}
       data={data}

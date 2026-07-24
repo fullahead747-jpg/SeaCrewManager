@@ -52,6 +52,7 @@ export const crewMembers = pgTable("crew_members", {
   stcwNotApplicable: boolean("stcw_not_applicable").default(false),
   coeExtensionNotApplicable: boolean("coe_extension_not_applicable").default(false),
   signOffDate: timestamp("sign_off_date"), // Auto-stamped when crew member is signed off
+  remarks: text("remarks"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -213,6 +214,18 @@ export const statusChangeHistory = pgTable("status_change_history", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Daily compliance status transitions table for tracking daily 12:00 AM status category changes
+export const dailyComplianceTransitions = pgTable("daily_compliance_transitions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  crewMemberId: varchar("crew_member_id").notNull().references(() => crewMembers.id),
+  contractId: varchar("contract_id").references(() => contracts.id),
+  vesselId: varchar("vessel_id").references(() => vessels.id),
+  previousCategory: text("previous_category").notNull(), // 'notDue', 'attention', 'upcoming', 'critical', 'overdue'
+  newCategory: text("new_category").notNull(), // 'notDue', 'attention', 'upcoming', 'critical', 'overdue'
+  transitionDate: text("transition_date").notNull(), // 'YYYY-MM-DD'
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 
 // Create insert schemas with proper validation
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -305,6 +318,11 @@ export const insertStatusChangeHistorySchema = createInsertSchema(statusChangeHi
   createdAt: true,
 });
 
+export const insertDailyComplianceTransitionSchema = createInsertSchema(dailyComplianceTransitions).omit({
+  id: true,
+  createdAt: true,
+});
+
 export const insertScannedDocumentSchema = createInsertSchema(scannedDocuments).omit({
   id: true,
   createdAt: true,
@@ -337,6 +355,8 @@ export type NotificationHistory = typeof notificationHistory.$inferSelect;
 export type InsertNotificationHistory = z.infer<typeof insertNotificationHistorySchema>;
 export type StatusChangeHistory = typeof statusChangeHistory.$inferSelect;
 export type InsertStatusChangeHistory = z.infer<typeof insertStatusChangeHistorySchema>;
+export type DailyComplianceTransition = typeof dailyComplianceTransitions.$inferSelect;
+export type InsertDailyComplianceTransition = z.infer<typeof insertDailyComplianceTransitionSchema>;
 
 export type ScannedDocument = typeof scannedDocuments.$inferSelect;
 export type InsertScannedDocument = z.infer<typeof insertScannedDocumentSchema>;

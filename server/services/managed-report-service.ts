@@ -31,7 +31,8 @@ export class ManagedReportService {
           vessel: vesselName,
           joiningDate: contract?.startDate ? format(new Date(contract.startDate), 'dd-MMM-yyyy') : '---',
           expiryDate: contract?.endDate ? format(new Date(contract.endDate), 'dd-MMM-yyyy') : '---',
-          daysRemaining: contract?.endDate ? Math.ceil((new Date(contract.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
+          daysRemaining: contract?.endDate ? Math.ceil((new Date(contract.endDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null,
+          remarks: member.remarks || undefined
         };
 
         if (!contract) {
@@ -86,7 +87,8 @@ export class ManagedReportService {
         vesselName: item.vessel,
         contractId: '',
         contractEndDate: new Date(item.expiryDate),
-        daysUntilExpiry: item.daysRemaining || 0
+        daysUntilExpiry: item.daysRemaining || 0,
+        remarks: item.remarks
       }));
 
       let pdfBuffer: Buffer | null = null;

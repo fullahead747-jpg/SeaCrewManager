@@ -38,6 +38,7 @@ export const crewMembers = pgTable("crew_members", {
   emergencyContact: jsonb("emergency_contact"), // {name, relationship, phone, email}
   currentVesselId: varchar("current_vessel_id").references(() => vessels.id),
   status: text("status").notNull().default('active'), // 'active', 'onLeave', 'inactive'
+  remarks: text("remarks"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

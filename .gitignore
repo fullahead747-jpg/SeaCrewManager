@@ -24,6 +24,7 @@ test*.ts
 test*.mjs
 test*.tsx
 ocr_debug.txt
+ocr_debug*.txt
 debug_output.txt
 server_out.log
 server_log.txt

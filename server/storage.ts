@@ -1071,16 +1071,11 @@ export class DatabaseStorage implements IStorage {
       [crewOnShoreCount],
       [totalCrewCount],
       [activeVesselsCount],
-      [expiredDocsCount],
-      [tbdDocsCount],
-      [criticalDocsCount],
-      [warningDocsCount],
-      [attentionDocsCount],
-      [permanentDocsCount],
-      [farFutureDocsCount],
       [totalDocsCount],
       [validStatusDocsCount],
       allOnBoardCrew,
+      allCrewForDocHealth,
+      allDocsForHealth,
       allActiveContracts,
       [totalContractsCount]
     ] = await Promise.all([
@@ -1091,18 +1086,11 @@ export class DatabaseStorage implements IStorage {
         inArray(vessels.status, ['harbour-mining', 'coastal-mining', 'world-wide', 'oil-field', 'line-up-mining', 'active']),
         vesselId ? eq(vessels.id, vesselId) : sql`TRUE`
       )),
-      db.select({ count: sql<number>`COUNT(DISTINCT ${documents.crewMemberId})` }).from(documents).where(and(isNotNull(documents.expiryDate), lte(documents.expiryDate, now), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) > 1900`, docVesselFilter || sql`TRUE`)),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), sql`EXTRACT(YEAR FROM ${documents.expiryDate}) <= 1900`, docVesselFilter || sql`TRUE`)),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gte(documents.expiryDate, now), lte(documents.expiryDate, thirtyDaysFromNow), docVesselFilter || sql`TRUE`)),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, thirtyDaysFromNow), lte(documents.expiryDate, ninetyDaysFromNow), docVesselFilter || sql`TRUE`)),
-      db.select({ count: count() }).from(documents).where(and(isNotNull(documents.expiryDate), gt(documents.expiryDate, ninetyDaysFromNow), lte(documents.expiryDate, oneEightyDaysFromNow), docVesselFilter || sql`TRUE`)),
-      db.select({ count: count() }).from(documents).where(and(isNull(documents.expiryDate), docVesselFilter || sql`TRUE`)),
-      db.select({ count: count() }).from(documents).where(and(gt(documents.expiryDate, oneEightyDaysFromNow), docVesselFilter || sql`TRUE`)),
       db.select({ count: count() }).from(documents).where(docVesselFilter || sql`TRUE`),
       db.select({ count: count() }).from(documents).where(and(eq(documents.status, 'valid'), docVesselFilter || sql`TRUE`)),
-
       db.select().from(crewMembers).where(vesselId ? and(eq(crewMembers.status, 'onBoard'), eq(crewMembers.currentVesselId, vesselId)) : eq(crewMembers.status, 'onBoard')),
-
+      db.select().from(crewMembers).where(totalCrewFilter || sql`TRUE`),
+      db.select().from(documents).where(docVesselFilter || sql`TRUE`),
       db.select().from(contracts).where(and(
         eq(contracts.status, 'active'),
         vesselId ? eq(contracts.vesselId, vesselId) : sql`TRUE`
@@ -1131,10 +1119,6 @@ export class DatabaseStorage implements IStorage {
     };
 
     const activeContractMap = new Map();
-    // Sort all active contracts by createdAt descending so that the latest one is picked first
-    // Since we're using Map.set, the last one processed for a crewMemberId will be the one that stays
-    // Wait, if I want the LATEST one, I should sort by createdAt ASCENDING and let the later ones overwrite earlier ones, 
-    // OR sort DESCENDING and only set if not present. Both work. Let's go with ASCENDING + overwrite.
     allActiveContracts
       .sort((a, b) => (new Date(a.createdAt || 0).getTime()) - (new Date(b.createdAt || 0).getTime()))
       .forEach(c => activeContractMap.set(c.crewMemberId, c));
@@ -1152,9 +1136,56 @@ export class DatabaseStorage implements IStorage {
       }
     });
 
-    const validDocsCount = permanentDocsCount.count + farFutureDocsCount.count + tbdDocsCount.count;
+    // Crew-Centric Document Health Aggregation (Option B: Highest Severity Precedence)
+    const docsByCrewId = new Map<string, typeof allDocsForHealth>();
+    allDocsForHealth.forEach(d => {
+      if (!docsByCrewId.has(d.crewMemberId)) docsByCrewId.set(d.crewMemberId, []);
+      docsByCrewId.get(d.crewMemberId)!.push(d);
+    });
+
+    const documentHealth = {
+      expired: 0,
+      critical: 0,
+      warning: 0,
+      attention: 0,
+      valid: 0,
+      total: allCrewForDocHealth.length
+    };
+
+    allCrewForDocHealth.forEach(m => {
+      const userDocs = docsByCrewId.get(m.id) || [];
+      let hasExpired = false;
+      let hasCritical = false;
+      let hasWarning = false;
+      let hasAttention = false;
+
+      userDocs.forEach(doc => {
+        if (doc.expiryDate) {
+          const exp = new Date(doc.expiryDate);
+          const year = exp.getFullYear();
+          if (year > 1900) {
+            if (exp <= now) {
+              hasExpired = true;
+            } else if (exp <= thirtyDaysFromNow) {
+              hasCritical = true;
+            } else if (exp <= ninetyDaysFromNow) {
+              hasWarning = true;
+            } else if (exp <= oneEightyDaysFromNow) {
+              hasAttention = true;
+            }
+          }
+        }
+      });
+
+      if (hasExpired) documentHealth.expired++;
+      else if (hasCritical) documentHealth.critical++;
+      else if (hasWarning) documentHealth.warning++;
+      else if (hasAttention) documentHealth.attention++;
+      else documentHealth.valid++;
+    });
+
     const complianceRate = totalDocsCount.count > 0 ? (validStatusDocsCount.count / totalDocsCount.count) * 100 : 100;
-    const pendingActions = criticalDocsCount.count; // Same as expires <= 30 days
+    const pendingActions = documentHealth.critical; // Crew with critical document expiry (<= 30 days)
 
     return {
       activeCrew: activeCrewCount.count,
@@ -1167,14 +1198,7 @@ export class DatabaseStorage implements IStorage {
       signOffDue: contractHealth.critical,
       signOffDue30Days: (contractHealth.critical + contractHealth.upcoming),
       signOffDue15Days: contractHealth.critical,
-      documentHealth: {
-        expired: expiredDocsCount.count,
-        critical: criticalDocsCount.count,
-        warning: warningDocsCount.count,
-        attention: attentionDocsCount.count,
-        valid: validDocsCount,
-        total: totalDocsCount.count
-      },
+      documentHealth,
       contractHealth
     };
   }
@@ -1477,6 +1501,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: false,
       coeExtensionNotApplicable: false,
       cocNotApplicable: false,
+      remarks: null,
       createdAt: new Date(),
     };
 
@@ -1506,6 +1531,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: false,
       coeExtensionNotApplicable: false,
       cocNotApplicable: false,
+      remarks: null,
       createdAt: new Date(),
     };
 
@@ -1535,6 +1561,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: false,
       coeExtensionNotApplicable: false,
       cocNotApplicable: false,
+      remarks: null,
       createdAt: new Date(),
     };
 
@@ -1565,6 +1592,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: false,
       coeExtensionNotApplicable: false,
       cocNotApplicable: false,
+      remarks: null,
       createdAt: new Date(),
     };
 
@@ -1594,6 +1622,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: false,
       coeExtensionNotApplicable: false,
       cocNotApplicable: false,
+      remarks: null,
       createdAt: new Date(),
     };
 
@@ -1624,6 +1653,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: false,
       coeExtensionNotApplicable: false,
       cocNotApplicable: false,
+      remarks: null,
       createdAt: new Date(),
     };
 
@@ -1653,6 +1683,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: false,
       coeExtensionNotApplicable: false,
       cocNotApplicable: false,
+      remarks: null,
       createdAt: new Date(),
     };
 
@@ -1682,6 +1713,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: false,
       coeExtensionNotApplicable: false,
       cocNotApplicable: false,
+      remarks: null,
       createdAt: new Date(),
     };
 
@@ -1712,6 +1744,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: false,
       coeExtensionNotApplicable: false,
       cocNotApplicable: false,
+      remarks: null,
       createdAt: new Date(),
     };
 
@@ -1741,6 +1774,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: false,
       coeExtensionNotApplicable: false,
       cocNotApplicable: false,
+      remarks: null,
       createdAt: new Date(),
     };
 
@@ -1770,6 +1804,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: false,
       coeExtensionNotApplicable: false,
       cocNotApplicable: false,
+      remarks: null,
       createdAt: new Date(),
     };
 
@@ -2152,6 +2187,7 @@ export class MemStorage implements IStorage {
       stcwNotApplicable: data.stcwNotApplicable ?? false,
       coeExtensionNotApplicable: data.coeExtensionNotApplicable ?? false,
       cocNotApplicable: data.cocNotApplicable ?? false,
+      remarks: data.remarks || null,
       createdAt: new Date(),
     };
 

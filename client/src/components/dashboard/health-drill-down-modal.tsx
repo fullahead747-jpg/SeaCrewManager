@@ -420,11 +420,17 @@ const HealthDrillDownModal = memo(({
 
         const rows = filteredData.map((member: any, index: number) => {
             const compliance = getMemberComplianceStatus(member);
+            const remarkHtml = member.remarks 
+                ? `<div style="color: #ef4444; font-size: 10px; font-weight: 600; text-transform: none; margin-top: 2px; line-height: 1.2;">${member.remarks}</div>` 
+                : '';
             return `
                 <tr style="border-bottom: 1px solid #e2e8f0;">
                     <td style="padding: 10px 12px; font-size: 11px; color: #94a3b8;">${index + 1}</td>
                     <td style="padding: 10px 12px; font-size: 11px; font-weight: 700; color: #1e293b; text-transform: uppercase;">${member.currentVessel?.name || 'N/A'}</td>
-                    <td style="padding: 10px 12px; font-size: 11px; font-weight: 700; color: #1e293b; text-transform: uppercase;">${member.firstName} ${member.lastName}</td>
+                    <td style="padding: 10px 12px; font-size: 11px; font-weight: 700; color: #1e293b; text-transform: uppercase;">
+                        <div>${member.firstName} ${member.lastName}</div>
+                        ${remarkHtml}
+                    </td>
                     <td style="padding: 10px 12px; font-size: 11px; color: #334155; text-transform: uppercase;">${member.rank || 'N/A'}</td>
                     <td style="padding: 10px 12px; font-size: 11px; color: #334155;">${member.activeContract?.startDate ? new Date(member.activeContract.startDate).toLocaleDateString('en-GB') : 'N/A'}</td>
                     <td style="padding: 10px 12px; font-size: 11px; color: #334155;">${member.activeContract?.endDate ? new Date(member.activeContract.endDate).toLocaleDateString('en-GB') : 'N/A'}</td>

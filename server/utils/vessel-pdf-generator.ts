@@ -101,8 +101,17 @@ export async function generateVesselPDFBuffer(vesselId: string, storage: IStorag
                         }
 
                         row.forEach((cell, i) => {
-                            const color = isHeader ? '#ffffff' : (cellColors[i] ?? '#334155');
-                            doc.fillColor(color).text(cell, x + 5, y, { width: colWidths[i] - 10 });
+                            if (i === 1 && !isHeader && cell.includes('\n')) {
+                                const [nameText, ...remarkParts] = cell.split('\n');
+                                const remarkText = remarkParts.join('\n');
+                                doc.fillColor('#1e293b').font('Helvetica-Bold').text(nameText, x + 5, y, { width: colWidths[i] - 10 });
+                                const nameHeight = doc.heightOfString(nameText, { width: colWidths[i] - 10 });
+                                doc.fillColor('#dc2626').font('Helvetica-Oblique').fontSize(8).text(remarkText, x + 5, y + nameHeight + 1, { width: colWidths[i] - 10 });
+                                doc.font('Helvetica').fontSize(9);
+                            } else {
+                                const color = isHeader ? '#ffffff' : (cellColors[i] ?? '#334155');
+                                doc.fillColor(color).text(cell, x + 5, y, { width: colWidths[i] - 10 });
+                            }
                             x += colWidths[i];
                         });
                     };
@@ -125,7 +134,10 @@ export async function generateVesselPDFBuffer(vesselId: string, storage: IStorag
                             if (member.activeContract.endDate) endDate = format(new Date(member.activeContract.endDate), 'MMM dd, yyyy');
                         }
 
-                        const name = `${member.firstName} ${member.lastName}`.toUpperCase();
+                        let name = `${member.firstName} ${member.lastName}`.toUpperCase();
+                        if (member.remarks) {
+                            name += `\n${member.remarks}`;
+                        }
                         const rank = member.rank || 'N/A';
                         const nationality = member.nationality || 'N/A';
 
@@ -315,8 +327,17 @@ export async function generateFleetPDFBuffer(storage: IStorage): Promise<{ buffe
                             }
 
                             row.forEach((cell, i) => {
-                                const color = isHeader ? '#ffffff' : (cellColors[i] ?? '#334155');
-                                doc.fillColor(color).text(cell, x + 5, y, { width: colWidths[i] - 10 });
+                                if (i === 1 && !isHeader && cell.includes('\n')) {
+                                    const [nameText, ...remarkParts] = cell.split('\n');
+                                    const remarkText = remarkParts.join('\n');
+                                    doc.fillColor('#1e293b').font('Helvetica-Bold').text(nameText, x + 5, y, { width: colWidths[i] - 10 });
+                                    const nameHeight = doc.heightOfString(nameText, { width: colWidths[i] - 10 });
+                                    doc.fillColor('#dc2626').font('Helvetica-Oblique').fontSize(8).text(remarkText, x + 5, y + nameHeight + 1, { width: colWidths[i] - 10 });
+                                    doc.font('Helvetica').fontSize(9);
+                                } else {
+                                    const color = isHeader ? '#ffffff' : (cellColors[i] ?? '#334155');
+                                    doc.fillColor(color).text(cell, x + 5, y, { width: colWidths[i] - 10 });
+                                }
                                 x += colWidths[i];
                             });
                         };
@@ -327,7 +348,10 @@ export async function generateFleetPDFBuffer(storage: IStorage): Promise<{ buffe
                         currentY += headerHeight;
 
                         crew.forEach((member, i) => {
-                            const name = `${member.firstName} ${member.lastName}`.toUpperCase();
+                            let name = `${member.firstName} ${member.lastName}`.toUpperCase();
+                            if (member.remarks) {
+                                name += `\n${member.remarks}`;
+                            }
                             const rank = member.rank || 'N/A';
                             const status = member.status === 'onBoard' ? 'ON BOARD' : 'ON SHORE';
                             const compliance = getComplianceStatus(member, allDocuments);

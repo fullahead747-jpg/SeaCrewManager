@@ -33,6 +33,7 @@ interface ContractEvent {
   contractEndDate: Date | null;
   daysUntilExpiry: number | null;
   hasNoContract: boolean;
+  remarks: string | null;
 }
 
 export default function Scheduling() {
@@ -529,6 +530,17 @@ export default function Scheduling() {
                     font-style: italic;
                     font-size: 12px;
                   }
+                  .print-report .print-table td.remarks-cell {
+                    color: #dc2626;
+                    font-style: italic;
+                    font-size: 10px;
+                    max-width: 180px;
+                  }
+                  .print-report .print-table td.no-remarks-cell {
+                    color: #a0aec0;
+                    font-style: italic;
+                    font-size: 10px;
+                  }
                 }
               `}</style>
 
@@ -622,6 +634,7 @@ export default function Scheduling() {
                         <th>Vessel</th>
                         <th>Status</th>
                         <th>Date</th>
+                        <th>Remarks</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -644,6 +657,9 @@ export default function Scheduling() {
                             </span>
                           </td>
                           <td>{event.date ? format(event.date, 'MMM d, yyyy') : 'No Contract'}</td>
+                          <td className={event.remarks ? 'remarks-cell' : 'no-remarks-cell'}>
+                            {event.remarks || '—'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -728,6 +744,12 @@ export default function Scheduling() {
                             <span className="text-red-500">Contract expired</span>
                           )}
                         </div>
+                        {event.remarks && (
+                          <div className="flex items-start space-x-2.5 pt-1 border-t border-slate-100 dark:border-slate-800 mt-1">
+                            <svg className="h-4 w-4 shrink-0 text-red-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
+                            <span className="text-red-600 dark:text-red-400 italic text-xs leading-relaxed">{event.remarks}</span>
+                          </div>
+                        )}
                       </div>
 
                       <div className="flex justify-start mt-2 -ml-2">

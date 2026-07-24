@@ -6,6 +6,7 @@ import { weeklySummaryEmailService } from './weekly-summary-email-service';
 import { documentMonitoringService } from './document-monitoring-service';
 import { managedReportService } from './managed-report-service';
 import { contractHealthAlertService } from './contract-health-alert-service';
+import { complianceDigestService } from './compliance-digest-service';
 
 interface ContractEvent {
   id: string;
@@ -31,6 +32,10 @@ export class BackgroundScheduler {
 
   private constructor() {
     console.log('🕐 Background scheduler initialized');
+    // Initialize baseline categories today on startup
+    complianceDigestService.initializeBaselineToday().catch(err => {
+      console.error('Failed to initialize compliance baseline on startup:', err);
+    });
     this.start();
   }
 
@@ -93,6 +98,20 @@ export class BackgroundScheduler {
 
       console.log(`⏰ Running scheduled tasks at: ${istString} (IST)`);
 
+      // 1. Midnight (12:00 AM) Compliance Status Transition Evaluation
+      // Run once per day at 12:00 AM (hour === 0) or on date change
+      if (this.lastRunDate !== dateStr) {
+        this.lastRunDate = dateStr;
+        console.log(`🌙 Date changed to ${dateStr} - triggering midnight 12:00 AM compliance transition evaluation...`);
+        await complianceDigestService.evaluateMidnightTransitions(dateStr);
+      }
+
+      // 2. Morning 10:00 AM Daily Compliance Digest Email
+      // Sends ONE consolidated email at 10:00 AM IST starting from tomorrow (2026-07-23)
+      if (hour >= 10) {
+        await complianceDigestService.sendDailyDigestEmail(dateStr);
+      }
+
       // NEW SCHEDULE: Thursday at 4:00 PM (16:00) and Monday morning at 10:00 AM (10:00)
       // Added a catch-up window (hour >= 16, hour >= 10) so it sends even if server was down at exactly 10:00 or 16:00.
       const isThursday4PM = dayOfWeek === 4 && hour >= 16;
@@ -130,34 +149,10 @@ export class BackgroundScheduler {
         }
       }
 
-      // 1. Hourly/General Notifications - DISABLED per user request
-      // await this.runNotificationCheck();
-
-      // 2. Scheduled Managed Reports - DISABLED per user request (replaced by consolidated report)
-      /*
-      const isMondayMorning = dayOfWeek === 1 && hour === 9;
-      const isFridayEvening = dayOfWeek === 5 && hour === 18;
-
-      if (isMondayMorning || isFridayEvening) {
-        ...
-      }
-      */
-
-      // 3. Contract Health Transition Alerts - DISABLED per user request
-      /*
-      if (hour >= 10) {
-        ...
-      }
-      */
-
-      // 4. Daily initialization (if needed)
-      if (this.lastRunDate !== dateStr) {
-        this.lastRunDate = dateStr;
-      }
-
     } catch (error) {
       console.error('❌ Error in background scheduler:', error);
     } finally {
+
       this.isProcessing = false;
     }
   }

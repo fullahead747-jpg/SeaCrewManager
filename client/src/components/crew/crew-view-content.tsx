@@ -94,7 +94,7 @@ export function CrewViewContent({ activeTab, crewMember, vessels }: CrewViewCont
     );
   };
 
-  const renderDocument = (title: string, color: string, doc: any, isNotApplicable?: boolean, issuingAuthorityLabel = 'Issuing Authority') => {
+  const renderDocument = (title: string, color: string, doc: any, isNotApplicable?: boolean, issuingAuthorityLabel = 'Issuing Authority', hideDates = false) => {
     if (isNotApplicable) {
       return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -126,8 +126,8 @@ export function CrewViewContent({ activeTab, crewMember, vessels }: CrewViewCont
           <CardContent className="pt-3 grid grid-cols-2 gap-y-4 gap-x-4">
             {renderField("Document Number", doc?.documentNumber)}
             {renderField(issuingAuthorityLabel, doc?.issuingAuthority)}
-            {renderField("Issue Date", doc?.issueDate ? formatDate(doc.issueDate) : null)}
-            {renderField("Expiry Date", doc?.expiryDate ? formatDate(doc.expiryDate) : null, doc?.expiryDate === null ? 'TBD' : 'Not provided')}
+            {!hideDates && renderField("Issue Date", doc?.issueDate ? formatDate(doc.issueDate) : null)}
+            {!hideDates && renderField("Expiry Date", doc?.expiryDate ? formatDate(doc.expiryDate) : null, doc?.expiryDate === null ? 'TBD' : 'Not provided')}
           </CardContent>
         </Card>
       </div>
@@ -176,7 +176,7 @@ export function CrewViewContent({ activeTab, crewMember, vessels }: CrewViewCont
       case 'cdc': return renderDocument("CDC", "teal", getDocument('cdc'), crewMember.cdcNotApplicable ?? undefined);
       case 'coc': return renderDocument("COC", "indigo", getDocument('coc'), crewMember.cocNotApplicable ?? undefined);
       case 'medical': return renderDocument("Medical Certificate", "rose", getDocument('medical'), crewMember.medicalNotApplicable ?? undefined);
-      case 'stcw': return renderDocument("Course / STCW", "orange", getDocument('stcw_course'), crewMember.stcwNotApplicable ?? undefined);
+      case 'stcw': return renderDocument("Course / STCW", "orange", getDocument('stcw_course'), crewMember.stcwNotApplicable ?? undefined, 'Issuing Authority', true);
       case 'sid': return renderDocument("SID", "violet", getDocument('sid'), false, 'Place of Issue');
       case 'contract': return renderContract();
       default: return renderOverview();
