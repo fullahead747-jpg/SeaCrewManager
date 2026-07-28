@@ -13,9 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from '@/components/ui/progress';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { Upload, FileText, X, Calendar as CalendarIcon, Eye, AlertCircle } from 'lucide-react';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Upload, FileText, X, Eye, AlertCircle } from 'lucide-react';
+import { DatePicker } from '@/components/ui/date-picker';
 import { cn, formatDate, formatDateForInput } from '@/lib/utils';
 import { downloadFileFromResponse, openSecureView } from '@/lib/file-utils';
 import { ErrorDetails } from '@/components/ui/ErrorDetails';
@@ -598,33 +597,14 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                           <FormLabel className="text-sm font-medium text-muted-foreground mb-1.5">
                             {watchedType === 'sid' ? 'SID Date of Issue' : 'Issue Date'}
                           </FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant={"outline"}
-                                  className={cn(
-                                    "h-11 w-full pl-3 text-left font-normal border-input hover:bg-muted/50",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  {field.value ? formatDate(field.value) : <span>Pick a date</span>}
-                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            {!isDateLocked && (
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value ? new Date(field.value) : undefined}
-                                  onSelect={(date) => field.onChange(date ? formatDateForInput(date) : "")}
-                                  disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            )}
-                          </Popover>
+                          <FormControl>
+                            <DatePicker
+                              value={field.value ?? ''}
+                              onChange={(val) => field.onChange(val)}
+                              disabled={isDateLocked}
+                              placeholder="DD / MM / YYYY"
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -638,32 +618,14 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                           <FormLabel className="text-sm font-medium text-muted-foreground mb-1.5">
                             {watchedType === 'sid' ? 'SID Date of Expiry' : 'Expiry Date'}
                           </FormLabel>
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant={"outline"}
-                                  className={cn(
-                                    "h-11 w-full pl-3 text-left font-normal border-input hover:bg-muted/50",
-                                    !field.value && "text-muted-foreground"
-                                  )}
-                                >
-                                  {field.value ? formatDate(field.value) : <span>Pick a date</span>}
-                                  <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            {!isDateLocked && (
-                              <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                  mode="single"
-                                  selected={field.value ? new Date(field.value) : undefined}
-                                  onSelect={(date) => field.onChange(date ? formatDateForInput(date) : "")}
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            )}
-                          </Popover>
+                          <FormControl>
+                            <DatePicker
+                              value={field.value ?? ''}
+                              onChange={(val) => field.onChange(val)}
+                              disabled={isDateLocked}
+                              placeholder="DD / MM / YYYY"
+                            />
+                          </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
