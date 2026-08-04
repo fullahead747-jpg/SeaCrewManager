@@ -1276,15 +1276,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ ...document, wasUpdated });
       }
 
-      // STCW Courses: skip OCR validation but preserve real user-entered metadata (dates, doc number)
-      // Courses come in many non-standard layouts (booklets, multi-page certs, varied fonts)
-      // that OCR cannot reliably parse — same treatment as photo/nok document types.
+      // STCW Courses: Perform Seafarer Name validation (prevents uploading wrong person's document),
+      // but skip strict date/docNumber OCR matching which is unreliable on course booklet layouts.
       if (documentData.type === 'stcw_course') {
         const crewMember = await storage.getCrewMember(documentData.crewMemberId);
         if (!crewMember) {
           return res.status(404).json({ message: "Crew member not found" });
         }
         if (documentData.filePath) {
+          const fullPath = path.join(process.cwd(), documentData.filePath);
+          if (fs.existsSync(fullPath)) {
+            try {
+              const extractedData = await documentVerificationService.extractDocumentData(fullPath, 'stcw_course');
+              if (extractedData.holderName) {
+                const ownerResult = await documentVerificationService.validateDocumentOwner(
+                  extractedData.holderName,
+                  crewMember.id
+                );
+                if (ownerResult.status === 'mismatch' && !forceSave) {
+                  console.warn(`[STCW-NAME-MISMATCH] Blocked ${documentData.type} for ${crewMember.firstName} ${crewMember.lastName}. Found '${extractedData.holderName}'`);
+                  return res.status(400).json({
+                    message: `Document Validation Failed: The uploaded document appears to belong to '${extractedData.holderName}', which does not match seafarer ${crewMember.firstName} ${crewMember.lastName}.`,
+                    isValidationError: true,
+                    details: {
+                      matchScore: ownerResult.similarity,
+                      warnings: [ownerResult.message],
+                      criticalErrors: [`Seafarer Name Mismatch: Document shows '${extractedData.holderName}', expected '${crewMember.firstName} ${crewMember.lastName}'`]
+                    }
+                  });
+                }
+              }
+            } catch (err) {
+              console.warn(`[STCW-NAME-CHECK] Name validation error (proceeding):`, err);
+            }
+          }
           const documentStorageService = new DocumentStorageService();
           documentData.filePath = await documentStorageService.uploadLocalFileToCloud(
             documentData.filePath,
@@ -1814,11 +1839,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(updated);
       }
 
-      // STCW Courses: skip OCR validation but PRESERVE real user-entered metadata (dates, doc number)
-      // Unlike CVs, courses have real dates and document numbers that must be stored as-is.
+      // STCW Courses: Perform Seafarer Name validation (prevents uploading wrong person's document),
+      // but skip strict date/docNumber OCR matching which is unreliable on course booklet layouts.
       if (existingDocument.type === 'stcw_course' || updates.type === 'stcw_course') {
         const crewMember = await storage.getCrewMember(existingDocument.crewMemberId);
-        if (updates.filePath && crewMember) {
+        if (!crewMember) {
+          return res.status(404).json({ message: "Crew member not found" });
+        }
+        if (updates.filePath) {
+          const fullPath = path.join(process.cwd(), updates.filePath);
+          if (fs.existsSync(fullPath)) {
+            try {
+              const extractedData = await documentVerificationService.extractDocumentData(fullPath, 'stcw_course');
+              if (extractedData.holderName) {
+                const ownerResult = await documentVerificationService.validateDocumentOwner(
+                  extractedData.holderName,
+                  crewMember.id
+                );
+                if (ownerResult.status === 'mismatch' && !forceSave) {
+                  console.warn(`[STCW-NAME-MISMATCH-PUT] Blocked course update for ${crewMember.firstName} ${crewMember.lastName}. Found '${extractedData.holderName}'`);
+                  return res.status(400).json({
+                    message: `Document Update Rejected: The uploaded document appears to belong to '${extractedData.holderName}', which does not match seafarer ${crewMember.firstName} ${crewMember.lastName}.`,
+                    isValidationError: true,
+                    details: {
+                      matchScore: ownerResult.similarity,
+                      warnings: [ownerResult.message],
+                      criticalErrors: [`Seafarer Name Mismatch: Document shows '${extractedData.holderName}', expected '${crewMember.firstName} ${crewMember.lastName}'`]
+                    }
+                  });
+                }
+              }
+            } catch (err) {
+              console.warn(`[STCW-NAME-CHECK-PUT] Name validation error (proceeding):`, err);
+            }
+          }
           const documentStorageService = new DocumentStorageService();
           updates.filePath = await documentStorageService.uploadLocalFileToCloud(
             updates.filePath,
