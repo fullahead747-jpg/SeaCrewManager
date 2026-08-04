@@ -1364,6 +1364,7 @@ export class MemStorage implements IStorage {
       role: "admin",
       email: "admin@crewtrack.com",
       name: "John Smith",
+      assignedVesselId: null,
       otp: null,
       otpExpiry: null,
       resetToken: null,
@@ -1380,6 +1381,7 @@ export class MemStorage implements IStorage {
       role: "office_staff",
       email: "office@crewtrack.com",
       name: "Sarah Wilson",
+      assignedVesselId: null,
       otp: null,
       otpExpiry: null,
       resetToken: null,
@@ -2092,6 +2094,7 @@ export class MemStorage implements IStorage {
     const user: User = { 
       ...insertUser, 
       id, 
+      assignedVesselId: insertUser.assignedVesselId || null,
       otp: insertUser.otp || null,
       otpExpiry: insertUser.otpExpiry || null,
       resetToken: insertUser.resetToken || null,

@@ -8,9 +8,10 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  role: text("role").notNull(), // 'admin', 'office_staff'
+  role: text("role").notNull(), // 'admin', 'office_staff', 'vessel_user'
   email: text("email").notNull(),
   name: text("name").notNull(),
+  assignedVesselId: varchar("assigned_vessel_id").references(() => vessels.id),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

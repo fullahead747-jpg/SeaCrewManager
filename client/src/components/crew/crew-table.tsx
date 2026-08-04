@@ -1,6 +1,8 @@
+import { useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAuthHeaders } from '@/lib/auth';
 import { useAuth } from '@/contexts/auth-context';
+import { useVesselScope } from '@/hooks/use-vessel-scope';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -63,10 +65,18 @@ export const getContractDaysRemaining = (member: any) => {
 
 const CrewTable = React.memo(() => {
   const { user } = useAuth();
+  const vesselScope = useVesselScope();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [vesselFilter, setVesselFilter] = useState('all');
+
+  // Auto-lock vessel filter for restricted users
+  useEffect(() => {
+    if (vesselScope && vesselScope.length > 0) {
+      setVesselFilter(vesselScope[0]);
+    }
+  }, [vesselScope]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [selectedCrewMember, setSelectedCrewMember] = useState<CrewMemberWithDetails | null>(null);
   const [showViewDialog, setShowViewDialog] = useState(false);
@@ -1221,7 +1231,7 @@ const CrewTable = React.memo(() => {
           {/* Filters Row */}
           <div className="flex flex-wrap items-center gap-3">
             {/* Vessel Filter */}
-            <Select value={vesselFilter} onValueChange={setVesselFilter}>
+            <Select value={vesselFilter} onValueChange={setVesselFilter} disabled={vesselScope !== null}>
               <SelectTrigger className="w-[200px] h-10 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700" data-testid="vessel-filter-select">
                 <div className="flex items-center gap-2">
                   <Ship className="h-4 w-4 text-slate-500" />
@@ -1229,7 +1239,7 @@ const CrewTable = React.memo(() => {
                 </div>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Vessels</SelectItem>
+                {vesselScope === null && <SelectItem value="all">All Vessels</SelectItem>}
                 {vessels?.map((vessel: any) => (
                   <SelectItem key={vessel.id} value={vessel.id}>
                     {vessel.name}

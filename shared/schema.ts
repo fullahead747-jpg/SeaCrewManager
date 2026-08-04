@@ -8,9 +8,10 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
-  role: text("role").notNull(), // 'admin', 'office_staff'
+  role: text("role").notNull(), // 'admin', 'office_staff', 'vessel_user'
   email: text("email").notNull(),
   name: text("name").notNull(),
+  assignedVesselId: varchar("assigned_vessel_id").references(() => vessels.id),
   otp: text("otp"),
   otpExpiry: timestamp("otp_expiry"),
   resetToken: text("reset_token"),
@@ -232,7 +233,8 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
 }).extend({
-  role: z.enum(["admin", "office_staff"]),
+  role: z.enum(["admin", "office_staff", "vessel_user"]),
+  assignedVesselId: z.string().optional().nullable(),
 });
 
 export const insertVesselSchema = createInsertSchema(vessels).omit({

@@ -4,6 +4,7 @@ import { queryClient } from '@/lib/queryClient';
 import { Link } from 'wouter';
 import { getAuthHeaders } from '@/lib/auth';
 import { useAuth } from '@/contexts/auth-context';
+import { useVesselScope } from '@/hooks/use-vessel-scope';
 import { downloadFileFromResponse } from '@/lib/file-utils';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -82,6 +83,7 @@ const MemoizedDocumentHealth = memo(({ stats, statsLoading, onDrillDown }: { sta
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const vesselScope = useVesselScope();
   const { toast } = useToast();
   const [showSignOffDueModal, setShowSignOffDueModal] = useState(false);
   const [showExpiryTimelineModal, setShowExpiryTimelineModal] = useState(false);
@@ -222,11 +224,14 @@ export default function Dashboard() {
       {/* Page Header - Tighter & Smaller */}
       <div className="mb-3">
         <h2 className="text-xl font-bold text-foreground tracking-tight">
-          Fleet Dashboard
+          {vesselScope !== null ? 'WORLD LEGACY — Vessel Dashboard' : 'Fleet Dashboard'}
         </h2>
         <p className="text-xs text-secondary-foreground opacity-70">
-          {user?.role === 'admin' ? 'Overview of your maritime operations and crew status' :
-            'Manage crew data entry and monitor document compliance'}
+          {vesselScope !== null
+            ? 'Manage crew data entry and monitor document compliance for WORLD LEGACY'
+            : user?.role === 'admin'
+              ? 'Overview of your maritime operations and crew status'
+              : 'Manage crew data entry and monitor document compliance'}
         </p>
       </div>
 
@@ -260,7 +265,7 @@ export default function Dashboard() {
       )}
 
       {/* Vessel Overview Section */}
-      {(user?.role === 'admin' || user?.role === 'office_staff') && (
+      {(user?.role === 'admin' || user?.role === 'office_staff' || user?.role === 'vessel_user' || vesselScope !== null) && (
         <div className="mb-8" id="vessels-section">
           <div className="bg-card border border-border rounded-xl shadow-sm">
             <div className="p-6">

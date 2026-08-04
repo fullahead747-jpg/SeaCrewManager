@@ -3,6 +3,8 @@ import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { Users, Ship, UserCheck, Clock, AlertTriangle, FileWarning, Search, Download, FileText } from "lucide-react";
 
+import { useVesselScope } from "@/hooks/use-vessel-scope";
+
 interface StatItemProps {
     label: string;
     value: number | string;
@@ -64,6 +66,7 @@ export default function MinimalHealthRow({
     onDownloadClick,
     onWeeklyReportClick
 }: MinimalHealthRowProps) {
+    const vesselScope = useVesselScope();
     if (!stats) return null;
 
     return (
@@ -82,11 +85,11 @@ export default function MinimalHealthRow({
             />
 
             <StatItem
-                label="Vessels"
+                label={vesselScope !== null ? "Vessel" : "Vessels"}
                 value={stats.activeVessels}
                 icon={Ship}
                 color="text-indigo-500"
-                description="Fleet operational"
+                description={vesselScope !== null ? "WORLD LEGACY" : "Fleet operational"}
                 onClick={onVesselsClick}
             />
             <StatItem

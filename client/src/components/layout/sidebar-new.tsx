@@ -25,25 +25,25 @@ const navItems = [
     label: 'Dashboard',
     href: '/',
     icon: LayoutDashboard,
-    roles: ['admin', 'office_staff']
+    roles: ['admin', 'office_staff', 'vessel_user']
   },
   {
     label: 'Scheduling',
     href: '/scheduling',
     icon: Calendar,
-    roles: ['admin', 'office_staff']
+    roles: ['admin', 'office_staff', 'vessel_user']
   },
   {
     label: 'Documents',
     href: '/documents',
     icon: FileText,
-    roles: ['admin', 'office_staff']
+    roles: ['admin', 'office_staff', 'vessel_user']
   },
   {
     label: 'Status History',
     href: '/status-history',
     icon: History,
-    roles: ['admin', 'office_staff']
+    roles: ['admin', 'office_staff', 'vessel_user']
   },
   {
     label: 'Settings',

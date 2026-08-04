@@ -25,9 +25,9 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'office_staff'] },
-  { href: '/scheduling', label: 'Scheduling', icon: Calendar, roles: ['admin', 'office_staff'] },
-  { href: '/documents', label: 'Document Center', icon: FileText, roles: ['admin', 'office_staff'] },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'office_staff', 'vessel_user'] },
+  { href: '/scheduling', label: 'Scheduling', icon: Calendar, roles: ['admin', 'office_staff', 'vessel_user'] },
+  { href: '/documents', label: 'Document Center', icon: FileText, roles: ['admin', 'office_staff', 'vessel_user'] },
   { href: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
   { href: '/notifications', label: 'Email Notifications', icon: Mail, roles: ['admin'] },
 ];
@@ -51,7 +51,7 @@ export default function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
       <nav className="p-6">
         <div className="space-y-2">
           {/* Fleet Management Section */}
-          {(user?.role === 'admin' || user?.role === 'office_staff') && (
+          {(user?.role === 'admin' || user?.role === 'office_staff' || user?.role === 'vessel_user') && (
             <div className="mb-6">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
                 Fleet Management

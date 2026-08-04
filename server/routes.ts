@@ -220,7 +220,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.user = {
         id: 'dev-user',
         role: 'admin',
-        username: 'dev-admin'
+        username: 'dev-admin',
+        assignedVesselId: null
       };
       return next();
     }
@@ -231,12 +232,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Check for mock token (supported for demo/Vercel)
     if (authHeader && authHeader.startsWith('Bearer mock-token-')) {
       const mockUserId = authHeader.replace('Bearer mock-token-', '');
-      req.user = {
-        id: mockUserId,
-        role: req.headers['x-user-role'] as string || 'admin',
-        username: req.headers['x-username'] as string || 'admin'
-      };
-      return next();
+      // Load full user from DB to get assignedVesselId
+      storage.getUser(mockUserId).then(dbUser => {
+        req.user = {
+          id: mockUserId,
+          role: (dbUser?.role as string) || (req.headers['x-user-role'] as string) || 'admin',
+          username: (dbUser?.username as string) || (req.headers['x-username'] as string) || 'admin',
+          assignedVesselId: dbUser?.assignedVesselId || null
+        };
+        return next();
+      }).catch(() => {
+        req.user = {
+          id: mockUserId,
+          role: req.headers['x-user-role'] as string || 'admin',
+          username: req.headers['x-username'] as string || 'admin',
+          assignedVesselId: null
+        };
+        return next();
+      });
+      return; // return here; next() is called inside promise
     }
 
     if (!authHeader) {
@@ -246,7 +260,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.user = {
           id: 'demo-admin-id',
           role: 'admin',
-          username: 'admin'
+          username: 'admin',
+          assignedVesselId: null
         };
         return next();
       }
@@ -258,8 +273,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     const userRole = req.headers['x-user-role'] || req.headers['x-oidc-role'] || 'office_staff';
     const username = req.headers['x-username'] || req.headers['x-oidc-preferred-username'] || 'demo-user';
 
-    req.user = { id: userId, role: userRole as string, username: username as string };
+    req.user = { id: userId, role: userRole as string, username: username as string, assignedVesselId: null };
     next();
+  };
+
+  /**
+   * Returns the list of vessel IDs this request's user is allowed to access.
+   * - Admins and office_staff with no assignedVesselId → null (global access)
+   * - vessel_user or any user with assignedVesselId → [assignedVesselId]
+   */
+  const getVesselScope = (req: any): string[] | null => {
+    const user = req.user;
+    if (!user) return null;
+    // Global access: admin or office_staff without a vessel restriction
+    if ((user.role === 'admin' || user.role === 'office_staff') && !user.assignedVesselId) {
+      return null; // null = no restriction, see all
+    }
+    // Restricted: return only their assigned vessel
+    if (user.assignedVesselId) {
+      return [user.assignedVesselId];
+    }
+    // Fallback: if vessel_user with no assignedVesselId set, return empty (deny all)
+    return [];
   };
 
   // Diagnostic endpoint to check database connectivity
@@ -477,7 +512,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'Vary': 'Authorization'
       });
 
-      const vessels = await storage.getVessels();
+      const scope = getVesselScope(req);
+      let vessels = await storage.getVessels();
+
+      // Apply vessel scope filter for restricted users
+      if (scope !== null) {
+        vessels = vessels.filter(v => scope.includes(v.id));
+      }
+
       const crewMembers = await storage.getCrewMembers();
       const contracts = await storage.getContracts();
 
@@ -604,6 +646,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const vesselData = insertVesselSchema.partial().parse(req.body);
 
+      // Vessel scope guard: vessel_user can only modify their assigned vessel
+      const scope = getVesselScope(req);
+      if (scope !== null && !scope.includes(req.params.id)) {
+        return res.status(403).json({ message: "Access denied: You can only modify your assigned vessel" });
+      }
+
       // Get original vessel for comparison
       const originalVessel = await storage.getVessel(req.params.id);
       if (!originalVessel) {
@@ -660,6 +708,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       console.log('Attempting to delete vessel:', req.params.id);
 
+      // Vessel scope guard: vessel_user cannot delete their vessel
+      const scope = getVesselScope(req);
+      if (scope !== null) {
+        return res.status(403).json({ message: "Access denied: Vessel-scoped users cannot delete vessels" });
+      }
+
       // Get vessel details before deletion for logging
       const vessel = await storage.getVessel(req.params.id);
       console.log('Found vessel:', vessel);
@@ -710,6 +764,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/vessels/:id/contract-stats", authenticate, async (req, res) => {
     try {
       const vesselId = req.params.id;
+      // Vessel scope guard
+      const scope = getVesselScope(req);
+      if (scope !== null && !scope.includes(vesselId)) {
+        return res.status(403).json({ message: "Access denied: You can only view stats for your assigned vessel" });
+      }
       const stats = await storage.getVesselContractStats(vesselId);
       res.json(stats);
     } catch (error) {
@@ -720,6 +779,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/vessels/:id/contracts", authenticate, async (req, res) => {
     try {
       const vesselId = req.params.id;
+      // Vessel scope guard
+      const scope = getVesselScope(req);
+      if (scope !== null && !scope.includes(vesselId)) {
+        return res.status(403).json({ message: "Access denied: You can only view contracts for your assigned vessel" });
+      }
       const { status } = req.query;
       const contracts = await storage.getVesselContracts(vesselId, status as string);
       res.json(contracts);
@@ -731,6 +795,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Fleet PDF Export
   app.get("/api/export/fleet-pdf", authenticate, async (req, res) => {
     try {
+      const scope = getVesselScope(req);
+      if (scope !== null && scope.length > 0) {
+        // Vessel restricted user: generate PDF for their assigned vessel instead of full fleet
+        const { buffer, fileName } = await generateVesselPDFBuffer(scope[0], storage);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
+        return res.send(buffer);
+      }
       const { buffer, fileName } = await generateFleetPDFBuffer(storage);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
@@ -769,6 +841,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Vessel PDF Export & Email
   app.get("/api/vessels/:id/export-pdf", authenticate, async (req, res) => {
     try {
+      // Vessel scope guard
+      const scope = getVesselScope(req);
+      if (scope !== null && !scope.includes(req.params.id)) {
+        return res.status(403).json({ message: "Access denied: You can only export reports for your assigned vessel" });
+      }
       const { buffer, fileName } = await generateVesselPDFBuffer(req.params.id, storage);
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
@@ -781,6 +858,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/vessels/:id/email-pdf", authenticate, async (req, res) => {
     try {
+      // Vessel scope guard
+      const scope = getVesselScope(req);
+      if (scope !== null && !scope.includes(req.params.id)) {
+        return res.status(403).json({ message: "Access denied: You can only email reports for your assigned vessel" });
+      }
       const { additionalEmail } = req.body;
       const { buffer, fileName, vesselName } = await generateVesselPDFBuffer(req.params.id, storage);
 
@@ -832,9 +914,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/crew", authenticate, async (req, res) => {
     try {
       const { vesselId } = req.query;
-      let crewMembers;
+      const scope = getVesselScope(req);
+      let crewMembers: any[] = [];
 
-      if (vesselId) {
+      if (scope !== null) {
+        // Restricted user: always filter to their assigned vessel(s)
+        const effectiveVesselId = scope.length > 0 ? scope[0] : null;
+        if (effectiveVesselId) {
+          crewMembers = await storage.getCrewMembersByVessel(effectiveVesselId);
+        } else {
+          crewMembers = [];
+        }
+      } else if (vesselId) {
         crewMembers = await storage.getCrewMembersByVessel(vesselId as string);
       } else {
         crewMembers = await storage.getCrewMembers();
@@ -851,6 +942,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const crewMember = await storage.getCrewMember(req.params.id);
       if (!crewMember) {
         return res.status(404).json({ message: "Crew member not found" });
+      }
+      // Vessel scope guard: restricted user can only access crew on their vessel
+      const scope = getVesselScope(req);
+      if (scope !== null) {
+        const crewVesselId = crewMember.currentVesselId || crewMember.lastVesselId;
+        if (!crewVesselId || !scope.includes(crewVesselId)) {
+          return res.status(403).json({ message: "Access denied: This crew member is not on your assigned vessel" });
+        }
       }
       res.json(crewMember);
     } catch (error) {
@@ -883,7 +982,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dateOfBirth: dob
       };
 
+      // Vessel scope guard: force currentVesselId to assigned vessel for restricted users
+      const scope = getVesselScope(req);
+      if (scope !== null) {
+        if (scope.length === 0) {
+          return res.status(403).json({ message: "Access denied: No vessel assigned to your account" });
+        }
+        // Override any vesselId the client sent - enforce assigned vessel only
+        requestBody.currentVesselId = scope[0];
+      }
+
       const crewData = insertCrewMemberSchema.parse(requestBody);
+
 
       // Check for duplicate crew member (same first name, last name, and date of birth)
       const duplicate = await storage.findDuplicateCrewMember(
@@ -956,6 +1066,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingCrewMember = await storage.getCrewMember(req.params.id);
       if (!existingCrewMember) {
         return res.status(404).json({ message: "Crew member not found" });
+      }
+
+      // Vessel scope guard: restricted user can only update crew on their assigned vessel
+      const scope = getVesselScope(req);
+      if (scope !== null) {
+        const crewVesselId = existingCrewMember.currentVesselId || existingCrewMember.lastVesselId;
+        if (!crewVesselId || !scope.includes(crewVesselId)) {
+          return res.status(403).json({ message: "Access denied: This crew member is not on your assigned vessel" });
+        }
+        // Also prevent reassigning crew to another vessel
+        if (req.body.currentVesselId && !scope.includes(req.body.currentVesselId)) {
+          return res.status(403).json({ message: "Access denied: Cannot reassign crew to a different vessel" });
+        }
       }
 
       // Only validate documents if status is CHANGING from onShore to onBoard (initial sign-on)
@@ -1182,6 +1305,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Continue with deletion even if lookup fails
       }
 
+      // Vessel scope guard: restricted user can only delete crew on their assigned vessel
+      const scope = getVesselScope(req);
+      if (scope !== null && crewMember) {
+        const crewVesselId = crewMember.currentVesselId || crewMember.lastVesselId;
+        if (!crewVesselId || !scope.includes(crewVesselId)) {
+          return res.status(403).json({ message: "Access denied: This crew member is not on your assigned vessel" });
+        }
+      }
+
       // Attempt deletion - deleteCrewMember handles existence check internally
       const deleted = await storage.deleteCrewMember(req.params.id);
       console.log(`Delete result for ${req.params.id}:`, deleted);
@@ -1275,6 +1407,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const { document, wasUpdated } = await storage.upsertDocument(cvPayload);
         return res.json({ ...document, wasUpdated });
       }
+
+      const forceSave = req.body.forceSave === true;
 
       // STCW Courses: Perform Seafarer Name validation (prevents uploading wrong person's document),
       // but skip strict date/docNumber OCR matching which is unreliable on course booklet layouts.
@@ -3298,7 +3432,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/alerts/expiring-documents", authenticate, async (req, res) => {
     try {
       const days = parseInt(req.query.days as string) || 30;
-      const alerts = await storage.getExpiringDocuments(days);
+      const scope = getVesselScope(req);
+      let alerts = await storage.getExpiringDocuments(days);
+      if (scope !== null) {
+        alerts = alerts.filter(a => a.crewMember && scope.includes(a.crewMember.currentVesselId || ''));
+      }
       res.json(alerts);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch expiring documents" });
@@ -3308,7 +3446,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/alerts/expiring-vessel-documents", authenticate, async (req, res) => {
     try {
       const days = parseInt(req.query.days as string) || 30;
-      const alerts = await storage.getExpiringVesselDocuments(days);
+      const scope = getVesselScope(req);
+      let alerts = await storage.getExpiringVesselDocuments(days);
+      if (scope !== null) {
+        alerts = alerts.filter(a => scope.includes(a.vessel.id));
+      }
       res.json(alerts);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch expiring vessel documents" });
@@ -3318,7 +3460,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/alerts/expiring-contracts", authenticate, async (req, res) => {
     try {
       const days = parseInt(req.query.days as string) || 90;
-      const alerts = await storage.getExpiringContracts(days);
+      const scope = getVesselScope(req);
+      let alerts = await storage.getExpiringContracts(days);
+      if (scope !== null) {
+        alerts = alerts.filter(a => scope.includes(a.vessel.id));
+      }
       res.json(alerts);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch expiring contracts" });
@@ -3425,7 +3571,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dashboard/stats", authenticate, async (req, res) => {
     try {
       const { vesselId } = req.query as { vesselId?: string };
-      const stats = await storage.getDashboardStats(vesselId);
+      const scope = getVesselScope(req);
+      const effectiveVesselId = scope !== null ? (scope.length > 0 ? scope[0] : 'no-access') : vesselId;
+      const stats = await storage.getDashboardStats(effectiveVesselId);
       res.json(stats);
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);
@@ -3437,6 +3585,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/dashboard/drilldown", authenticate, async (req, res) => {
     try {
       const { type, key, vesselId } = req.query as { type: string, key: string, vesselId?: string };
+      const scope = getVesselScope(req);
+      const effectiveVesselId = scope !== null ? (scope.length > 0 ? scope[0] : 'no-access') : vesselId;
       const now = new Date();
       // ... date definitions ...
       const fifteenDaysFromNow = new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000);
@@ -3471,15 +3621,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const crewMap = new Map(allCrew.map(m => [m.id, m]));
 
-      // Apply vessel filtering if vesselId is provided
-      const crewMembers = vesselId
-        ? allCrew.filter(m => m.currentVesselId === vesselId)
+      // Apply vessel filtering if vesselId is provided or user is vessel-restricted
+      const crewMembers = effectiveVesselId
+        ? allCrew.filter(m => m.currentVesselId === effectiveVesselId)
         : allCrew;
 
-      const filteredDocuments = vesselId
+      const filteredDocuments = effectiveVesselId
         ? allDocs.filter(d => {
           const crew = crewMap.get(d.crewMemberId);
-          return crew && crew.currentVesselId === vesselId;
+          return crew && crew.currentVesselId === effectiveVesselId;
         })
         : allDocs;
 
@@ -4818,7 +4968,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .leftJoin(vessels, sql`${statusChangeHistory.vesselId} = ${vessels.id} `)
         .orderBy(sql`${statusChangeHistory.createdAt} DESC`);
 
-      res.json(history);
+      const scope = getVesselScope(req);
+      let filteredHistory = history;
+      if (scope !== null) {
+        filteredHistory = history.filter(h => h.vesselId && scope.includes(h.vesselId));
+      }
+
+      res.json(filteredHistory);
     } catch (error) {
       console.error('Error fetching status change history:', error);
       res.status(500).json({ message: 'Failed to fetch status change history', error: error instanceof Error ? error.message : 'Unknown error' });
@@ -4938,6 +5094,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/vessels/:vesselId/documents", authenticate, async (req, res) => {
     try {
       const { vesselId } = req.params;
+      // Vessel scope guard
+      const scope = getVesselScope(req);
+      if (scope !== null && !scope.includes(vesselId)) {
+        return res.status(403).json({ message: "Access denied: You can only view documents for your assigned vessel" });
+      }
       const documents = await storage.getVesselDocuments(vesselId);
       res.json(documents);
     } catch (error) {
@@ -4951,6 +5112,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { vesselId } = req.params;
       const { fileName } = req.body;
+      // Vessel scope guard
+      const scope = getVesselScope(req);
+      if (scope !== null && !scope.includes(vesselId)) {
+        return res.status(403).json({ message: "Access denied: You can only upload documents for your assigned vessel" });
+      }
 
       if (!fileName) {
         return res.status(400).json({ message: "fileName is required" });
