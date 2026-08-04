@@ -68,6 +68,8 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
     const now = React.useMemo(() => new Date(), []);
     const [loadingViewDocId, setLoadingViewDocId] = React.useState<string | null>(null);
     const [loadingDownloadDocId, setLoadingDownloadDocId] = React.useState<string | null>(null);
+    const [loadingMailDocId, setLoadingMailDocId] = React.useState<string | null>(null);
+    const [loadingDeleteDocId, setLoadingDeleteDocId] = React.useState<string | null>(null);
     const [isRemarksModalOpen, setIsRemarksModalOpen] = React.useState(false);
 
     const contractStats = React.useMemo(() => {
@@ -280,6 +282,29 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
             setLoadingDownloadDocId(null);
         }
     }, [toast, member]);
+
+    const handleDocSendMail = React.useCallback(async (docKey: string) => {
+        setLoadingMailDocId(docKey);
+        try {
+            await Promise.resolve(onSendMail(member));
+        } catch (error) {
+            console.error('Send mail error:', error);
+        } finally {
+            setLoadingMailDocId(null);
+        }
+    }, [onSendMail, member]);
+
+    const handleDocDelete = React.useCallback(async (docId: string, type: string) => {
+        const key = docId || type;
+        setLoadingDeleteDocId(key);
+        try {
+            await Promise.resolve(onDeleteDocument?.(docId, type));
+        } catch (error) {
+            console.error('Delete document error:', error);
+        } finally {
+            setLoadingDeleteDocId(null);
+        }
+    }, [onDeleteDocument]);
 
     return (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-md overflow-hidden mb-6 hover:shadow-lg transition-all duration-300 transform-gpu will-change-transform [content-visibility:auto] [contain-intrinsic-size:auto_350px]">
@@ -600,9 +625,10 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                                 size="icon"
                                                                 variant="ghost"
                                                                 className="h-8 w-8 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                                                                onClick={() => onSendMail(member)}
+                                                                onClick={() => handleDocSendMail(doc.docId || doc.type)}
+                                                                disabled={loadingMailDocId === (doc.docId || doc.type) || isMailPending}
                                                             >
-                                                                <Mail className="h-3.5 w-3.5" />
+                                                                {loadingMailDocId === (doc.docId || doc.type) ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                                                             </Button>
                                                         </>
                                                     )}
@@ -615,10 +641,17 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                                 onToggleNA?.(member, doc.type, false);
                                                                 return;
                                                             }
-                                                            onDeleteDocument?.(doc.docId!, doc.type);
+                                                            handleDocDelete(doc.docId!, doc.type);
                                                         }}
+                                                        disabled={loadingDeleteDocId === (doc.docId || doc.type)}
                                                     >
-                                                        {doc.status === 'na' ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                                        {loadingDeleteDocId === (doc.docId || doc.type) ? (
+                                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                        ) : doc.status === 'na' ? (
+                                                            <CheckCircle2 className="h-3.5 w-3.5" />
+                                                        ) : (
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        )}
                                                     </Button>
                                                 </div>
                                             )}
@@ -668,17 +701,23 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                                 size="icon"
                                                 variant="ghost"
                                                 className="h-8 w-8 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                                                onClick={() => onSendMail(member)}
+                                                onClick={() => handleDocSendMail(cvDoc.docId || 'cv')}
+                                                disabled={loadingMailDocId === (cvDoc.docId || 'cv') || isMailPending}
                                             >
-                                                <Mail className="h-3.5 w-3.5" />
+                                                {loadingMailDocId === (cvDoc.docId || 'cv') ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                                             </Button>
                                             <Button
                                                 size="icon"
                                                 variant="ghost"
                                                 className="h-8 w-8 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                                onClick={() => onDeleteDocument?.(cvDoc.docId!, 'cv')}
+                                                onClick={() => handleDocDelete(cvDoc.docId!, 'cv')}
+                                                disabled={loadingDeleteDocId === (cvDoc.docId || 'cv')}
                                             >
-                                                <Trash2 className="h-3.5 w-3.5" />
+                                                {loadingDeleteDocId === (cvDoc.docId || 'cv') ? (
+                                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                                ) : (
+                                                    <Trash2 className="h-3.5 w-3.5" />
+                                                )}
                                             </Button>
                                         </>
                                     ) : (
