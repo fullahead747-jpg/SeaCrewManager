@@ -66,7 +66,12 @@ async function backupDatabase() {
 
   for (const table of TABLES) {
     try {
-      const result = await pool.query(`SELECT * FROM "${table}" ORDER BY created_at ASC NULLS LAST`);
+      let result;
+      try {
+        result = await pool.query(`SELECT * FROM "${table}" ORDER BY created_at ASC NULLS LAST`);
+      } catch {
+        result = await pool.query(`SELECT * FROM "${table}"`);
+      }
       backup[table] = result.rows;
       totalRows += result.rows.length;
       console.log(`  ✅  ${table.padEnd(35)} ${result.rows.length} rows`);

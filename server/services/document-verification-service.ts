@@ -963,14 +963,16 @@ export class DocumentVerificationService {
             return false;
         }
 
-        // 30-Day Tolerance to handle OCR date reading variations
-        // OCR engines can misread dates by a few days/weeks, especially on medical certificates
-        // where dates appear in different formats or have printing artifacts
+        // 45-Day Tolerance to handle OCR date reading variations
+        // OCR engines can misread dates by up to one full calendar month, especially on medical
+        // certificates where months appear as text (e.g., "June" vs "July") or adjacent digits
+        // are merged. 45 days safely covers all month-boundary errors while still rejecting
+        // genuinely wrong dates (those will differ by months or years).
         const timeDiff = Math.abs(d1.getTime() - d2.getTime());
         const oneDayMs = 24 * 60 * 60 * 1000;
 
-        // Allow up to 30 days difference to handle OCR variations
-        const matches = timeDiff <= oneDayMs * 30;
+        // Allow up to 45 days difference to handle OCR variations (was 30)
+        const matches = timeDiff <= oneDayMs * 45;
 
         if (!matches) {
             console.log(`[DATE-MATCH-FAILURE] Diff: ${Math.round(timeDiff / oneDayMs * 100) / 100} days. d1: ${d1.toISOString().split('T')[0]}, d2: ${d2.toISOString().split('T')[0]}`);

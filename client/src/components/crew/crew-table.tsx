@@ -262,9 +262,9 @@ const CrewTable = React.memo(() => {
     },
   });
 
-  const handleDeleteDocument = (docId: string, type: string) => {
+  const handleDeleteDocument = async (docId: string, type: string) => {
     if (window.confirm(`Are you sure you want to delete this ${type.toUpperCase()} document?`)) {
-      deleteDocumentMutation.mutate(docId);
+      return await deleteDocumentMutation.mutateAsync(docId);
     }
   };
 

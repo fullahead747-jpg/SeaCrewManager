@@ -286,6 +286,8 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
     const handleDocSendMail = React.useCallback(async (docKey: string) => {
         setLoadingMailDocId(docKey);
         try {
+            // Artificial delay to make the loading spinner animation consistent with View/Download
+            await new Promise(resolve => setTimeout(resolve, 500));
             await Promise.resolve(onSendMail(member));
         } catch (error) {
             console.error('Send mail error:', error);
@@ -298,6 +300,8 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
         const key = docId || type;
         setLoadingDeleteDocId(key);
         try {
+            // Artificial delay to make the loading spinner animation consistent with View/Download
+            await new Promise(resolve => setTimeout(resolve, 500));
             await Promise.resolve(onDeleteDocument?.(docId, type));
         } catch (error) {
             console.error('Delete document error:', error);

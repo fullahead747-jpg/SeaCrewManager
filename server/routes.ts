@@ -1248,7 +1248,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const documentData = insertDocumentSchema.parse(req.body);
       console.log(`[DOC-POST-PARSED] type=${documentData.type}, docNum=${documentData.documentNumber}, issueDate=${documentData.issueDate}, expiryDate=${documentData.expiryDate}, issuingAuth=${documentData.issuingAuthority}`);
 
-      // CV is an upload-only attachment — skip all OCR/validation and store with null metadata
+      // CV is an upload-only attachment — skip all OCR/validation and store with placeholder metadata
       if (documentData.type === 'cv') {
         const crewMember = await storage.getCrewMember(documentData.crewMemberId);
         if (!crewMember) {
@@ -1273,6 +1273,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: documentData.filePath ? 'valid' : 'pending_upload',
         };
         const { document, wasUpdated } = await storage.upsertDocument(cvPayload);
+        return res.json({ ...document, wasUpdated });
+      }
+
+      // STCW Courses: skip OCR validation but preserve real user-entered metadata (dates, doc number)
+      // Courses come in many non-standard layouts (booklets, multi-page certs, varied fonts)
+      // that OCR cannot reliably parse — same treatment as photo/nok document types.
+      if (documentData.type === 'stcw_course') {
+        const crewMember = await storage.getCrewMember(documentData.crewMemberId);
+        if (!crewMember) {
+          return res.status(404).json({ message: "Crew member not found" });
+        }
+        if (documentData.filePath) {
+          const documentStorageService = new DocumentStorageService();
+          documentData.filePath = await documentStorageService.uploadLocalFileToCloud(
+            documentData.filePath,
+            crewMember.id,
+            'crew'
+          );
+        }
+        const coursePayload = {
+          ...documentData,
+          status: documentData.filePath ? 'valid' : 'pending_upload',
+        };
+        const { document, wasUpdated } = await storage.upsertDocument(coursePayload);
         return res.json({ ...document, wasUpdated });
       }
 
@@ -1769,8 +1793,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Document not found" });
       }
 
-      // CV is an upload-only attachment — skip OCR validation, just update file path
-      if (existingDocument.type === 'cv' || updates.type === 'cv') {
+      // CV and stcw_course are upload-only attachments — skip OCR validation, just update file path
+      if (existingDocument.type === 'cv' || updates.type === 'cv' || existingDocument.type === 'stcw_course' || updates.type === 'stcw_course') {
         const crewMember = await storage.getCrewMember(existingDocument.crewMemberId);
         if (updates.filePath && crewMember) {
           const documentStorageService = new DocumentStorageService();
