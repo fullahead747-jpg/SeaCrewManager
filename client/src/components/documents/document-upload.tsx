@@ -327,8 +327,9 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
 
   const triggerOcrScan = async (file: File) => {
     const docType = form.getValues('type') || 'sid';
-    // Only scan for document types that have structured fields
-    const scanTypes = ['sid', 'passport', 'cdc', 'coc', 'medical', 'visa', 'yellow_fever', 'stcw_course'];
+    // Only scan for document types that have structured fields (stcw_course excluded — OCR is unreliable
+    // on course booklets and the server bypasses validation for this type anyway)
+    const scanTypes = ['sid', 'passport', 'cdc', 'coc', 'medical', 'visa', 'yellow_fever'];
     if (!scanTypes.includes(docType)) return;
 
     setIsScanning(true);
