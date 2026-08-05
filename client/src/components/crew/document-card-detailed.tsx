@@ -85,7 +85,7 @@ export function DocumentCardDetailed({ document, documentType, allDocuments, onV
 
     const getOverriddenStatusInfo = () => {
         const info = getStatusInfo();
-        if (documentType === 'coe' || documentType === 'coe-extension') {
+        if (documentType === 'coe' || documentType === 'coe-extension' || documentType === 'stcw_course') {
             if (document && document.filePath) {
                 return { label: 'Valid', color: 'bg-green-500', textColor: 'text-green-700' };
             }

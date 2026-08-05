@@ -219,9 +219,10 @@ const CrewTable = React.memo(() => {
         return { type, status: 'missing' as const, expiryDate: null, daysUntil: null, docId: null, filePath: null };
       }
 
-      // Bypass expiry logic for COE and COE-Extension
-      if (type === 'coe' || type === 'coe-extension') {
-        return { type, status: 'valid' as const, expiryDate: doc.expiryDate ? new Date(doc.expiryDate) : null, daysUntil: null, docId: doc.id, filePath: doc.filePath };
+      // Bypass expiry logic for COE, COE-Extension, and Courses (stcw_course)
+      // These are binary-status documents: Valid if uploaded, Missing if not.
+      if (type === 'coe' || type === 'coe-extension' || type === 'stcw_course') {
+        return { type, status: 'valid' as const, expiryDate: null, daysUntil: null, docId: doc.id, filePath: doc.filePath };
       }
 
       // Handle documents without expiry dates (like Photo/NOK) or TBD

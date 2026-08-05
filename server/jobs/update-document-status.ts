@@ -25,8 +25,8 @@ export async function updateDocumentStatuses() {
         let notificationsSent = 0;
 
         for (const doc of allDocuments) {
-            // Skip COE and COE-Extension as per requirement (only Missing or Valid)
-            if (doc.type === 'coe' || doc.type === 'coe-extension') continue;
+            // Skip COE, COE-Extension, and Courses — only Missing or Valid states apply
+            if (doc.type === 'coe' || doc.type === 'coe-extension' || doc.type === 'stcw_course') continue;
 
             // Calculate current status
             const statusResult = documentStatusService.calculateDocumentStatus(

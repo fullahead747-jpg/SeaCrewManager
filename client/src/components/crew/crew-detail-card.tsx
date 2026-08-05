@@ -164,9 +164,10 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
 
             if (!doc) return { type, status: 'missing' as const, expiryDate: null, daysUntil: null, docId: null, filePath: null, isTbd: false };
 
-            // Bypass expiry logic for COE and COE-Extension
-            if (type === 'coe' || type === 'coe-extension') {
-                return { type, status: 'valid' as const, expiryDate: doc.expiryDate ? new Date(doc.expiryDate) : null, daysUntil: null, docId: doc.id, filePath: doc.filePath, isTbd: doc.expiryDate === null, isContract: false };
+            // Bypass expiry logic for COE, COE-Extension, and Courses (stcw_course)
+            // These are binary-status documents: Valid if uploaded, Missing if not.
+            if (type === 'coe' || type === 'coe-extension' || type === 'stcw_course') {
+                return { type, status: 'valid' as const, expiryDate: null, daysUntil: null, docId: doc.id, filePath: doc.filePath, isTbd: true, isContract: false };
             }
 
             let expiryDate = doc.expiryDate ? new Date(doc.expiryDate) : null;
@@ -214,8 +215,8 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
 
     const stats = React.useMemo(() => {
         // Only count compliance documents for Valid/Expiring/Expired
-        // Exclude N/A documents and non-compliance docs (photo, nok, cv) from all counts
-        const complianceDocs = docStatuses.filter(d => d.type !== 'photo' && d.type !== 'nok' && d.status !== 'na');
+        // Exclude N/A documents and non-compliance docs (photo, nok, cv, stcw_course) from all counts
+        const complianceDocs = docStatuses.filter(d => d.type !== 'photo' && d.type !== 'nok' && d.type !== 'stcw_course' && d.status !== 'na');
 
         const validCount = complianceDocs.filter(d => d.status === 'valid').length;
         const expiringCount = complianceDocs.filter(d => d.status === 'expiring').length;

@@ -1408,6 +1408,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ ...document, wasUpdated });
       }
 
+      if (documentData.type === 'coe' || documentData.type === 'coe-extension') {
+        documentData.expiryDate = null as any;
+      }
+
       const forceSave = req.body.forceSave === true;
 
       // STCW Courses: Perform Seafarer Name validation (prevents uploading wrong person's document),
@@ -1971,6 +1975,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           issuingAuthority: null as any,
         });
         return res.json(updated);
+      }
+
+      if (existingDocument.type === 'coe' || existingDocument.type === 'coe-extension' || updates.type === 'coe' || updates.type === 'coe-extension') {
+        updates.expiryDate = null as any;
       }
 
       // STCW Courses: Perform Seafarer Name validation (prevents uploading wrong person's document),

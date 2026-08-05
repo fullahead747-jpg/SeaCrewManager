@@ -306,7 +306,7 @@ export class DocumentVerificationService {
             console.log(` - Expected Expiry: ${existingData.expiryDate || 'NONE'}`);
 
             // BYPASS FOR PHOTOS & NON-CRITICAL DOCS: These don't have document numbers or dates to match predictably
-            const bypassTypes = ['photo', 'nok', 'next of kin', 'contract', 'agreement', 'letter', 'other', 'sid'];
+            const bypassTypes = ['photo', 'nok', 'next of kin', 'contract', 'agreement', 'letter', 'other', 'sid', 'coe', 'coe-extension', 'coe_extension'];
             if (bypassTypes.some(t => existingData.type.toLowerCase().includes(t))) {
                 console.log(`[VERIFICATION-BYPASS] Bypassing strict OCR matching and forgery analysis for document type: ${existingData.type}`);
                 return {

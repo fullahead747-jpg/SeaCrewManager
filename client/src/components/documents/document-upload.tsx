@@ -129,7 +129,9 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
   const isDateLocked = isAoaDocument && !!document && !selectedFile;
   // CV is upload-only: no doc number, no dates, no issuing authority
   const isCvDocument = watchedType === 'cv';
+  const isNoExpiryDocument = watchedType === 'coe' || watchedType === 'coe-extension' || watchedType === 'photo' || watchedType === 'nok' || isCvDocument;
   const hideMetadataFields = watchedType === 'photo' || watchedType === 'nok' || isCvDocument;
+  const hideDateFields = hideMetadataFields || isNoExpiryDocument;
 
   // Auto-fill existing document data if available and not in edit mode
   useEffect(() => {
@@ -175,12 +177,13 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
       const selectedCrewId = getCurrentCrewMemberId();
       if (!selectedCrewId) throw new Error('No crew member selected.');
       setUploadProgress(95);
+      const isNoExpiry = data.type === 'coe' || data.type === 'coe-extension' || data.type === 'photo' || data.type === 'nok' || data.type === 'cv';
       const payload = {
         ...data,
         crewMemberId: selectedCrewId,
         documentNumber: data.documentNumber || 'N/A',
         issueDate: data.issueDate ? new Date(data.issueDate + 'T00:00:00.000Z') : new Date(),
-        expiryDate: data.expiryDate ? new Date(data.expiryDate + 'T00:00:00.000Z') : new Date(new Date().setFullYear(new Date().getFullYear() + 10)),
+        expiryDate: isNoExpiry ? null : (data.expiryDate ? new Date(data.expiryDate + 'T00:00:00.000Z') : new Date(new Date().setFullYear(new Date().getFullYear() + 10))),
         issuingAuthority: data.issuingAuthority || 'N/A',
         filePath,
         forceSave,
@@ -588,7 +591,7 @@ export default function DocumentUpload({ crewMemberId, document, preselectedType
                 </div>
 
                 {/* Dates Row */}
-                {!hideMetadataFields && (
+                {!hideDateFields && (
                   <div className="grid grid-cols-2 gap-6">
                     <FormField
                       control={form.control}
