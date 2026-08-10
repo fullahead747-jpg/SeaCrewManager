@@ -3621,12 +3621,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       });
 
-      const docsByCrewId = new Map();
-      allDocs.forEach(d => {
-        if (!docsByCrewId.has(d.crewMemberId)) docsByCrewId.set(d.crewMemberId, []);
-        docsByCrewId.get(d.crewMemberId).push(d);
-      });
-
       const crewMap = new Map(allCrew.map(m => [m.id, m]));
 
       // Apply vessel filtering if vesselId is provided or user is vessel-restricted
@@ -3641,9 +3635,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         })
         : allDocs;
 
+      // docsByCrewId is built from filteredDocuments so vessel scope is respected
+      const docsByCrewId = new Map();
+      filteredDocuments.forEach(d => {
+        if (!docsByCrewId.has(d.crewMemberId)) docsByCrewId.set(d.crewMemberId, []);
+        docsByCrewId.get(d.crewMemberId).push(d);
+      });
+
+      // Binary-status doc types: valid if uploaded, expiry date is irrelevant (matches crew-detail-card.tsx)
+      const BINARY_DOC_TYPES = new Set(['coe', 'coe-extension', 'stcw_course', 'stcw']);
+
       const results = await (type === 'document' ? (async () => {
         const matchingCrewMembers = crewMembers.filter(m => {
-          const userDocs = docsByCrewId.get(m.id) || [];
+          const userDocs = (docsByCrewId.get(m.id) || []).filter((d: any) => !BINARY_DOC_TYPES.has(d.type.toLowerCase()));
           let hasExpired = false;
           let hasCritical = false;
           let hasWarning = false;

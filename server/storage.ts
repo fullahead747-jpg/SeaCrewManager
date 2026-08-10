@@ -1137,16 +1137,21 @@ export class DatabaseStorage implements IStorage {
     });
 
     // Document-Centric Health Aggregation
+    // Exclude binary-status doc types that never expire (matches crew-detail-card.tsx logic):
+    // coe, coe-extension, stcw_course are "valid if uploaded" — their expiryDate is ignored.
+    const BINARY_DOC_TYPES = new Set(['coe', 'coe-extension', 'stcw_course', 'stcw']);
+    const complianceDocs = allDocsForHealth.filter(d => !BINARY_DOC_TYPES.has(d.type.toLowerCase()));
+
     const documentHealth = {
       expired: 0,
       critical: 0,
       warning: 0,
       attention: 0,
       valid: 0,
-      total: allDocsForHealth.length
+      total: complianceDocs.length
     };
 
-    allDocsForHealth.forEach(doc => {
+    complianceDocs.forEach(doc => {
       let isCounted = false;
       if (doc.expiryDate) {
         const exp = new Date(doc.expiryDate);
@@ -1167,7 +1172,7 @@ export class DatabaseStorage implements IStorage {
           }
         }
       }
-      
+
       if (!isCounted) {
         documentHealth.valid++;
       }
