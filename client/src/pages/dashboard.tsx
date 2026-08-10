@@ -73,7 +73,7 @@ const MemoizedDocumentHealth = memo(({ stats, statsLoading, onDrillDown }: { sta
       title="Documents Index"
       description="Real-time document compliance status of crew members"
       total={stats.documentHealth.total}
-      totalLabel="CREW RECORDS"
+      totalLabel="DOCUMENTS"
       isLoading={statsLoading}
       onSegmentClick={(key, name) => onDrillDown('document', key, name)}
       data={data}

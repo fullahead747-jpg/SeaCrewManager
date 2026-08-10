@@ -1136,52 +1136,41 @@ export class DatabaseStorage implements IStorage {
       }
     });
 
-    // Crew-Centric Document Health Aggregation (Option B: Highest Severity Precedence)
-    const docsByCrewId = new Map<string, typeof allDocsForHealth>();
-    allDocsForHealth.forEach(d => {
-      if (!docsByCrewId.has(d.crewMemberId)) docsByCrewId.set(d.crewMemberId, []);
-      docsByCrewId.get(d.crewMemberId)!.push(d);
-    });
-
+    // Document-Centric Health Aggregation
     const documentHealth = {
       expired: 0,
       critical: 0,
       warning: 0,
       attention: 0,
       valid: 0,
-      total: allCrewForDocHealth.length
+      total: allDocsForHealth.length
     };
 
-    allCrewForDocHealth.forEach(m => {
-      const userDocs = docsByCrewId.get(m.id) || [];
-      let hasExpired = false;
-      let hasCritical = false;
-      let hasWarning = false;
-      let hasAttention = false;
-
-      userDocs.forEach(doc => {
-        if (doc.expiryDate) {
-          const exp = new Date(doc.expiryDate);
-          const year = exp.getFullYear();
-          if (year > 1900) {
-            if (exp <= now) {
-              hasExpired = true;
-            } else if (exp <= thirtyDaysFromNow) {
-              hasCritical = true;
-            } else if (exp <= ninetyDaysFromNow) {
-              hasWarning = true;
-            } else if (exp <= oneEightyDaysFromNow) {
-              hasAttention = true;
-            }
+    allDocsForHealth.forEach(doc => {
+      let isCounted = false;
+      if (doc.expiryDate) {
+        const exp = new Date(doc.expiryDate);
+        const year = exp.getFullYear();
+        if (year > 1900) {
+          if (exp <= now) {
+            documentHealth.expired++;
+            isCounted = true;
+          } else if (exp <= thirtyDaysFromNow) {
+            documentHealth.critical++;
+            isCounted = true;
+          } else if (exp <= ninetyDaysFromNow) {
+            documentHealth.warning++;
+            isCounted = true;
+          } else if (exp <= oneEightyDaysFromNow) {
+            documentHealth.attention++;
+            isCounted = true;
           }
         }
-      });
-
-      if (hasExpired) documentHealth.expired++;
-      else if (hasCritical) documentHealth.critical++;
-      else if (hasWarning) documentHealth.warning++;
-      else if (hasAttention) documentHealth.attention++;
-      else documentHealth.valid++;
+      }
+      
+      if (!isCounted) {
+        documentHealth.valid++;
+      }
     });
 
     const complianceRate = totalDocsCount.count > 0 ? (validStatusDocsCount.count / totalDocsCount.count) * 100 : 100;
