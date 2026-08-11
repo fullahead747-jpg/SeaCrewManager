@@ -844,6 +844,7 @@ const HealthDrillDownModal = memo(({
                                                 <CrewDetailCard
                                                     member={item}
                                                     documents={documents}
+                                                    activeCategoryKey={type === 'document' ? categoryKey : undefined}
                                                     onView={(m) => { setSelectedCrewMember(m); setShowViewDialog(true); }}
                                                     onEdit={(m) => { setSelectedCrewMember(m); setShowEditDialog(true); }}
                                                     onVesselHistory={(m) => { setSelectedCrewForHistory(m); setShowVesselHistoryDialog(true); }}

@@ -44,6 +44,7 @@ interface CrewDetailCardProps {
     onBulkUpload?: (member: CrewMemberWithDetails) => void;
     onToggleNA?: (member: CrewMemberWithDetails, type: string, value: boolean) => void;
     isMailPending?: boolean;
+    activeCategoryKey?: string;
 }
 
 export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
@@ -62,7 +63,8 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
     onUpload,
     onBulkUpload,
     onToggleNA,
-    isMailPending
+    isMailPending,
+    activeCategoryKey
 }) => {
     const { toast } = useToast();
     const now = React.useMemo(() => new Date(), []);
@@ -154,10 +156,13 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                 if (contract.filePath || contract.endDate) {
                     const expiryDate = contract.endDate ? new Date(contract.endDate) : null;
                     const daysUntil = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
-                    let status: any = 'valid';
-                    const threshold = 30; // AOA is always 30 days
-                    if (daysUntil !== null && daysUntil < 0) status = 'expired';
-                    else if (daysUntil !== null && daysUntil <= threshold) status = 'expiring';
+                    let status: 'valid' | 'expired' | 'critical' | 'warning' | 'attention' = 'valid';
+                    if (daysUntil !== null) {
+                        if (daysUntil <= 0) status = 'expired';
+                        else if (daysUntil <= 30) status = 'critical';
+                        else if (daysUntil <= 90) status = 'warning';
+                        else if (daysUntil <= 180) status = 'attention';
+                    }
                     return { type, status, expiryDate, daysUntil, docId: contract.id, filePath: contract.filePath, isContract: true };
                 }
             }
@@ -185,21 +190,13 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
 
             const daysUntil = expiryDate ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
 
-            let status: any = 'valid';
+            let status: 'valid' | 'expired' | 'critical' | 'warning' | 'attention' = 'valid';
             if (expiryDate && daysUntil !== null) {
-                const threshold = type === 'aoa' ? 30 : 60;
-                if (daysUntil < 0) status = 'expired';
-                else if (daysUntil <= threshold) status = 'expiring';
-            }
-
-            if (type === 'aoa') {
-                console.log(`[AOA Debug] ${member.firstName} ${member.lastName}:`, {
-                    expiryDate: expiryDate?.toISOString(),
-                    now: now.toISOString(),
-                    daysUntil,
-                    threshold: type === 'aoa' ? 30 : 60,
-                    status
-                });
+                if (daysUntil <= 0) status = 'expired';
+                else if (daysUntil <= 30) status = 'critical';
+                else if (daysUntil <= 90) status = 'warning';
+                else if (daysUntil <= 180) status = 'attention';
+                else status = 'valid';
             }
 
             return { type, status, expiryDate, daysUntil, docId: (doc as any)?.id || (doc as any)?.docId || null, filePath: (doc as any)?.filePath || null, isTbd, isContract: (doc as any)?.isContract || false };
@@ -214,19 +211,35 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
     }, [member, documents]);
 
     const stats = React.useMemo(() => {
-        // Only count compliance documents for Valid/Expiring/Expired
-        // Exclude N/A documents and non-compliance docs (photo, nok, cv, stcw_course) from all counts
+        // Exclude N/A documents and non-compliance docs (photo, nok, cv, stcw_course) from compliance counts
         const complianceDocs = docStatuses.filter(d => d.type !== 'photo' && d.type !== 'nok' && d.type !== 'stcw_course' && d.status !== 'na');
 
         const validCount = complianceDocs.filter(d => d.status === 'valid').length;
-        const expiringCount = complianceDocs.filter(d => d.status === 'expiring').length;
+        const criticalCount = complianceDocs.filter(d => d.status === 'critical').length;
+        const warningCount = complianceDocs.filter(d => d.status === 'warning').length;
+        const attentionCount = complianceDocs.filter(d => d.status === 'attention').length;
+        const expiringCount = criticalCount + warningCount + attentionCount;
         const expiredCount = complianceDocs.filter(d => d.status === 'expired').length;
         const pendingCount = complianceDocs.filter(d => d.status === 'missing').length;
 
-        return { validCount, expiringCount, expiredCount, pendingCount };
+        return { validCount, criticalCount, warningCount, attentionCount, expiringCount, expiredCount, pendingCount };
     }, [docStatuses]);
 
-    const { validCount, expiringCount, expiredCount, pendingCount } = stats;
+    const { validCount, criticalCount, warningCount, attentionCount, expiringCount, expiredCount, pendingCount } = stats;
+
+    const triggeringDocs = React.useMemo(() => {
+        if (!activeCategoryKey) return [];
+        const key = activeCategoryKey.toLowerCase();
+        return docStatuses.filter(doc => {
+            if (doc.status === 'na' || doc.status === 'missing') return false;
+            if (key === 'critical' || key.includes('critical')) return doc.status === 'critical';
+            if (key === 'warning' || key.includes('warning')) return doc.status === 'warning';
+            if (key === 'attention' || key.includes('attention')) return doc.status === 'attention';
+            if (key === 'expired' || key.includes('expired')) return doc.status === 'expired';
+            if (key === 'valid' || key.includes('valid')) return doc.status === 'valid';
+            return false;
+        });
+    }, [docStatuses, activeCategoryKey]);
 
     const handleDocClick = React.useCallback(async (doc: any) => {
         if (!doc.filePath || !doc.docId) {
@@ -531,12 +544,16 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                     <div className="flex flex-col">
                         <div className="mb-4">
                             <h4 className="text-lg font-bold text-slate-900 uppercase tracking-tight mb-1">Documents</h4>
-                            <div className="flex items-center gap-1.5 text-[10px] font-normal">
+                            <div className="flex items-center gap-1.5 text-[10px] font-normal flex-wrap">
                                 <span className="text-slate-400">{docStatuses.length} Docs</span>
                                 <span className="text-slate-200">•</span>
                                 <span className="text-[#10B981]">{validCount} Valid</span>
                                 <span className="text-slate-200">•</span>
-                                <span className="text-[#F59E0B]">{expiringCount} Expiring</span>
+                                <span className="text-[#F97316]">{criticalCount} Critical</span>
+                                <span className="text-slate-200">•</span>
+                                <span className="text-[#D97706]">{warningCount} Warning</span>
+                                <span className="text-slate-200">•</span>
+                                <span className="text-[#2563EB]">{attentionCount} Attention</span>
                                 <span className="text-slate-200">•</span>
                                 <span className="text-[#EF4444]">{expiredCount} Expired</span>
                                 <span className="text-slate-200">•</span>
@@ -544,11 +561,39 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                             </div>
                         </div>
 
+                        {activeCategoryKey && triggeringDocs.length > 0 && (
+                            <div className="mb-3 px-3 py-2 bg-amber-50/90 border border-amber-200 rounded-xl flex items-center justify-between text-xs shadow-2xs">
+                                <div className="flex items-center gap-2">
+                                    <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                                    <span className="font-semibold text-amber-900 text-[11px]">
+                                        {triggeringDocs.length} {triggeringDocs.length === 1 ? 'document' : 'documents'} triggering this category filter:
+                                    </span>
+                                </div>
+                                <span className="font-bold text-amber-700 text-[11px] uppercase tracking-tight">
+                                    {triggeringDocs.map(d => getDocTypeLabel(d.type)).join(', ')}
+                                </span>
+                            </div>
+                        )}
+
                         <div className="space-y-1">
                             {docStatuses.map((doc) => {
                                 const isInvalid = doc.status === 'missing' || !doc.filePath;
+                                const isTriggering = triggeringDocs.some(td => td.type === doc.type);
+                                const isFilteredView = Boolean(activeCategoryKey);
+
+                                let rowStyle = "flex items-center justify-between py-1.5 px-3 rounded-xl transition-all group ";
+                                if (isFilteredView) {
+                                    if (isTriggering) {
+                                        rowStyle += "bg-amber-50/90 border-l-4 border-amber-500 shadow-2xs ring-1 ring-amber-300/60 font-medium ";
+                                    } else {
+                                        rowStyle += "opacity-50 hover:opacity-90 bg-slate-50/40 ";
+                                    }
+                                } else {
+                                    rowStyle += "hover:bg-slate-50 ";
+                                }
+
                                 return (
-                                    <div key={doc.type} className="flex items-center justify-between py-1.5 px-3 rounded-xl hover:bg-slate-50 transition-colors group">
+                                    <div key={doc.type} className={rowStyle}>
                                         <div className="flex items-center gap-4">
                                             {doc.status === 'na' ? (
                                                 <div className="w-4 h-4 rounded-full bg-white border-2 border-slate-300 flex items-center justify-center">
@@ -578,8 +623,23 @@ export const CrewDetailCard = React.memo<CrewDetailCardProps>(({
                                             {doc.status === 'expired' && (
                                                 <span className="text-[#EF4444] text-[10px] font-bold bg-red-50 px-2 py-0.5 rounded-full border border-red-100">EXPIRED</span>
                                             )}
-                                            {doc.status === 'expiring' && (
-                                                <span className="text-[#F59E0B] text-[10px] font-bold bg-orange-50 px-2 py-0.5 rounded-full border border-orange-100">EXPIRING</span>
+                                            {doc.status === 'critical' && (
+                                                <span className="text-[#F97316] text-[10px] font-bold bg-orange-50 px-2 py-0.5 rounded-full border border-orange-200 flex items-center gap-1">
+                                                    CRITICAL {doc.daysUntil !== null ? `(${doc.daysUntil}d)` : '(<30d)'}
+                                                </span>
+                                            )}
+                                            {doc.status === 'warning' && (
+                                                <span className="text-[#D97706] text-[10px] font-bold bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+                                                    WARNING {doc.daysUntil !== null ? `(${doc.daysUntil}d)` : '(<90d)'}
+                                                </span>
+                                            )}
+                                            {doc.status === 'attention' && (
+                                                <span className="text-[#2563EB] text-[10px] font-bold bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 flex items-center gap-1">
+                                                    ATTENTION {doc.daysUntil !== null ? `(${doc.daysUntil}d)` : '(<180d)'}
+                                                </span>
+                                            )}
+                                            {doc.status === 'valid' && !isInvalid && (
+                                                <span className="text-[#10B981] text-[10px] font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">VALID</span>
                                             )}
 
                                             {isInvalid && doc.status !== 'na' ? (
