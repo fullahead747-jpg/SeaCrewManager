@@ -178,7 +178,15 @@ export async function generateVesselPDFBuffer(vesselId: string, storage: IStorag
 // Helper: derive worst-case document compliance status for a crew member
 function getComplianceStatus(crewMember: any, allDocs: any[]): string {
     const now = new Date();
-    const memberDocs = allDocs.filter(d => d.crewMemberId === crewMember.id && d.expiryDate);
+    
+    // Binary-status doc types: valid if uploaded, expiry date is irrelevant (matches web app and storage logic)
+    const BINARY_DOC_TYPES = new Set(['coe', 'coe-extension', 'stcw_course', 'stcw']);
+    
+    const memberDocs = allDocs.filter(d => 
+        d.crewMemberId === crewMember.id && 
+        d.expiryDate && 
+        !BINARY_DOC_TYPES.has((d.type || '').toLowerCase())
+    );
     
     let worst = 0; // 0=Not Due, 1=Attention, 2=Upcoming, 3=Critical, 4=Overdue
 

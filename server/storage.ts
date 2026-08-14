@@ -314,9 +314,15 @@ export class DatabaseStorage implements IStorage {
     const totalSailedMap = new Map<string, number>();
 
     allContracts.forEach(c => {
-      // 1. Determine local active contract
+      // 1. Determine local active contract (prioritize status === 'active')
       const existing = activeContractMap.get(c.crewMemberId);
-      if (!existing || (c.createdAt && existing.createdAt && c.createdAt > existing.createdAt)) {
+      if (c.status === 'active') {
+        if (!existing || existing.status !== 'active' || (c.createdAt && existing.createdAt && c.createdAt > existing.createdAt)) {
+          activeContractMap.set(c.crewMemberId, c);
+        }
+      } else if (!existing) {
+        activeContractMap.set(c.crewMemberId, c);
+      } else if (existing.status !== 'active' && c.createdAt && existing.createdAt && c.createdAt > existing.createdAt) {
         activeContractMap.set(c.crewMemberId, c);
       }
 
