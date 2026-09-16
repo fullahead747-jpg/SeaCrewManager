@@ -6,7 +6,8 @@ import {
     FormLabel,
     FormMessage,
 } from '@/components/ui/form';
-import { useFormContext } from 'react-hook-form';
+import { useFormContext, useWatch } from 'react-hook-form';
+import { useEffect } from 'react';
 import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -21,6 +22,39 @@ interface ContractSectionProps {
 export function ContractSection({ crewMember }: ContractSectionProps) {
     const form = useFormContext();
     const { toast } = useToast();
+
+    // Helper to calculate end date from start date and duration in days
+    const calculateEndDateFromDuration = (startDateStr: string | undefined, durationVal: number | string | undefined) => {
+        if (!startDateStr || !durationVal || Number(durationVal) <= 0) return '';
+        const cleanDate = startDateStr.includes('T') ? startDateStr.split('T')[0] : startDateStr;
+        const parts = cleanDate.split('-');
+        if (parts.length === 3) {
+            const year = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const day = parseInt(parts[2], 10);
+            const start = new Date(Date.UTC(year, month, day));
+            if (isNaN(start.getTime())) return '';
+            const end = new Date(start.getTime() + Number(durationVal) * 24 * 60 * 60 * 1000);
+            return end.toISOString().split('T')[0];
+        }
+        const start = new Date(cleanDate + 'T00:00:00Z');
+        if (isNaN(start.getTime())) return '';
+        const end = new Date(start.getTime() + Number(durationVal) * 24 * 60 * 60 * 1000);
+        return end.toISOString().split('T')[0];
+    };
+
+    // Reactively watch both inputs so end date recalculates whenever either changes
+    const watchedStartDate = useWatch({ control: form.control, name: 'contractStartDate' });
+    const watchedDuration = useWatch({ control: form.control, name: 'contractDurationDays' });
+    // Watch end date directly so the DatePicker display always reflects the latest value
+    const watchedEndDate = useWatch({ control: form.control, name: 'contractEndDate' });
+
+    useEffect(() => {
+        const newEndDate = calculateEndDateFromDuration(watchedStartDate, watchedDuration);
+        if (newEndDate && newEndDate !== form.getValues('contractEndDate')) {
+            form.setValue('contractEndDate', newEndDate, { shouldDirty: true, shouldValidate: true });
+        }
+    }, [watchedStartDate, watchedDuration]);
 
     const handleViewContract = async () => {
         if (!crewMember?.activeContract?.id) return;
@@ -75,19 +109,15 @@ export function ContractSection({ crewMember }: ContractSectionProps) {
                             <FormControl>
                                 <DatePicker
                                     {...field}
-                                    className="bg-white dark:bg-gray-950"
                                     onChange={(val) => {
                                         field.onChange(val);
-                                        // Calculate end date when start date changes
-                                        const startDate = val;
-                                        const duration = form.getValues('contractDurationDays');
-                                        if (startDate && duration) {
-                                            const start = new Date(startDate);
-                                            const end = new Date(start);
-                                            end.setDate(start.getDate() + parseInt(duration));
-                                            form.setValue('contractEndDate', end.toISOString().split('T')[0]);
+                                        const currentDuration = form.getValues('contractDurationDays');
+                                        const newEndDate = calculateEndDateFromDuration(val, currentDuration);
+                                        if (newEndDate) {
+                                            form.setValue('contractEndDate', newEndDate, { shouldDirty: true, shouldValidate: true });
                                         }
                                     }}
+                                    className="bg-white dark:bg-gray-950"
                                 />
                             </FormControl>
                             <FormMessage />
@@ -107,18 +137,18 @@ export function ContractSection({ crewMember }: ContractSectionProps) {
                                     min="1"
                                     placeholder="e.g., 90"
                                     {...field}
-                                    value={field.value || 90}
+                                    value={field.value !== undefined && field.value !== null ? field.value : 90}
                                     className="bg-white dark:bg-gray-950"
                                     onChange={(e) => {
-                                        const duration = parseInt(e.target.value) || 0;
-                                        field.onChange(duration);
-                                        // Calculate end date when duration changes
-                                        const startDate = form.getValues('contractStartDate');
-                                        if (startDate && duration > 0) {
-                                            const start = new Date(startDate);
-                                            const end = new Date(start);
-                                            end.setDate(start.getDate() + duration);
-                                            form.setValue('contractEndDate', end.toISOString().split('T')[0]);
+                                        const rawVal = e.target.value;
+                                        const duration = parseInt(rawVal, 10);
+                                        field.onChange(isNaN(duration) ? rawVal : duration);
+                                        if (!isNaN(duration) && duration > 0) {
+                                            const currentStart = form.getValues('contractStartDate');
+                                            const newEndDate = calculateEndDateFromDuration(currentStart, duration);
+                                            if (newEndDate) {
+                                                form.setValue('contractEndDate', newEndDate, { shouldDirty: true, shouldValidate: true });
+                                            }
                                         }
                                     }}
                                 />
@@ -138,6 +168,7 @@ export function ContractSection({ crewMember }: ContractSectionProps) {
                         <FormControl>
                             <DatePicker
                                 {...field}
+                                value={watchedEndDate || field.value || ''}
                                 disabled
                                 className="bg-gray-50 dark:bg-gray-900 cursor-not-allowed"
                             />
@@ -147,7 +178,6 @@ export function ContractSection({ crewMember }: ContractSectionProps) {
                 )}
             />
 
-            {/* Contract Document Viewing */}
             {crewMember?.activeContract?.filePath && (
                 <div className="mt-6 pt-4 border-t border-gray-100 dark:border-gray-800">
                     <Button

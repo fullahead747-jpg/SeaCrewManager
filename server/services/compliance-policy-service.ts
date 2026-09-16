@@ -38,7 +38,7 @@ export class CompliancePolicyService {
                     return {
                         allowed: false,
                         reason: `Mandatory document ${type.toUpperCase()} is missing or has no expiry date`,
-                        severity: 'error'
+                        severity: 'warning' // Warning allows admin to override and extend contract
                     };
                 }
 

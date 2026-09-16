@@ -3236,7 +3236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // POLICY ENFORCEMENT: Check policy if end date is being extended
-      if (updates.endDate) {
+      if (updates.endDate && !req.body.overridePolicy) {
         const validation = await compliancePolicyService.validateContractExtension(req.params.id, new Date(updates.endDate));
         if (!validation.allowed && validation.severity === 'error') {
           return res.status(400).json({

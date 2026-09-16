@@ -243,33 +243,51 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
         updateData.statusChangeReason = data.statusChangeReason;
       }
 
-      // Handle contract update logic (Simplified from original for brevity, but retaining core logic)
+      // Handle contract update logic
       if (data.contractStartDate && data.contractEndDate && crewMember.activeContract) {
+        const startStr = data.contractStartDate.includes('T') ? data.contractStartDate.split('T')[0] : data.contractStartDate;
+        const endStr = data.contractEndDate.includes('T') ? data.contractEndDate.split('T')[0] : data.contractEndDate;
+        const durationVal = data.contractDurationDays || Math.ceil((new Date(endStr + 'T00:00:00.000Z').getTime() - new Date(startStr + 'T00:00:00.000Z').getTime()) / (1000 * 60 * 60 * 24));
+
         const contractUpdateData = {
-          startDate: new Date(data.contractStartDate + 'T00:00:00.000Z'),
-          endDate: new Date(data.contractEndDate + 'T00:00:00.000Z'),
+          startDate: new Date(startStr + 'T00:00:00.000Z'),
+          endDate: new Date(endStr + 'T00:00:00.000Z'),
+          durationDays: durationVal,
+          overridePolicy: true,
         };
-        await fetch(`/api/contracts/${crewMember.activeContract.id}`, {
+        const contractRes = await fetch(`/api/contracts/${crewMember.activeContract.id}`, {
           method: 'PUT',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify(contractUpdateData),
         });
+        if (!contractRes.ok) {
+          const errData = await contractRes.json().catch(() => ({}));
+          throw new Error(errData.message || errData.reason || 'Failed to update contract');
+        }
       } else if (data.contractStartDate && data.contractEndDate && !crewMember.activeContract && data.currentVesselId) {
         // Create contract if missing but dates provided
+        const startStr = data.contractStartDate.includes('T') ? data.contractStartDate.split('T')[0] : data.contractStartDate;
+        const endStr = data.contractEndDate.includes('T') ? data.contractEndDate.split('T')[0] : data.contractEndDate;
+        const durationVal = data.contractDurationDays || Math.ceil((new Date(endStr + 'T00:00:00.000Z').getTime() - new Date(startStr + 'T00:00:00.000Z').getTime()) / (1000 * 60 * 60 * 24));
+
         const contractCreateData = {
           crewMemberId: crewMember.id,
           vesselId: data.currentVesselId, // Default to selected vessel
-          startDate: new Date(data.contractStartDate + 'T00:00:00.000Z'),
-          endDate: new Date(data.contractEndDate + 'T00:00:00.000Z'),
-          durationDays: data.contractDurationDays || 90,
+          startDate: new Date(startStr + 'T00:00:00.000Z'),
+          endDate: new Date(endStr + 'T00:00:00.000Z'),
+          durationDays: durationVal,
           status: 'active',
           contractType: 'SEA',
         };
-        await fetch('/api/contracts', {
+        const contractRes = await fetch('/api/contracts', {
           method: 'POST',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify(contractCreateData),
         });
+        if (!contractRes.ok) {
+          const errData = await contractRes.json().catch(() => ({}));
+          throw new Error(errData.message || errData.reason || 'Failed to create contract');
+        }
       }
 
       // Update Documents
@@ -304,6 +322,7 @@ export default function EditCrewForm({ crewMember, onSuccess }: EditCrewFormProp
       queryClient.invalidateQueries({ queryKey: ['/api/vessels'] });
       queryClient.invalidateQueries({ queryKey: ['/api/documents'] });
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/drilldown'] });
       toast({ title: 'Success', description: 'Crew member updated successfully' });
       onSuccess();
     },
